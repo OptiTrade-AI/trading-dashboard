@@ -171,8 +171,8 @@ export interface StockEvent {
 }
 
 export const CORE_WATCHLIST = {
-  tier1: ['HOOD', 'NBIS', 'SOFI'],
-  tier2: ['IREN', 'CRDO', 'MSTR']
+  tier1: [] as string[],
+  tier2: [] as string[]
 };
 
 export const ALL_TICKERS = [...CORE_WATCHLIST.tier1, ...CORE_WATCHLIST.tier2];

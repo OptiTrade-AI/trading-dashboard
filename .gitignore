@@ -42,6 +42,9 @@ data_backup.zip
 # planning docs
 /plan/
 
+# scripts
+/scripts/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

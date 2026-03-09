@@ -4,26 +4,26 @@ export default function Strategy() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground tracking-tight">Strategy Reference</h1>
-        <p className="text-muted mt-1">Your CSP trading rules and guidelines</p>
+        <p className="text-muted mt-1">Your trading rules and guidelines</p>
       </div>
 
       {/* Quick Reference */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="glass-card p-4 text-center">
           <div className="stat-label mb-2">Max Heat</div>
-          <div className="text-2xl font-bold text-caution">30%</div>
+          <div className="text-2xl font-bold text-caution">—</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="stat-label mb-2">Delta Range</div>
-          <div className="text-2xl font-bold text-foreground">0.20-0.35</div>
+          <div className="text-2xl font-bold text-foreground">—</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="stat-label mb-2">Take Profit</div>
-          <div className="text-2xl font-bold text-profit">50%</div>
+          <div className="text-2xl font-bold text-profit">—</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="stat-label mb-2">Max Loss</div>
-          <div className="text-2xl font-bold text-loss">2x Premium</div>
+          <div className="text-2xl font-bold text-loss">—</div>
         </div>
       </div>
 
@@ -37,10 +37,10 @@ export default function Strategy() {
         </div>
         <div className="grid gap-3">
           {[
-            { rule: 'Max 30% portfolio heat', desc: 'Never exceed 30% of account value in total collateral' },
-            { rule: 'Max 3-5 positions open', desc: 'Stay diversified, don\'t overconcentrate' },
+            { rule: 'Define your max portfolio heat', desc: 'Set a maximum percentage of account value deployed as collateral' },
+            { rule: 'Limit open positions', desc: 'Stay diversified, don\'t overconcentrate' },
             { rule: 'Stagger expirations', desc: 'Spread risk across different expiration dates' },
-            { rule: 'No single position > 10%', desc: 'Limit individual position size' },
+            { rule: 'Cap individual position size', desc: 'Limit any single position as a percentage of your account' },
           ].map((item, i) => (
             <div key={i} className="bg-background/30 rounded-xl p-4 flex items-start gap-4">
               <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
@@ -65,21 +65,21 @@ export default function Strategy() {
             <h2 className="text-xl font-semibold text-foreground">Entry Checklist</h2>
           </div>
           <span className="px-3 py-1 bg-accent/10 text-accent text-sm font-medium rounded-lg">
-            Need 7/10
+            Customize your criteria
           </span>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
           {[
-            'Monthly trend bullish (price > 200 SMA)',
-            'Weekly MAs stacked bullish',
-            'Price at or near support',
-            'RSI not overbought (under 70)',
-            'IV elevated (IV rank > 30%)',
-            'Strike at or below 50 SMA',
-            'Delta 0.20-0.35',
-            'Company is profitable',
-            'Analyst price target > current price',
-            'No earnings within expiration',
+            'Trend aligned with your timeframe',
+            'Moving averages confirm direction',
+            'Price at key support/resistance level',
+            'Momentum indicators in range',
+            'Implied volatility favorable',
+            'Strike selection meets your criteria',
+            'Delta within your target range',
+            'Fundamentals support the thesis',
+            'Risk/reward ratio acceptable',
+            'No major catalysts before expiration',
           ].map((item, index) => (
             <div key={index} className="flex items-center gap-3 bg-background/30 rounded-xl p-3">
               <div className="w-7 h-7 rounded-lg bg-accent/10 text-accent text-sm font-bold flex items-center justify-center flex-shrink-0">
@@ -105,9 +105,9 @@ export default function Strategy() {
               <div className="w-6 h-6 rounded-lg bg-profit/20 flex items-center justify-center">
                 <span className="text-profit text-sm">✓</span>
               </div>
-              <span className="font-semibold text-profit">50% Profit Rule</span>
+              <span className="font-semibold text-profit">Profit Target</span>
             </div>
-            <p className="text-muted text-sm ml-8">50% profit any time → CLOSE immediately</p>
+            <p className="text-muted text-sm ml-8">Define your profit target percentage and close when hit</p>
           </div>
 
           <div className="bg-caution/5 rounded-xl p-5 border border-caution/20">
@@ -115,12 +115,12 @@ export default function Strategy() {
               <div className="w-6 h-6 rounded-lg bg-caution/20 flex items-center justify-center">
                 <span className="text-caution text-sm">⏱</span>
               </div>
-              <span className="font-semibold text-caution">Decision Point</span>
+              <span className="font-semibold text-caution">Time-Based Review</span>
             </div>
-            <p className="text-muted text-sm ml-8 mb-2">50% time remaining → Evaluate position</p>
+            <p className="text-muted text-sm ml-8 mb-2">At your chosen time threshold, evaluate the position:</p>
             <ul className="text-sm text-muted space-y-1 ml-8">
-              <li>• If profitable at decision point → CLOSE</li>
-              <li>• If losing but support intact → ROLL</li>
+              <li>• If profitable → consider closing</li>
+              <li>• If losing but thesis intact → consider rolling</li>
             </ul>
           </div>
 
@@ -132,52 +132,32 @@ export default function Strategy() {
               <span className="font-semibold text-loss">Hard Stops</span>
             </div>
             <ul className="text-sm text-muted space-y-1 ml-8">
-              <li>• <strong className="text-foreground">Support broken</strong> (weekly close below) → CLOSE immediately, never roll</li>
-              <li>• <strong className="text-foreground">Loss &gt; 2x premium</strong> → CLOSE</li>
+              <li>• <strong className="text-foreground">Thesis invalidated</strong> → Close immediately</li>
+              <li>• <strong className="text-foreground">Max loss threshold reached</strong> → Close</li>
             </ul>
           </div>
         </div>
       </section>
 
-      {/* Core Watchlist */}
+      {/* Watchlist */}
       <section className="glass-card p-6">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
             <span className="text-lg">👁</span>
           </div>
-          <h2 className="text-xl font-semibold text-foreground">Core Watchlist</h2>
+          <h2 className="text-xl font-semibold text-foreground">Watchlist</h2>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-background/30 rounded-xl p-4">
             <div className="stat-label mb-3">Tier 1 (Primary)</div>
             <div className="flex flex-wrap gap-2">
-              {['HOOD', 'NBIS', 'SOFI'].map((ticker) => (
-                <div
-                  key={ticker}
-                  className="px-4 py-2 bg-accent/10 text-accent rounded-xl font-semibold flex items-center gap-2"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-accent/20 flex items-center justify-center text-xs">
-                    {ticker.slice(0, 2)}
-                  </div>
-                  {ticker}
-                </div>
-              ))}
+              <p className="text-muted text-sm">Add your primary tickers here</p>
             </div>
           </div>
           <div className="bg-background/30 rounded-xl p-4">
             <div className="stat-label mb-3">Tier 2 (Secondary)</div>
             <div className="flex flex-wrap gap-2">
-              {['IREN', 'CRDO', 'MSTR'].map((ticker) => (
-                <div
-                  key={ticker}
-                  className="px-4 py-2 bg-muted/10 text-foreground/80 rounded-xl font-semibold flex items-center gap-2"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-muted/20 flex items-center justify-center text-xs text-muted">
-                    {ticker.slice(0, 2)}
-                  </div>
-                  {ticker}
-                </div>
-              ))}
+              <p className="text-muted text-sm">Add your secondary tickers here</p>
             </div>
           </div>
         </div>

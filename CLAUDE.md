@@ -7,7 +7,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — Start dev server with Turbopack (port 3000)
 - `npm run build` — Production build
 - `npm run lint` — ESLint
-- `npx tsx scripts/seed-mongodb.ts` — Seed MongoDB with sample data
 
 ## Architecture
 

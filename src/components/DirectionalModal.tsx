@@ -92,7 +92,7 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
               onFocus={() => setShowTickerList(true)}
               onBlur={() => setTimeout(() => setShowTickerList(false), 200)}
               className="input-field"
-              placeholder="HOOD"
+              placeholder="AAPL"
               required
             />
             {showTickerList && filteredTickers.length > 0 && (
