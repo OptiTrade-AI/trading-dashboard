@@ -7,6 +7,9 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)
 
+<!-- Add your own screenshot here -->
+<!-- ![Dashboard Screenshot](docs/screenshot.png) -->
+
 ---
 
 ## Features
@@ -96,7 +99,7 @@ Create a `.env` file in the project root:
 
 ```env
 MONGODB_URI=mongodb+srv://your-connection-string
-MONGODB_DB=csp-tracker
+MONGODB_DB=your-database-name
 ```
 
 ### Run Development Server
