@@ -1,0 +1,570 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Trade, ALL_TICKERS, EXIT_REASONS, ExitReason } from '@/types';
+import { calculateCollateral, calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
+import { format } from 'date-fns';
+
+interface AddTradeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (trade: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status'>) => void;
+}
+
+export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps) {
+  const [ticker, setTicker] = useState('');
+  const [strike, setStrike] = useState('');
+  const [contracts, setContracts] = useState('1');
+  const [expiration, setExpiration] = useState('');
+  const [premium, setPremium] = useState('');
+  const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [showTickerList, setShowTickerList] = useState(false);
+  const [filteredTickers, setFilteredTickers] = useState(ALL_TICKERS);
+
+  useEffect(() => {
+    if (ticker) {
+      setFilteredTickers(
+        ALL_TICKERS.filter(t => t.toLowerCase().includes(ticker.toLowerCase()))
+      );
+    } else {
+      setFilteredTickers(ALL_TICKERS);
+    }
+  }, [ticker]);
+
+  const numContracts = parseInt(contracts) || 1;
+  const collateral = strike ? calculateCollateral(parseFloat(strike), numContracts) : 0;
+  const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticker || !strike || !expiration || !premium || !contracts) return;
+
+    onSubmit({
+      ticker: ticker.toUpperCase(),
+      strike: parseFloat(strike),
+      contracts: numContracts,
+      expiration,
+      entryDate,
+      premiumCollected: parseFloat(premium),
+    });
+
+    setTicker('');
+    setStrike('');
+    setContracts('1');
+    setExpiration('');
+    setPremium('');
+    setEntryDate(format(new Date(), 'yyyy-MM-dd'));
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="glass-card w-full max-w-md overflow-hidden">
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Add New Trade</h2>
+            <p className="text-muted text-sm mt-0.5">Enter your CSP details</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-background/50 flex items-center justify-center text-muted hover:text-foreground hover:bg-background transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          <div className="relative">
+            <label className="stat-label mb-2 block">Ticker</label>
+            <input
+              type="text"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value)}
+              onFocus={() => setShowTickerList(true)}
+              onBlur={() => setTimeout(() => setShowTickerList(false), 200)}
+              className="input-field"
+              placeholder="HOOD"
+              required
+            />
+            {showTickerList && filteredTickers.length > 0 && (
+              <div className="absolute top-full left-0 right-0 glass-card mt-2 overflow-hidden z-10 max-h-48 overflow-y-auto">
+                {filteredTickers.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setTicker(t);
+                      setShowTickerList(false);
+                    }}
+                    className="w-full px-4 py-3 text-left text-foreground hover:bg-accent/10 transition-colors flex items-center gap-3"
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent text-xs font-bold">
+                      {t.slice(0, 2)}
+                    </span>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Strike Price</label>
+              <input
+                type="number"
+                step="0.01"
+                value={strike}
+                onChange={(e) => setStrike(e.target.value)}
+                className="input-field"
+                placeholder="25.00"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Contracts</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={contracts}
+                onChange={(e) => setContracts(e.target.value)}
+                className="input-field"
+                placeholder="1"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Premium</label>
+              <input
+                type="number"
+                step="0.01"
+                value={premium}
+                onChange={(e) => setPremium(e.target.value)}
+                className="input-field"
+                placeholder="85.00"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Entry Date</label>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Expiration</label>
+              <input
+                type="date"
+                value={expiration}
+                onChange={(e) => setExpiration(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Calculated values */}
+          <div className="bg-background/30 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Collateral Required</span>
+              <span className="text-foreground font-semibold">{formatCurrency(collateral)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Days to Expiration</span>
+              <span className="text-foreground font-semibold">{dte} days</span>
+            </div>
+            {collateral > 0 && premium && (
+              <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                <span className="text-muted">Return on Collateral</span>
+                <span className="text-profit font-semibold">
+                  {((parseFloat(premium) / collateral) * 100).toFixed(2)}%
+                </span>
+              </div>
+            )}
+          </div>
+
+          <button type="submit" className="btn-primary w-full py-3">
+            Add Trade
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface CloseTradeModalProps {
+  isOpen: boolean;
+  trade: Trade | null;
+  onClose: () => void;
+  onSubmit: (exitPrice: number, exitDate: string, exitReason: ExitReason) => void;
+  onRoll?: (exitPrice: number, exitDate: string, newTrade: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status' | 'rollChainId' | 'rollNumber'>) => void;
+  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason) => void;
+}
+
+export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPartialClose }: CloseTradeModalProps) {
+  const [exitPrice, setExitPrice] = useState('');
+  const [exitDate, setExitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [exitReason, setExitReason] = useState<ExitReason>('50% profit');
+  const [isRolling, setIsRolling] = useState(false);
+  const [isPartialClose, setIsPartialClose] = useState(false);
+  const [contractsToClose, setContractsToClose] = useState('1');
+
+  // Roll fields
+  const [newStrike, setNewStrike] = useState('');
+  const [newExpiration, setNewExpiration] = useState('');
+  const [newPremium, setNewPremium] = useState('');
+  const [newContracts, setNewContracts] = useState('');
+
+  const isAssigned = exitReason === 'assigned';
+
+  useEffect(() => {
+    if (trade) {
+      if (isAssigned) {
+        setExitPrice(trade.premiumCollected.toFixed(2));
+      } else {
+        setExitPrice((trade.premiumCollected * 0.5).toFixed(2));
+      }
+      setIsRolling(false);
+      setIsPartialClose(false);
+      setContractsToClose('1');
+      setNewStrike(trade.strike.toString());
+      setNewContracts(trade.contracts.toString());
+      setNewExpiration('');
+      setNewPremium('');
+    }
+  }, [trade, isAssigned]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!exitPrice) return;
+
+    if (isPartialClose && onPartialClose && trade) {
+      const numToClose = parseInt(contractsToClose);
+      if (!numToClose || numToClose < 1 || numToClose >= trade.contracts) return;
+      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason);
+    } else if (isRolling && onRoll && trade) {
+      if (!newStrike || !newExpiration || !newPremium) return;
+      onRoll(parseFloat(exitPrice), exitDate, {
+        ticker: trade.ticker,
+        strike: parseFloat(newStrike),
+        contracts: parseInt(newContracts) || trade.contracts,
+        expiration: newExpiration,
+        entryDate: exitDate,
+        premiumCollected: parseFloat(newPremium),
+      });
+    } else {
+      onSubmit(parseFloat(exitPrice), exitDate, exitReason);
+    }
+    onClose();
+  };
+
+  if (!isOpen || !trade) return null;
+
+  const pl = trade.premiumCollected - parseFloat(exitPrice || '0');
+  const plPercent = trade.collateral > 0 ? (pl / trade.collateral) * 100 : 0;
+  const newCollateral = newStrike ? calculateCollateral(parseFloat(newStrike), parseInt(newContracts) || trade.contracts) : 0;
+  const newDte = newExpiration && exitDate ? calculateDTEFromEntry(exitDate, newExpiration) : 0;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="glass-card w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <span className="text-accent font-bold text-sm">{trade.ticker.slice(0, 2)}</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isRolling ? 'Roll Position' : 'Close Position'}
+              </h2>
+              <p className="text-muted text-sm">{trade.ticker} ${trade.strike}P × {trade.contracts}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-background/50 flex items-center justify-center text-muted hover:text-foreground hover:bg-background transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          {/* Position summary */}
+          <div className="bg-background/30 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Contracts</span>
+              <span className="text-foreground font-semibold">{trade.contracts}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Premium Collected</span>
+              <span className="text-profit font-semibold">{formatCurrency(trade.premiumCollected)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Collateral</span>
+              <span className="text-foreground font-semibold">{formatCurrency(trade.collateral)}</span>
+            </div>
+          </div>
+
+          {/* Partial close toggle */}
+          {onPartialClose && trade.contracts > 1 && !isAssigned && !isRolling && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPartialClose(!isPartialClose)}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${
+                    isPartialClose ? 'bg-caution' : 'bg-background/50'
+                  }`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    isPartialClose ? 'left-7' : 'left-1'
+                  }`} />
+                </button>
+                <span className="text-foreground text-sm">Partial close (close some contracts)</span>
+              </div>
+              {isPartialClose && (
+                <div>
+                  <label className="stat-label mb-2 block">
+                    Contracts to close (of {trade.contracts})
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={trade.contracts - 1}
+                    step="1"
+                    value={contractsToClose}
+                    onChange={(e) => setContractsToClose(e.target.value)}
+                    className="input-field"
+                    required
+                  />
+                  <p className="text-muted text-xs mt-1">
+                    {parseInt(contractsToClose) || 0} will close, {trade.contracts - (parseInt(contractsToClose) || 0)} will remain open
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Roll toggle */}
+          {onRoll && !isAssigned && !isPartialClose && (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsRolling(!isRolling)}
+                className={`relative w-12 h-6 rounded-full transition-colors ${
+                  isRolling ? 'bg-accent' : 'bg-background/50'
+                }`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  isRolling ? 'left-7' : 'left-1'
+                }`} />
+              </button>
+              <span className="text-foreground text-sm">Roll to new position</span>
+            </div>
+          )}
+
+          {!isRolling && (
+            <div>
+              <label className="stat-label mb-2 block">Exit Reason</label>
+              <select
+                value={exitReason}
+                onChange={(e) => setExitReason(e.target.value as ExitReason)}
+                className="input-field"
+              >
+                {EXIT_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {reason}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {!isAssigned && (
+            <div>
+              <label className="stat-label mb-2 block">Exit Price (cost to close)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={exitPrice}
+                onChange={(e) => setExitPrice(e.target.value)}
+                className="input-field"
+                placeholder="42.50"
+                required
+              />
+            </div>
+          )}
+
+          {isAssigned && (
+            <div className="bg-accent/10 rounded-xl p-4 space-y-2">
+              <p className="text-accent text-sm font-medium">
+                You now own {trade.contracts * 100} shares of {trade.ticker}
+              </p>
+              <div className="text-accent/80 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span>Strike price:</span>
+                  <span>${trade.strike.toFixed(2)}/share</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Premium received:</span>
+                  <span>-${(trade.premiumCollected / (trade.contracts * 100)).toFixed(2)}/share</span>
+                </div>
+                <div className="flex justify-between border-t border-accent/20 pt-1 font-medium">
+                  <span>Effective cost basis:</span>
+                  <span>${(trade.strike - trade.premiumCollected / (trade.contracts * 100)).toFixed(2)}/share</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="stat-label mb-2 block">{isRolling ? 'Roll Date' : 'Exit Date'}</label>
+            <input
+              type="date"
+              value={exitDate}
+              onChange={(e) => setExitDate(e.target.value)}
+              className="input-field"
+              required
+            />
+          </div>
+
+          {/* Roll fields */}
+          {isRolling && (
+            <>
+              <div className="border-t border-border/30 pt-4">
+                <h3 className="text-sm font-semibold text-accent mb-3">New Position</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="stat-label mb-2 block">Strike</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newStrike}
+                      onChange={(e) => setNewStrike(e.target.value)}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="stat-label mb-2 block">Contracts</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={newContracts}
+                      onChange={(e) => setNewContracts(e.target.value)}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="stat-label mb-2 block">Premium</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newPremium}
+                      onChange={(e) => setNewPremium(e.target.value)}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="stat-label mb-2 block">New Expiration</label>
+                <input
+                  type="date"
+                  value={newExpiration}
+                  onChange={(e) => setNewExpiration(e.target.value)}
+                  className="input-field"
+                  required
+                />
+              </div>
+
+              {/* New position preview */}
+              <div className="bg-accent/5 rounded-xl p-4 space-y-3 border border-accent/20">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted">New Collateral</span>
+                  <span className="text-foreground font-semibold">{formatCurrency(newCollateral)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted">New DTE</span>
+                  <span className="text-foreground font-semibold">{newDte} days</span>
+                </div>
+                {newCollateral > 0 && newPremium && (
+                  <div className="flex justify-between items-center pt-2 border-t border-accent/20">
+                    <span className="text-muted">New ROC</span>
+                    <span className="text-profit font-semibold">
+                      {((parseFloat(newPremium) / newCollateral) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* P/L preview - only show for non-assignment, non-roll closes */}
+          {!isAssigned && !isRolling && (
+            <div className={`rounded-xl p-4 ${pl >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
+              <div className="flex justify-between items-center">
+                <span className={pl >= 0 ? 'text-profit' : 'text-loss'}>Estimated P/L</span>
+                <span className={`text-xl font-bold ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {pl >= 0 ? '+' : ''}{formatCurrency(pl)}
+                  <span className="text-sm font-normal ml-2">({plPercent.toFixed(2)}%)</span>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Roll P/L preview */}
+          {isRolling && (
+            <div className={`rounded-xl p-4 space-y-2 ${pl >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
+              <div className="flex justify-between items-center">
+                <span className="text-muted text-sm">P/L on closed leg</span>
+                <span className={`font-bold ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {pl >= 0 ? '+' : ''}{formatCurrency(pl)}
+                </span>
+              </div>
+              {newPremium && (
+                <div className="flex justify-between items-center pt-1 border-t border-border/20">
+                  <span className="text-muted text-sm">Net credit (close + new)</span>
+                  <span className="text-foreground font-semibold">
+                    {formatCurrency(pl + parseFloat(newPremium))}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Assignment info */}
+          {isAssigned && (
+            <div className="rounded-xl p-4 bg-muted/10">
+              <div className="flex justify-between items-center">
+                <span className="text-muted">Realized P/L</span>
+                <span className="text-foreground font-bold">$0.00</span>
+              </div>
+              <p className="text-muted text-xs mt-2">
+                Premium is reflected in your cost basis. P/L realized when shares are sold.
+              </p>
+            </div>
+          )}
+
+          <button type="submit" className="btn-primary w-full py-3">
+            {isPartialClose ? `Close ${contractsToClose} of ${trade.contracts} Contracts` : isRolling ? 'Roll Position' : 'Close Trade'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

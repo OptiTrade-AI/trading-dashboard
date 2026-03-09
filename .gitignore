@@ -26,10 +26,21 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
 .vercel
+
+# data exports/backups
+/data/
+data_backup.zip
+
+# claude code local settings
+.claude/
+
+# planning docs
+/plan/
 
 # typescript
 *.tsbuildinfo
