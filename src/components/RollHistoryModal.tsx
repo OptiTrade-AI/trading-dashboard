@@ -1,10 +1,11 @@
 'use client';
 
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, SPREAD_TYPE_LABELS } from '@/types';
-import { formatCurrency, formatDateShort, calculatePL } from '@/lib/utils';
+import { formatDateShort, calculatePL } from '@/lib/utils';
 import { calculateCCPL } from '@/hooks/useCoveredCalls';
 import { calculateDirectionalPL, calculateSpreadPL } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 type RollableItem = Trade | CoveredCall | DirectionalTrade | SpreadTrade;
 
@@ -63,6 +64,7 @@ const typeColors: Record<string, { accent: string; bg: string }> = {
 };
 
 export function RollHistoryModal({ isOpen, onClose, chain, tradeType }: RollHistoryModalProps) {
+  const { formatCurrency, privacyMode } = useFormatters();
   if (!isOpen || chain.length === 0) return null;
 
   const color = typeColors[tradeType];
@@ -105,7 +107,7 @@ export function RollHistoryModal({ isOpen, onClose, chain, tradeType }: RollHist
             {totalPremium > 0 && (
               <div>
                 <div className="stat-label mb-1">Total Premium</div>
-                <div className="text-lg font-bold text-foreground">{formatCurrency(totalPremium)}</div>
+                <div className="text-lg font-bold text-foreground">{privacyMode ? '$***' : formatCurrency(totalPremium)}</div>
               </div>
             )}
             <div>

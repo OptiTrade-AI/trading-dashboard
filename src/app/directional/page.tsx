@@ -9,9 +9,11 @@ import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonStatCards, SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { DirectionalTrade, DirectionalExitReason } from '@/types';
-import { formatCurrency, calculateDirectionalPL, exportDirectionalToCSV } from '@/lib/utils';
+import { calculateDirectionalPL, exportDirectionalToCSV } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export default function DirectionalPage() {
+  const { formatCurrency } = useFormatters();
   const { trades, openTrades, closedTrades, addTrade, closeTrade, deleteTrade, rollTrade, partialCloseTrade, getRollChain, isLoading, error, retry } = useDirectionalTrades();
   const [showAddModal, setShowAddModal] = useState(false);
   const [closeModalTrade, setCloseModalTrade] = useState<DirectionalTrade | null>(null);

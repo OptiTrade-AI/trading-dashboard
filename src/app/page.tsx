@@ -11,7 +11,7 @@ import { CloseTradeModal } from '@/components/TradeModal';
 import { SkeletonDashboard } from '@/components/SkeletonLoader';
 import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
 import {
-  formatCurrency,
+  formatCurrency as rawFormatCurrency,
   formatDateShort,
   calculatePL,
   calculateDTE,
@@ -20,6 +20,7 @@ import {
   calculateReturnOnCollateral,
   cn,
 } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export default function Dashboard() {
   const {
@@ -86,6 +87,8 @@ export default function Dashboard() {
     }
   };
 
+  const { formatCurrency, formatPercent, mask, privacyMode } = useFormatters();
+
   if (isLoading) {
     return <SkeletonDashboard />;
   }
@@ -134,7 +137,7 @@ export default function Dashboard() {
       detail: `x${t.contracts}`,
       value: formatCurrency(t.premiumCollected),
       valueLabel: 'premium',
-      subDetail: `${calculateReturnOnCollateral(t).toFixed(1)}% ROC`,
+      subDetail: privacyMode ? '**% ROC' : `${calculateReturnOnCollateral(t).toFixed(1)}% ROC`,
       canClose: true,
       trade: t,
     })),
@@ -150,7 +153,7 @@ export default function Dashboard() {
       detail: `x${c.contracts}`,
       value: formatCurrency(c.premiumCollected),
       valueLabel: 'premium',
-      subDetail: `${c.sharesHeld} shares`,
+      subDetail: privacyMode ? '*** shares' : `${c.sharesHeld} shares`,
       canClose: false,
       trade: null,
     })),
@@ -180,9 +183,9 @@ export default function Dashboard() {
       dte: calculateDTE(t.expiration),
       expiration: t.expiration,
       detail: `x${t.contracts}`,
-      value: t.netDebit < 0 ? `CR ${formatCurrency(Math.abs(t.netDebit))}` : formatCurrency(t.netDebit),
+      value: privacyMode ? '$***' : (t.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(t.netDebit))}` : rawFormatCurrency(t.netDebit)),
       valueLabel: t.netDebit < 0 ? 'credit' : 'debit',
-      subDetail: `Max loss: ${formatCurrency(t.maxLoss)}`,
+      subDetail: privacyMode ? 'Max loss: $***' : `Max loss: ${formatCurrency(t.maxLoss)}`,
       canClose: false,
       trade: null,
     })),
@@ -229,7 +232,7 @@ export default function Dashboard() {
     ...stockEvents.map((e) => ({
       id: e.id,
       ticker: e.ticker,
-      detail: `${e.shares} shares @ $${e.salePrice.toFixed(2)}`,
+      detail: privacyMode ? `*** shares @ $***` : `${e.shares} shares @ $${e.salePrice.toFixed(2)}`,
       exitDate: e.saleDate,
       pl: e.realizedPL,
       type: 'stock' as const,
@@ -328,13 +331,13 @@ export default function Dashboard() {
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-lg font-bold text-foreground">
-                  {totalClosedCount > 0 ? `${overallWinRate.toFixed(0)}%` : '-'}
+                  {totalClosedCount > 0 ? (privacyMode ? '**%' : `${overallWinRate.toFixed(0)}%`) : '-'}
                 </span>
               </div>
             </div>
             <div>
               <div className="stat-label mb-0.5">Win Rate</div>
-              <div className="text-sm text-muted">{totalWinning}/{totalClosedCount}</div>
+              <div className="text-sm text-muted">{privacyMode ? '***' : `${totalWinning}/${totalClosedCount}`}</div>
             </div>
           </div>
 
@@ -343,7 +346,7 @@ export default function Dashboard() {
 
           {/* Compact Heat */}
           <div className="lg:w-48">
-            <CompactHeat heat={heat} maxHeatPercent={accountSettings.maxHeatPercent} />
+            <CompactHeat heat={heat} maxHeatPercent={accountSettings.maxHeatPercent} privacyMode={privacyMode} />
           </div>
         </div>
       </div>
@@ -405,6 +408,7 @@ export default function Dashboard() {
               <CapitalAllocationCard
                 data={allocationData}
                 accountValue={accountSettings.accountValue}
+                privacyMode={privacyMode}
               />
             )}
           </div>
@@ -447,8 +451,8 @@ export default function Dashboard() {
                     {trade.reason ? ` · ${trade.reason}` : ''}
                   </div>
                 </div>
-                <span className={cn('text-sm font-bold flex-shrink-0', trade.pl >= 0 ? 'text-profit' : 'text-loss')}>
-                  {trade.pl >= 0 ? '+' : ''}{formatCurrency(trade.pl)}
+                <span className={cn('text-sm font-bold flex-shrink-0', privacyMode ? 'text-muted' : trade.pl >= 0 ? 'text-profit' : 'text-loss')}>
+                  {privacyMode ? '$***' : `${trade.pl >= 0 ? '+' : ''}${rawFormatCurrency(trade.pl)}`}
                 </span>
               </div>
             ))}
@@ -634,9 +638,10 @@ function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPositio
 
 // ─── Capital Allocation Card ───
 
-function CapitalAllocationCard({ data, accountValue }: {
+function CapitalAllocationCard({ data, accountValue, privacyMode }: {
   data: { name: string; value: number; color: string }[];
   accountValue: number;
+  privacyMode: boolean;
 }) {
   const totalDeployed = data.reduce((sum, d) => sum + d.value, 0);
   const utilization = accountValue > 0 ? (totalDeployed / accountValue) * 100 : 0;
@@ -647,12 +652,12 @@ function CapitalAllocationCard({ data, accountValue }: {
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-lg font-semibold text-foreground">Capital Deployed</h3>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-foreground">{formatCurrency(totalDeployed)}</span>
+          <span className="text-sm font-bold text-foreground">{privacyMode ? '$***' : rawFormatCurrency(totalDeployed)}</span>
           <span className={cn('text-xs font-medium px-2 py-1 rounded-lg',
             utilization < 50 ? 'bg-profit/10 text-profit' :
             utilization < 75 ? 'bg-caution/10 text-caution' : 'bg-loss/10 text-loss'
           )}>
-            {utilization.toFixed(0)}% of account
+            {privacyMode ? '**%' : `${utilization.toFixed(0)}%`} of account
           </span>
         </div>
       </div>
@@ -695,8 +700,8 @@ function CapitalAllocationCard({ data, accountValue }: {
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-muted">{d.name}</div>
                 <div className="flex items-baseline gap-2.5">
-                  <span className="text-xl font-bold text-foreground">{formatCurrency(d.value)}</span>
-                  <span className="text-sm text-muted">{pctOfAccount.toFixed(0)}%</span>
+                  <span className="text-xl font-bold text-foreground">{privacyMode ? '$***' : rawFormatCurrency(d.value)}</span>
+                  <span className="text-sm text-muted">{privacyMode ? '**%' : `${pctOfAccount.toFixed(0)}%`}</span>
                 </div>
               </div>
             </div>
@@ -709,7 +714,7 @@ function CapitalAllocationCard({ data, accountValue }: {
 
 // ─── Compact Heat Gauge ───
 
-function CompactHeat({ heat, maxHeatPercent }: { heat: number; maxHeatPercent: number }) {
+function CompactHeat({ heat, maxHeatPercent, privacyMode }: { heat: number; maxHeatPercent: number; privacyMode: boolean }) {
   const maxHeat = maxHeatPercent;
   const percentage = Math.min((heat / maxHeat) * 100, 100);
   const level = heat < 25 ? 'green' : heat < 30 ? 'yellow' : 'red';
@@ -725,7 +730,7 @@ function CompactHeat({ heat, maxHeatPercent }: { heat: number; maxHeatPercent: n
       <div className="flex items-center justify-between mb-1.5">
         <span className="stat-label">Heat</span>
         <div className="flex items-center gap-2">
-          <span className={cn('text-sm font-bold', config.text)}>{heat.toFixed(1)}%</span>
+          <span className={cn('text-sm font-bold', config.text)}>{privacyMode ? '**%' : `${heat.toFixed(1)}%`}</span>
           <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded',
             level === 'green' ? 'bg-profit/10 text-profit' : level === 'yellow' ? 'bg-caution/10 text-caution' : 'bg-loss/10 text-loss'
           )}>

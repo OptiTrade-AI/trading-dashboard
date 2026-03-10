@@ -10,9 +10,11 @@ import { StatCard } from '@/components/StatCard';
 import { SkeletonStatCards, SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { useStockEvents } from '@/hooks/useStockEvents';
 import { CoveredCall, CCExitReason } from '@/types';
-import { formatCurrency, exportCCToCSV } from '@/lib/utils';
+import { exportCCToCSV } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export default function CoveredCallsPage() {
+  const { formatCurrency } = useFormatters();
   const { calls, openCalls, closedCalls, addCall, closeCall, deleteCall, rollCall, partialCloseCall, getRollChain, isLoading, error, retry } = useCoveredCalls();
   const { addStockEvent } = useStockEvents();
   const [showAddModal, setShowAddModal] = useState(false);

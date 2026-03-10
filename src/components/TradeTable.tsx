@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import { Trade } from '@/types';
 import {
-  formatCurrency,
   formatDateShort,
   calculatePL,
   calculatePLPercent,
@@ -11,6 +10,7 @@ import {
   calculateAnnualizedReturn,
   cn,
 } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 type SortKey = keyof Trade | 'pl' | 'plPercent' | 'daysHeld' | 'annualizedReturn';
 type SortDirection = 'asc' | 'desc';
@@ -23,6 +23,7 @@ interface TradeTableProps {
 }
 
 export function TradeTable({ trades, onClose, onDelete, onViewRollChain }: TradeTableProps) {
+  const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
@@ -233,7 +234,7 @@ export function TradeTable({ trades, onClose, onDelete, onViewRollChain }: Trade
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-foreground">${trade.strike}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : `$${trade.strike}`}</td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {trade.contracts}
                     {trade.originalContracts && (
@@ -274,7 +275,7 @@ export function TradeTable({ trades, onClose, onDelete, onViewRollChain }: Trade
                         : 'text-muted'
                     )}
                   >
-                    {trade.status === 'closed' ? (pl >= 0 ? '+' : '') + formatCurrency(pl) : '-'}
+                    {trade.status === 'closed' ? (privacyMode ? '$***' : (pl >= 0 ? '+' : '') + formatCurrency(pl)) : '-'}
                   </td>
                   <td
                     className={cn(
@@ -286,7 +287,7 @@ export function TradeTable({ trades, onClose, onDelete, onViewRollChain }: Trade
                         : 'text-muted'
                     )}
                   >
-                    {trade.status === 'closed' ? `${plPercent.toFixed(2)}%` : '-'}
+                    {trade.status === 'closed' ? formatPercent(plPercent, 2) : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {formatDateShort(trade.entryDate)}

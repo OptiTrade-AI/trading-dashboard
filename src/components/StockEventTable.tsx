@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { StockEvent } from '@/types';
-import { formatCurrency, formatDateShort, cn } from '@/lib/utils';
+import { formatDateShort, cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 type SortKey = 'ticker' | 'shares' | 'costBasis' | 'salePrice' | 'saleDate' | 'realizedPL';
 type SortDirection = 'asc' | 'desc';
@@ -13,6 +14,7 @@ interface StockEventTableProps {
 }
 
 export function StockEventTable({ events, onDelete }: StockEventTableProps) {
+  const { formatCurrency, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('saleDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filterTicker, setFilterTicker] = useState('');
@@ -145,12 +147,12 @@ export function StockEventTable({ events, onDelete }: StockEventTableProps) {
                     <span className="font-medium text-foreground">{event.ticker}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-foreground">{event.shares}</td>
-                <td className="px-4 py-3 text-sm text-foreground">${event.costBasis.toFixed(2)}</td>
-                <td className="px-4 py-3 text-sm text-foreground">${event.salePrice.toFixed(2)}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '***' : event.shares}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : `$${event.costBasis.toFixed(2)}`}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : `$${event.salePrice.toFixed(2)}`}</td>
                 <td className="px-4 py-3 text-sm text-muted">{formatDateShort(event.saleDate)}</td>
-                <td className={cn('px-4 py-3 text-sm font-semibold', event.realizedPL >= 0 ? 'text-profit' : 'text-loss')}>
-                  {event.realizedPL >= 0 ? '+' : ''}{formatCurrency(event.realizedPL)}
+                <td className={cn('px-4 py-3 text-sm font-semibold', privacyMode ? 'text-muted' : event.realizedPL >= 0 ? 'text-profit' : 'text-loss')}>
+                  {privacyMode ? '$***' : `${event.realizedPL >= 0 ? '+' : ''}${formatCurrency(event.realizedPL)}`}
                 </td>
                 <td className="px-4 py-3">
                   {event.isTaxLossHarvest ? (

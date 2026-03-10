@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { SpreadTrade, SPREAD_TYPE_LABELS } from '@/types';
-import { formatCurrency, formatDateShort, calculateSpreadPL, calculateSpreadPLPercent, calculateDTE, cn } from '@/lib/utils';
+import { formatCurrency as rawFormatCurrency, formatDateShort, calculateSpreadPL, calculateSpreadPLPercent, calculateDTE, cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 type SortKey = keyof SpreadTrade | 'pl' | 'plPercent' | 'currentDTE';
 type SortDirection = 'asc' | 'desc';
@@ -15,6 +16,7 @@ interface SpreadsTableProps {
 }
 
 export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: SpreadsTableProps) {
+  const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
@@ -255,7 +257,7 @@ export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: Spr
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
-                    ${trade.longStrike}/{trade.shortStrike}
+                    {privacyMode ? '$***/$***' : `$${trade.longStrike}/${trade.shortStrike}`}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {trade.contracts}
@@ -272,11 +274,11 @@ export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: Spr
                     {trade.status === 'open' ? `${currentDTE}d` : `${trade.dteAtEntry}d`}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
-                    {trade.netDebit < 0 ? `CR ${formatCurrency(Math.abs(trade.netDebit))}` : formatCurrency(trade.netDebit)}
+                    {privacyMode ? '$***' : (trade.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(trade.netDebit))}` : rawFormatCurrency(trade.netDebit))}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <div className="text-profit text-xs">+{formatCurrency(trade.maxProfit)}</div>
-                    <div className="text-loss text-xs">-{formatCurrency(trade.maxLoss)}</div>
+                    <div className="text-profit text-xs">{privacyMode ? '$***' : `+${formatCurrency(trade.maxProfit)}`}</div>
+                    <div className="text-loss text-xs">{privacyMode ? '$***' : `-${formatCurrency(trade.maxLoss)}`}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -300,7 +302,7 @@ export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: Spr
                         : 'text-muted'
                     )}
                   >
-                    {trade.status !== 'open' ? (pl >= 0 ? '+' : '') + formatCurrency(pl) : '-'}
+                    {trade.status !== 'open' ? (privacyMode ? '$***' : (pl >= 0 ? '+' : '') + formatCurrency(pl)) : '-'}
                   </td>
                   <td
                     className={cn(
@@ -312,7 +314,7 @@ export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: Spr
                         : 'text-muted'
                     )}
                   >
-                    {trade.status !== 'open' ? `${plPercent.toFixed(2)}%` : '-'}
+                    {trade.status !== 'open' ? formatPercent(plPercent, 2) : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {formatDateShort(trade.entryDate)}

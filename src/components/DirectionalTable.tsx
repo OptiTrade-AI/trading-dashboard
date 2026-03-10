@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { DirectionalTrade } from '@/types';
-import { formatCurrency, formatDateShort, calculateDirectionalPL, calculateDirectionalPLPercent, calculateDTE, cn } from '@/lib/utils';
+import { formatDateShort, calculateDirectionalPL, calculateDirectionalPLPercent, calculateDTE, cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 type SortKey = keyof DirectionalTrade | 'pl' | 'plPercent' | 'currentDTE';
 type SortDirection = 'asc' | 'desc';
@@ -15,6 +16,7 @@ interface DirectionalTableProps {
 }
 
 export function DirectionalTable({ trades, onClose, onDelete, onViewRollChain }: DirectionalTableProps) {
+  const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
@@ -248,7 +250,7 @@ export function DirectionalTable({ trades, onClose, onDelete, onViewRollChain }:
                       {trade.optionType === 'call' ? 'C' : 'P'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-foreground">${trade.strike}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : `$${trade.strike}`}</td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {trade.contracts}
                     {trade.originalContracts && (
@@ -288,7 +290,7 @@ export function DirectionalTable({ trades, onClose, onDelete, onViewRollChain }:
                         : 'text-muted'
                     )}
                   >
-                    {trade.status !== 'open' ? (pl >= 0 ? '+' : '') + formatCurrency(pl) : '-'}
+                    {trade.status !== 'open' ? (privacyMode ? '$***' : (pl >= 0 ? '+' : '') + formatCurrency(pl)) : '-'}
                   </td>
                   <td
                     className={cn(
@@ -300,7 +302,7 @@ export function DirectionalTable({ trades, onClose, onDelete, onViewRollChain }:
                         : 'text-muted'
                     )}
                   >
-                    {trade.status !== 'open' ? `${plPercent.toFixed(2)}%` : '-'}
+                    {trade.status !== 'open' ? formatPercent(plPercent, 2) : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {formatDateShort(trade.entryDate)}

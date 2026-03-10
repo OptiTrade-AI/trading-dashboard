@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { CoveredCall } from '@/types';
-import { formatCurrency, formatDateShort, calculateDaysHeld, cn } from '@/lib/utils';
+import { formatDateShort, calculateDaysHeld, cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { calculateCCPL, calculateCCPLPercent } from '@/hooks/useCoveredCalls';
 
 type SortKey = keyof CoveredCall | 'pl' | 'plPercent' | 'daysHeld';
@@ -16,6 +17,7 @@ interface CCTableProps {
 }
 
 export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTableProps) {
+  const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed' | 'called'>('all');
@@ -227,7 +229,7 @@ export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTablePr
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-foreground">${call.strike}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : `$${call.strike}`}</td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {call.contracts}
                     {call.originalContracts && (
@@ -270,7 +272,7 @@ export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTablePr
                         : 'text-muted'
                     )}
                   >
-                    {call.status !== 'open' ? (pl >= 0 ? '+' : '') + formatCurrency(pl) : '-'}
+                    {call.status !== 'open' ? (privacyMode ? '$***' : (pl >= 0 ? '+' : '') + formatCurrency(pl)) : '-'}
                   </td>
                   <td
                     className={cn(
@@ -282,7 +284,7 @@ export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTablePr
                         : 'text-muted'
                     )}
                   >
-                    {call.status !== 'open' ? `${plPercent.toFixed(2)}%` : '-'}
+                    {call.status !== 'open' ? formatPercent(plPercent, 2) : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
                     {formatDateShort(call.entryDate)}

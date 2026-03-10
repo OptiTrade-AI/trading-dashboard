@@ -21,7 +21,7 @@ import {
   HoldTimeAnalyzer,
 } from '@/components/Charts';
 import {
-  formatCurrency,
+  formatCurrency as rawFormatCurrency,
   calculatePL,
   calculatePLPercent,
   calculateDaysHeld,
@@ -31,6 +31,7 @@ import {
   calculateSpreadPLPercent,
 } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { format, parseISO, startOfMonth, isThisMonth, isThisYear, subMonths, subDays, startOfYear, isAfter } from 'date-fns';
 
 type TimeRange = '1M' | '3M' | '6M' | 'YTD' | 'ALL';
@@ -45,6 +46,7 @@ export default function Analytics() {
   const [includeStockPL, setIncludeStockPL] = useState(true);
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const [strategyTab, setStrategyTab] = useState<StrategyTab>('all');
+  const { formatCurrency, privacyMode } = useFormatters();
 
   const analytics = useMemo(() => {
     // Time range filter
@@ -531,21 +533,21 @@ export default function Analytics() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <HeroStat
           label="Total P/L"
-          value={`${analytics.totalPL >= 0 ? '+' : ''}${formatCurrency(analytics.totalPL)}`}
+          value={privacyMode ? '$***' : `${analytics.totalPL >= 0 ? '+' : ''}${formatCurrency(analytics.totalPL)}`}
           variant={analytics.totalPL >= 0 ? 'profit' : 'loss'}
-          sub={`${analytics.returnOnAccount >= 0 ? '+' : ''}${analytics.returnOnAccount.toFixed(1)}% return`}
+          sub={privacyMode ? '**% return' : `${analytics.returnOnAccount >= 0 ? '+' : ''}${analytics.returnOnAccount.toFixed(1)}% return`}
         />
         <HeroStat
           label="This Month"
-          value={`${analytics.thisMonthPL >= 0 ? '+' : ''}${formatCurrency(analytics.thisMonthPL)}`}
+          value={privacyMode ? '$***' : `${analytics.thisMonthPL >= 0 ? '+' : ''}${formatCurrency(analytics.thisMonthPL)}`}
           variant={analytics.thisMonthPL >= 0 ? 'profit' : 'loss'}
-          sub={`Avg ${formatCurrency(analytics.avgPLPerTrade)}/trade`}
+          sub={privacyMode ? '$***/trade' : `Avg ${formatCurrency(analytics.avgPLPerTrade)}/trade`}
         />
         <HeroStat
           label="This Year"
-          value={`${analytics.thisYearPL >= 0 ? '+' : ''}${formatCurrency(analytics.thisYearPL)}`}
+          value={privacyMode ? '$***' : `${analytics.thisYearPL >= 0 ? '+' : ''}${formatCurrency(analytics.thisYearPL)}`}
           variant={analytics.thisYearPL >= 0 ? 'profit' : 'loss'}
-          sub={`${formatCurrency(analytics.totalPremiumCollected)} premium`}
+          sub={privacyMode ? '$*** premium' : `${formatCurrency(analytics.totalPremiumCollected)} premium`}
         />
         <div className="glass-card p-5 flex items-center gap-4">
           <div className="relative w-16 h-16 flex-shrink-0">
@@ -560,7 +562,7 @@ export default function Analytics() {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-bold text-foreground">{analytics.overallWinRate.toFixed(0)}%</span>
+              <span className="text-lg font-bold text-foreground">{privacyMode ? '**%' : `${analytics.overallWinRate.toFixed(0)}%`}</span>
             </div>
           </div>
           <div className="min-w-0">
@@ -583,21 +585,25 @@ export default function Analytics() {
             <div className="flex items-center gap-2">
               {analytics.biggestWin > 0 && (
                 <span className="text-xs text-profit bg-profit/10 px-2 py-1 rounded-lg">
-                  Best Trade: +{formatCurrency(analytics.biggestWin)}
+                  Best Trade: {privacyMode ? '$***' : `+${formatCurrency(analytics.biggestWin)}`}
                 </span>
               )}
               {analytics.worstTrade < 0 && (
                 <span className="text-xs text-loss bg-loss/10 px-2 py-1 rounded-lg">
-                  Worst Trade: {formatCurrency(analytics.worstTrade)}
+                  Worst Trade: {privacyMode ? '$***' : formatCurrency(analytics.worstTrade)}
                 </span>
               )}
             </div>
           </div>
-          <CumulativePLWithDrawdownChart data={analytics.cumulativeWithDrawdown} />
+          <ChartBlur active={privacyMode}>
+            <CumulativePLWithDrawdownChart data={analytics.cumulativeWithDrawdown} />
+          </ChartBlur>
         </div>
         <div className="lg:col-span-2 glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">P/L by Strategy</h3>
-          <StrategyDonutChart data={analytics.strategyPL} centerLabel="Total P/L" />
+          <ChartBlur active={privacyMode}>
+            <StrategyDonutChart data={analytics.strategyPL} centerLabel="Total P/L" />
+          </ChartBlur>
         </div>
       </div>
 
@@ -605,7 +611,9 @@ export default function Analytics() {
       {analytics.monthlyStacked.length > 0 && (
         <div className="glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">Monthly P/L by Strategy</h3>
-          <MonthlyStackedChart data={analytics.monthlyStacked} />
+          <ChartBlur active={privacyMode}>
+            <MonthlyStackedChart data={analytics.monthlyStacked} />
+          </ChartBlur>
         </div>
       )}
 
@@ -613,7 +621,9 @@ export default function Analytics() {
       {analytics.holdTimeStrategies.length > 0 && (
         <div className="glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-5">Hold Time Analyzer</h3>
-          <HoldTimeAnalyzer strategies={analytics.holdTimeStrategies} buckets={analytics.holdTimeBuckets} />
+          <ChartBlur active={privacyMode}>
+            <HoldTimeAnalyzer strategies={analytics.holdTimeStrategies} buckets={analytics.holdTimeBuckets} />
+          </ChartBlur>
         </div>
       )}
 
@@ -636,19 +646,25 @@ export default function Analytics() {
             </button>
           ))}
         </div>
-        <StrategyBreakdownContent tab={strategyTab} analytics={analytics} />
+        <ChartBlur active={privacyMode}>
+          <StrategyBreakdownContent tab={strategyTab} analytics={analytics} />
+        </ChartBlur>
       </div>
 
       {/* ── P/L by Ticker + Heatmap ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">P/L by Ticker</h3>
-          <PLByTickerChart data={analytics.plByTicker} />
+          <ChartBlur active={privacyMode}>
+            <PLByTickerChart data={analytics.plByTicker} />
+          </ChartBlur>
         </div>
         {analytics.heatmapTrades.length > 0 && (
           <div className="glass-card p-5">
             <h3 className="text-lg font-semibold text-foreground mb-4">P/L Heatmap</h3>
-            <PLHeatmapCalendar trades={analytics.heatmapTrades} />
+            <ChartBlur active={privacyMode}>
+              <PLHeatmapCalendar trades={analytics.heatmapTrades} />
+            </ChartBlur>
           </div>
         )}
       </div>
@@ -659,14 +675,18 @@ export default function Analytics() {
           <div className="glass-card p-5">
             <h3 className="text-lg font-semibold text-foreground mb-1">P/L Distribution</h3>
             <p className="text-xs text-muted mb-4">Trade outcomes bucketed by P/L range</p>
-            <PLDistributionChart data={analytics.plDistribution} />
+            <ChartBlur active={privacyMode}>
+              <PLDistributionChart data={analytics.plDistribution} />
+            </ChartBlur>
           </div>
         )}
         {analytics.scatterData.length > 0 && (
           <div className="glass-card p-5">
             <h3 className="text-lg font-semibold text-foreground mb-1">Days Held vs P/L</h3>
             <p className="text-xs text-muted mb-4">Does holding longer correlate with better outcomes?</p>
-            <DaysHeldScatterChart data={analytics.scatterData} />
+            <ChartBlur active={privacyMode}>
+              <DaysHeldScatterChart data={analytics.scatterData} />
+            </ChartBlur>
           </div>
         )}
       </div>
@@ -675,41 +695,45 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">Trade Frequency</h3>
-          <TradeFrequencyChart data={analytics.tradeFrequency} />
+          <ChartBlur active={privacyMode}>
+            <TradeFrequencyChart data={analytics.tradeFrequency} />
+          </ChartBlur>
         </div>
         <div className="space-y-6">
           <div className="glass-card p-5">
             <h3 className="text-lg font-semibold text-foreground mb-4">Streaks</h3>
-            <WinLossStreakBar data={analytics.streakData} />
+            <ChartBlur active={privacyMode}>
+              <WinLossStreakBar data={analytics.streakData} />
+            </ChartBlur>
           </div>
           <div className="glass-card p-5">
             <h3 className="text-lg font-semibold text-foreground mb-4">Risk Metrics</h3>
             <div className="space-y-4">
               <RiskMetricRow
                 label="Profit Factor"
-                value={analytics.profitFactor === Infinity ? '∞' : analytics.profitFactor.toFixed(2)}
+                value={privacyMode ? '***' : (analytics.profitFactor === Infinity ? '∞' : analytics.profitFactor.toFixed(2))}
                 hint="Gross wins / gross losses"
                 variant={analytics.profitFactor >= 1.5 ? 'good' : analytics.profitFactor >= 1 ? 'ok' : 'bad'}
               />
               <RiskMetricRow
                 label="Avg Win"
-                value={`+${formatCurrency(analytics.avgWin)}`}
+                value={privacyMode ? '$***' : `+${formatCurrency(analytics.avgWin)}`}
                 variant="good"
               />
               <RiskMetricRow
                 label="Avg Loss"
-                value={formatCurrency(analytics.avgLoss)}
+                value={privacyMode ? '$***' : formatCurrency(analytics.avgLoss)}
                 variant="bad"
               />
               <RiskMetricRow
                 label="Win/Loss Ratio"
-                value={analytics.avgLoss !== 0 ? (analytics.avgWin / Math.abs(analytics.avgLoss)).toFixed(2) : '-'}
+                value={privacyMode ? '***' : (analytics.avgLoss !== 0 ? (analytics.avgWin / Math.abs(analytics.avgLoss)).toFixed(2) : '-')}
                 hint="Avg win / avg loss"
                 variant={analytics.avgLoss !== 0 && (analytics.avgWin / Math.abs(analytics.avgLoss)) >= 1 ? 'good' : 'bad'}
               />
               <RiskMetricRow
                 label="Max Drawdown"
-                value={formatCurrency(analytics.maxDrawdown)}
+                value={privacyMode ? '$***' : formatCurrency(analytics.maxDrawdown)}
                 variant="bad"
               />
             </div>
@@ -720,6 +744,7 @@ export default function Analytics() {
       {/* ── Win Rates ── */}
       <div className="glass-card p-5">
         <h3 className="text-lg font-semibold text-foreground mb-4">Win Rates by Strategy</h3>
+        <ChartBlur active={privacyMode}>
         <WinRateRow
           rates={[
             { label: 'Overall', rate: analytics.overallWinRate, color: '#10b981', count: `${analytics.totalTrades} trades` },
@@ -729,6 +754,29 @@ export default function Analytics() {
             ...(analytics.spreadCount > 0 ? [{ label: 'Spreads', rate: analytics.spreadWinRate, color: '#a855f7', count: `${analytics.spreadCount}` }] : []),
           ]}
         />
+        </ChartBlur>
+      </div>
+    </div>
+  );
+}
+
+// ─── Chart Blur Overlay ───
+
+function ChartBlur({ active, children }: { active: boolean; children: React.ReactNode }) {
+  if (!active) return <>{children}</>;
+  return (
+    <div className="relative">
+      <div className="blur-md pointer-events-none select-none opacity-50">
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card-solid/80 border border-border/50 backdrop-blur-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+            <line x1="1" y1="1" x2="23" y2="23" />
+          </svg>
+          <span className="text-sm text-muted font-medium">Hidden</span>
+        </div>
       </div>
     </div>
   );
@@ -866,7 +914,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       avgDays: analytics.cspAvgDaysHeld, best: analytics.cspBestTrade, worst: analytics.cspWorstTrade,
       formatDetails: (t: any) => `${t.ticker} $${t.strike}P x ${t.contracts}`,
       stats: [
-        { label: 'Total P/L', value: `${analytics.cspTotalPL >= 0 ? '+' : ''}${formatCurrency(analytics.cspTotalPL)}`, variant: analytics.cspTotalPL >= 0 },
+        { label: 'Total P/L', value: `${analytics.cspTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.cspTotalPL)}`, variant: analytics.cspTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.cspWinRate.toFixed(0)}%` },
         { label: 'Avg Return', value: `${analytics.cspAvgReturn.toFixed(2)}%` },
         { label: 'Avg Hold', value: `${analytics.cspAvgDaysHeld.toFixed(0)}d` },
@@ -878,7 +926,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       avgDays: analytics.ccAvgDaysHeld, best: analytics.ccBestTrade, worst: analytics.ccWorstTrade,
       formatDetails: (t: any) => `${t.ticker} $${t.strike}C x ${t.contracts}`,
       stats: [
-        { label: 'Total P/L', value: `${analytics.ccTotalPL >= 0 ? '+' : ''}${formatCurrency(analytics.ccTotalPL)}`, variant: analytics.ccTotalPL >= 0 },
+        { label: 'Total P/L', value: `${analytics.ccTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.ccTotalPL)}`, variant: analytics.ccTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.ccWinRate.toFixed(0)}%` },
         { label: 'Called Away', value: `${analytics.ccCalledAway}` },
         { label: 'Avg Hold', value: `${analytics.ccAvgDaysHeld.toFixed(0)}d` },
@@ -890,7 +938,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       avgDays: analytics.dirAvgDaysHeld, best: analytics.dirBestTrade, worst: analytics.dirWorstTrade,
       formatDetails: (t: any) => `${t.ticker} $${t.strike}${t.optionType === 'call' ? 'C' : 'P'} x ${t.contracts}`,
       stats: [
-        { label: 'Total P/L', value: `${analytics.dirTotalPL >= 0 ? '+' : ''}${formatCurrency(analytics.dirTotalPL)}`, variant: analytics.dirTotalPL >= 0 },
+        { label: 'Total P/L', value: `${analytics.dirTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.dirTotalPL)}`, variant: analytics.dirTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.dirWinRate.toFixed(0)}%` },
         { label: 'Total Return', value: `${analytics.dirTotalReturn >= 0 ? '+' : ''}${analytics.dirTotalReturn.toFixed(1)}%` },
         { label: 'Avg Hold', value: `${analytics.dirAvgDaysHeld.toFixed(0)}d` },
@@ -902,7 +950,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       avgDays: analytics.spreadAvgDaysHeld, best: analytics.spreadBestTrade, worst: analytics.spreadWorstTrade,
       formatDetails: (t: any) => `${t.ticker} $${t.longStrike}/$${t.shortStrike} x ${t.contracts}`,
       stats: [
-        { label: 'Total P/L', value: `${analytics.spreadTotalPL >= 0 ? '+' : ''}${formatCurrency(analytics.spreadTotalPL)}`, variant: analytics.spreadTotalPL >= 0 },
+        { label: 'Total P/L', value: `${analytics.spreadTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.spreadTotalPL)}`, variant: analytics.spreadTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.spreadWinRate.toFixed(0)}%` },
         { label: 'Total Return', value: `${analytics.spreadTotalReturn >= 0 ? '+' : ''}${analytics.spreadTotalReturn.toFixed(1)}%` },
         { label: 'Avg Hold', value: `${analytics.spreadAvgDaysHeld.toFixed(0)}d` },
@@ -964,7 +1012,7 @@ function StrategyMiniCard({ label, icon, iconBg, iconColor, pl, winRate, count, 
         <div>
           <div className="text-xs text-muted mb-1">Total P/L</div>
           <div className={cn('text-2xl font-bold', pl >= 0 ? 'text-profit' : 'text-loss')}>
-            {pl >= 0 ? '+' : ''}{formatCurrency(pl)}
+            {pl >= 0 ? '+' : ''}{rawFormatCurrency(pl)}
           </div>
         </div>
         <div>
@@ -1008,7 +1056,7 @@ function BestWorstCard({ type, trade, formatDetails, iconBg, iconColor }: {
           </div>
         </div>
         <span className={cn('text-xl font-bold', isPositive ? 'text-profit' : 'text-loss')}>
-          {isPositive ? '+' : ''}{formatCurrency(trade.pl)}
+          {isPositive ? '+' : ''}{rawFormatCurrency(trade.pl)}
         </span>
       </div>
     </div>

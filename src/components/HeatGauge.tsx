@@ -1,6 +1,7 @@
 'use client';
 
-import { getHeatLevel, formatPercent } from '@/lib/utils';
+import { getHeatLevel } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 interface HeatGaugeProps {
   heat: number;
@@ -8,6 +9,7 @@ interface HeatGaugeProps {
 }
 
 export function HeatGauge({ heat, maxHeat }: HeatGaugeProps) {
+  const { formatPercent } = useFormatters();
   const level = getHeatLevel(heat);
   const percentage = Math.min((heat / maxHeat) * 100, 100);
 

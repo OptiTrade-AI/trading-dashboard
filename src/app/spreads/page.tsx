@@ -9,9 +9,11 @@ import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonStatCards, SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { SpreadTrade, SpreadExitReason } from '@/types';
-import { formatCurrency, calculateSpreadPL, exportSpreadsToCSV } from '@/lib/utils';
+import { calculateSpreadPL, exportSpreadsToCSV } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export default function SpreadsPage() {
+  const { formatCurrency } = useFormatters();
   const { spreads, openSpreads, closedSpreads, addSpread, closeSpread, deleteSpread, rollSpread, partialCloseSpread, getRollChain, isLoading, error, retry } = useSpreads();
   const [showAddModal, setShowAddModal] = useState(false);
   const [closeModalTrade, setCloseModalTrade] = useState<SpreadTrade | null>(null);

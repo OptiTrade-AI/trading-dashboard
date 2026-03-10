@@ -8,9 +8,11 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonStatCards, SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { StockEvent } from '@/types';
-import { formatCurrency, exportStockEventsToCSV } from '@/lib/utils';
+import { exportStockEventsToCSV } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export default function StockEventsPage() {
+  const { formatCurrency } = useFormatters();
   const { stockEvents, totalStockPL, tlhEvents, totalHarvestedLosses, addStockEvent, deleteStockEvent, isLoading, error, retry } = useStockEvents();
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteModalEvent, setDeleteModalEvent] = useState<StockEvent | null>(null);
