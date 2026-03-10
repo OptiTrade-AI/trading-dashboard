@@ -7,10 +7,12 @@ import { AddTradeModal, CloseTradeModal } from '@/components/TradeModal';
 import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { Trade, ExitReason } from '@/types';
+import { useHoldings } from '@/hooks/useHoldings';
 import { exportToCSV } from '@/lib/utils';
 
 export default function TradeLog() {
   const { trades, addTrade, closeTrade, deleteTrade, rollTrade, partialCloseTrade, getRollChain, isLoading, error, retry } = useTrades();
+  const { addHolding } = useHoldings();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [closeModalTrade, setCloseModalTrade] = useState<Trade | null>(null);
   const [deleteConfirmTrade, setDeleteConfirmTrade] = useState<Trade | null>(null);
@@ -23,6 +25,15 @@ export default function TradeLog() {
   const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: ExitReason) => {
     if (closeModalTrade) {
       closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason);
+      if (exitReason === 'assigned') {
+        addHolding({
+          ticker: closeModalTrade.ticker,
+          shares: closeModalTrade.contracts * 100,
+          costBasisPerShare: closeModalTrade.strike,
+          acquiredDate: exitDate,
+          notes: `Auto: ${closeModalTrade.ticker} $${closeModalTrade.strike}P assigned`,
+        });
+      }
       setCloseModalTrade(null);
     }
   };
@@ -37,6 +48,15 @@ export default function TradeLog() {
   const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason) => {
     if (closeModalTrade) {
       partialCloseTrade(closeModalTrade.id, contractsToClose, exitPrice, exitDate, exitReason);
+      if (exitReason === 'assigned') {
+        addHolding({
+          ticker: closeModalTrade.ticker,
+          shares: contractsToClose * 100,
+          costBasisPerShare: closeModalTrade.strike,
+          acquiredDate: exitDate,
+          notes: `Auto: ${closeModalTrade.ticker} $${closeModalTrade.strike}P partially assigned (${contractsToClose} contracts)`,
+        });
+      }
       setCloseModalTrade(null);
     }
   };

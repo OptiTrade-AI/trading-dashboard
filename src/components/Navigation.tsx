@@ -12,6 +12,7 @@ const tradePages = [
   { href: '/directional', label: 'Directional' },
   { href: '/spreads', label: 'Spreads' },
   { href: '/stock', label: 'Stock / TLH' },
+  { href: '/holdings', label: 'Holdings' },
 ];
 
 const topNav = [

@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useTrades } from '@/hooks/useTrades';
 import { useCoveredCalls, calculateCCPL } from '@/hooks/useCoveredCalls';
 import { useDirectionalTrades } from '@/hooks/useDirectionalTrades';
 import { useSpreads } from '@/hooks/useSpreads';
 import { useStockEvents } from '@/hooks/useStockEvents';
+import { useOptionQuotes } from '@/hooks/useOptionQuotes';
+import { useMarketStatus } from '@/hooks/useMarketStatus';
+import { useTickerDetails } from '@/hooks/useTickerDetails';
+import { PressureCard } from '@/components/PressureCard';
 import { CloseTradeModal } from '@/components/TradeModal';
 import { SkeletonDashboard } from '@/components/SkeletonLoader';
 import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
@@ -57,6 +61,20 @@ export default function Dashboard() {
     isLoading: stockLoading,
   } = useStockEvents();
 
+  const { positions: optionPositions } = useOptionQuotes();
+  useMarketStatus(); // triggers SWR caching for child components
+
+  // Collect all unique tickers for company name lookup
+  const allTickers = useMemo(() => {
+    const set = new Set<string>();
+    openTrades.forEach(t => set.add(t.ticker));
+    openCalls.forEach(c => set.add(c.ticker));
+    openDirectional.forEach(t => set.add(t.ticker));
+    openSpreads.forEach(s => set.add(s.ticker));
+    return Array.from(set);
+  }, [openTrades, openCalls, openDirectional, openSpreads]);
+  const { nameMap: tickerNames } = useTickerDetails(allTickers);
+
   const isLoading = tradesLoading || ccLoading || dirLoading || spreadsLoading || stockLoading;
 
   const [editingAccountValue, setEditingAccountValue] = useState(false);
@@ -87,7 +105,7 @@ export default function Dashboard() {
     }
   };
 
-  const { formatCurrency, formatPercent, mask, privacyMode } = useFormatters();
+  const { formatCurrency, privacyMode } = useFormatters();
 
   if (isLoading) {
     return <SkeletonDashboard />;
@@ -125,71 +143,113 @@ export default function Dashboard() {
 
   // Unified open positions
   const allOpenPositions = [
-    ...openTrades.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      type: 'csp' as const,
-      label: `$${t.strike}P`,
-      badge: 'CSP',
-      badgeColor: 'bg-emerald-500/10 text-emerald-400',
-      dte: calculateDTE(t.expiration),
-      expiration: t.expiration,
-      detail: `x${t.contracts}`,
-      value: formatCurrency(t.premiumCollected),
-      valueLabel: 'premium',
-      subDetail: privacyMode ? '**% ROC' : `${calculateReturnOnCollateral(t).toFixed(1)}% ROC`,
-      canClose: true,
-      trade: t,
-    })),
-    ...openCalls.map((c) => ({
-      id: c.id,
-      ticker: c.ticker,
-      type: 'cc' as const,
-      label: `$${c.strike}C`,
-      badge: 'CC',
-      badgeColor: 'bg-blue-500/10 text-blue-400',
-      dte: calculateDTE(c.expiration),
-      expiration: c.expiration,
-      detail: `x${c.contracts}`,
-      value: formatCurrency(c.premiumCollected),
-      valueLabel: 'premium',
-      subDetail: privacyMode ? '*** shares' : `${c.sharesHeld} shares`,
-      canClose: false,
-      trade: null,
-    })),
-    ...openDirectional.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      type: 'directional' as const,
-      label: `$${t.strike}${t.optionType === 'call' ? 'C' : 'P'}`,
-      badge: t.optionType === 'call' ? 'CALL' : 'PUT',
-      badgeColor: t.optionType === 'call' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400',
-      dte: calculateDTE(t.expiration),
-      expiration: t.expiration,
-      detail: `x${t.contracts}`,
-      value: formatCurrency(t.costAtOpen),
-      valueLabel: 'cost',
-      subDetail: '',
-      canClose: false,
-      trade: null,
-    })),
-    ...openSpreads.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      type: 'spread' as const,
-      label: `$${t.longStrike}/$${t.shortStrike}`,
-      badge: SPREAD_TYPE_LABELS[t.spreadType],
-      badgeColor: 'bg-purple-500/10 text-purple-400',
-      dte: calculateDTE(t.expiration),
-      expiration: t.expiration,
-      detail: `x${t.contracts}`,
-      value: privacyMode ? '$***' : (t.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(t.netDebit))}` : rawFormatCurrency(t.netDebit)),
-      valueLabel: t.netDebit < 0 ? 'credit' : 'debit',
-      subDetail: privacyMode ? 'Max loss: $***' : `Max loss: ${formatCurrency(t.maxLoss)}`,
-      canClose: false,
-      trade: null,
-    })),
+    ...openTrades.map((t) => {
+      const oq = optionPositions.get(t.id);
+      return {
+        id: t.id,
+        ticker: t.ticker,
+        type: 'csp' as const,
+        label: `$${t.strike}P`,
+        badge: 'CSP',
+        badgeColor: 'bg-emerald-500/10 text-emerald-400',
+        dte: calculateDTE(t.expiration),
+        expiration: t.expiration,
+        detail: `x${t.contracts}`,
+        value: formatCurrency(t.premiumCollected),
+        valueLabel: 'premium',
+        subDetail: privacyMode ? '**% ROC' : `${calculateReturnOnCollateral(t).toFixed(1)}% ROC`,
+        canClose: true,
+        trade: t,
+        unrealizedPL: oq?.unrealizedPL ?? null,
+        maxPremium: t.premiumCollected,
+        delta: oq?.delta ?? null,
+        theta: oq?.theta ?? null,
+        iv: oq?.iv ?? null,
+        companyName: tickerNames.get(t.ticker) ?? null,
+      };
+    }),
+    ...openCalls.map((c) => {
+      const oq = optionPositions.get(c.id);
+      return {
+        id: c.id,
+        ticker: c.ticker,
+        type: 'cc' as const,
+        label: `$${c.strike}C`,
+        badge: 'CC',
+        badgeColor: 'bg-blue-500/10 text-blue-400',
+        dte: calculateDTE(c.expiration),
+        expiration: c.expiration,
+        detail: `x${c.contracts}`,
+        value: formatCurrency(c.premiumCollected),
+        valueLabel: 'premium',
+        subDetail: privacyMode ? '*** shares' : `${c.sharesHeld} shares`,
+        canClose: false,
+        trade: null,
+        unrealizedPL: oq?.unrealizedPL ?? null,
+        maxPremium: c.premiumCollected,
+        delta: oq?.delta ?? null,
+        theta: oq?.theta ?? null,
+        iv: oq?.iv ?? null,
+        companyName: tickerNames.get(c.ticker) ?? null,
+      };
+    }),
+    ...openDirectional.map((t) => {
+      const oq = optionPositions.get(t.id);
+      return {
+        id: t.id,
+        ticker: t.ticker,
+        type: 'directional' as const,
+        label: `$${t.strike}${t.optionType === 'call' ? 'C' : 'P'}`,
+        badge: t.optionType === 'call' ? 'CALL' : 'PUT',
+        badgeColor: t.optionType === 'call' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400',
+        dte: calculateDTE(t.expiration),
+        expiration: t.expiration,
+        detail: `x${t.contracts}`,
+        value: formatCurrency(t.costAtOpen),
+        valueLabel: 'cost',
+        subDetail: '',
+        canClose: false,
+        trade: null,
+        unrealizedPL: oq?.unrealizedPL ?? null,
+        maxPremium: t.costAtOpen,
+        delta: oq?.delta ?? null,
+        theta: oq?.theta ?? null,
+        iv: oq?.iv ?? null,
+        companyName: tickerNames.get(t.ticker) ?? null,
+      };
+    }),
+    ...openSpreads.map((t) => {
+      const oq = optionPositions.get(t.id);
+      return {
+        id: t.id,
+        ticker: t.ticker,
+        type: 'spread' as const,
+        label: `$${t.longStrike}/$${t.shortStrike}`,
+        badge: SPREAD_TYPE_LABELS[t.spreadType],
+        badgeColor: 'bg-purple-500/10 text-purple-400',
+        dte: calculateDTE(t.expiration),
+        expiration: t.expiration,
+        detail: `x${t.contracts}`,
+        value: privacyMode ? '$***' : (t.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(t.netDebit))}` : rawFormatCurrency(t.netDebit)),
+        valueLabel: t.netDebit < 0 ? 'credit' : 'debit',
+        subDetail: privacyMode ? 'Max loss: $***' : `Max loss: ${formatCurrency(t.maxLoss)}`,
+        canClose: false,
+        trade: null,
+        unrealizedPL: oq?.unrealizedPL ?? null,
+        maxPremium: t.netDebit < 0 ? Math.abs(t.netDebit) : t.maxProfit,
+        delta: oq?.delta ?? null,
+        theta: oq?.theta ?? null,
+        iv: oq?.iv ?? null,
+        companyName: tickerNames.get(t.ticker) ?? null,
+      };
+    }),
   ].sort((a, b) => a.dte - b.dte);
+
+  // Total unrealized P/L across all open positions
+  const totalUnrealizedPL = allOpenPositions.reduce(
+    (sum, p) => sum + (p.unrealizedPL ?? 0), 0
+  );
+  const hasUnrealizedData = allOpenPositions.some(p => p.unrealizedPL !== null);
 
   // Recent activity — all trade types
   const recentActivity = [
@@ -295,9 +355,9 @@ export default function Dashboard() {
           {/* Divider */}
           <div className="hidden lg:block w-px h-16 bg-border/30" />
 
-          {/* P/L Breakdown */}
+          {/* Realized P/L */}
           <div className="flex-1">
-            <div className="stat-label mb-1">Net P/L</div>
+            <div className="stat-label mb-1">Realized P/L</div>
             <div className={cn('text-3xl font-bold', totalPL >= 0 ? 'text-profit' : 'text-loss')}>
               {totalPL >= 0 ? '+' : ''}{formatCurrency(totalPL)}
             </div>
@@ -312,6 +372,22 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* Unrealized P/L — own column */}
+          {hasUnrealizedData && (
+            <>
+              <div className="hidden lg:block w-px h-16 bg-border/30" />
+              <div>
+                <div className="stat-label mb-1">Unrealized</div>
+                <div className={cn('text-2xl font-bold', totalUnrealizedPL >= 0 ? 'text-profit' : 'text-loss')}>
+                  {totalUnrealizedPL >= 0 ? '+' : ''}{formatCurrency(totalUnrealizedPL)}
+                </div>
+                <div className="text-xs text-muted mt-1">
+                  {allOpenPositions.filter(p => p.unrealizedPL !== null).length} positions live
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Divider */}
           <div className="hidden lg:block w-px h-16 bg-border/30" />
@@ -376,6 +452,14 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* ── Portfolio Greeks ── */}
+      {hasUnrealizedData && (
+        <PortfolioGreeksCard positions={allOpenPositions} privacyMode={privacyMode} />
+      )}
+
+      {/* ── Positions Under Pressure ── */}
+      <PressureCard />
 
       {/* ── Open Positions ── */}
       <section>
@@ -509,9 +593,16 @@ type OpenPosition = {
   subDetail: string;
   canClose: boolean;
   trade: Trade | null;
+  unrealizedPL: number | null;
+  maxPremium: number;       // max profit possible (for profit capture %)
+  delta: number | null;
+  theta: number | null;
+  iv: number | null;
+  companyName: string | null;
 };
 
 function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPosition[]; onCloseTrade: (trade: Trade) => void }) {
+  const { privacyMode } = useFormatters();
   const sorted = [...positions].sort((a, b) => a.dte - b.dte);
 
   const zones = URGENCY_ZONES
@@ -563,6 +654,11 @@ function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPositio
           <div className="space-y-1.5">
             {zone.items.map((pos) => {
               const color = strategyColors[pos.type] || '#10b981';
+              const isSold = pos.type === 'csp' || pos.type === 'cc' || (pos.type === 'spread' && pos.valueLabel === 'credit');
+              const profitCapture = (pos.unrealizedPL !== null && isSold && pos.maxPremium > 0)
+                ? Math.min(Math.max((pos.unrealizedPL / pos.maxPremium) * 100, -100), 100)
+                : null;
+
               return (
                 <div
                   key={`${pos.type}-${pos.id}`}
@@ -576,15 +672,20 @@ function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPositio
                   {/* Strategy color bar */}
                   <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
 
-                  {/* Ticker + type badge */}
-                  <div className="flex items-center gap-2 w-28 flex-shrink-0">
-                    <span className="font-semibold text-foreground">{pos.ticker}</span>
-                    <span
-                      className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                      style={{ backgroundColor: `${color}15`, color }}
-                    >
-                      {strategyLabels[pos.type]}
-                    </span>
+                  {/* Ticker + type badge + company */}
+                  <div className="flex flex-col w-28 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">{pos.ticker}</span>
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ backgroundColor: `${color}15`, color }}
+                      >
+                        {strategyLabels[pos.type]}
+                      </span>
+                    </div>
+                    {pos.companyName && (
+                      <span className="text-[11px] text-muted truncate">{pos.companyName}</span>
+                    )}
                   </div>
 
                   {/* Strike + contracts */}
@@ -592,10 +693,79 @@ function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPositio
                     <span className="text-sm text-muted">{pos.label} {pos.detail}</span>
                   </div>
 
-                  {/* Value */}
-                  <div className="text-right flex-shrink-0 w-24 hidden sm:block">
-                    <div className="text-sm font-medium text-foreground">{pos.value}</div>
-                    {pos.subDetail && <div className="text-[11px] text-accent">{pos.subDetail}</div>}
+                  {/* Unrealized P/L pill */}
+                  <div className="flex-shrink-0 w-24 hidden sm:block">
+                    {pos.unrealizedPL !== null ? (
+                      <div className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-bold',
+                        pos.unrealizedPL >= 0
+                          ? 'bg-profit/10 text-profit'
+                          : 'bg-loss/10 text-loss'
+                      )}>
+                        {privacyMode ? '$***' : `${pos.unrealizedPL >= 0 ? '+' : ''}${rawFormatCurrency(pos.unrealizedPL)}`}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted">{pos.value}</div>
+                    )}
+                  </div>
+
+                  {/* Profit capture bar (sold positions) */}
+                  <div className="flex-shrink-0 w-20 hidden md:block">
+                    {profitCapture !== null && !privacyMode ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className={cn('text-[10px] font-bold',
+                            profitCapture >= 50 ? 'text-profit' : profitCapture >= 0 ? 'text-caution' : 'text-loss'
+                          )}>
+                            {profitCapture.toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-zinc-800/40 overflow-hidden">
+                          <div
+                            className={cn('h-full rounded-full transition-all duration-500',
+                              profitCapture >= 50 ? 'bg-profit' : profitCapture >= 0 ? 'bg-caution' : 'bg-loss'
+                            )}
+                            style={{ width: `${Math.abs(Math.min(profitCapture, 100))}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] text-muted">profit captured</span>
+                      </div>
+                    ) : profitCapture !== null && privacyMode ? (
+                      <span className="text-[11px] text-muted">**% captured</span>
+                    ) : pos.subDetail ? (
+                      <span className="text-[11px] text-muted">{pos.subDetail}</span>
+                    ) : null}
+                  </div>
+
+                  {/* Greeks badges */}
+                  <div className="flex-shrink-0 hidden lg:flex items-center gap-1.5">
+                    {pos.delta !== null && (
+                      <span className={cn(
+                        'text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
+                        Math.abs(pos.delta) > 0.5
+                          ? 'bg-loss/10 text-loss'
+                          : Math.abs(pos.delta) > 0.3
+                            ? 'bg-caution/10 text-caution'
+                            : 'bg-zinc-500/10 text-zinc-400'
+                      )}>
+                        {privacyMode ? 'Δ **' : `Δ${pos.delta.toFixed(2)}`}
+                      </span>
+                    )}
+                    {pos.theta !== null && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-profit/10 text-profit">
+                        {privacyMode ? 'Θ $**' : `Θ${rawFormatCurrency(Math.abs(pos.theta * 100))}`}
+                      </span>
+                    )}
+                    {pos.iv !== null && (
+                      <span className={cn(
+                        'text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
+                        pos.iv > 0.5
+                          ? 'bg-amber-500/10 text-amber-400'
+                          : 'bg-zinc-500/10 text-zinc-400'
+                      )}>
+                        {privacyMode ? 'IV **' : `${(pos.iv * 100).toFixed(0)}%`}
+                      </span>
+                    )}
                   </div>
 
                   {/* Expiration */}
@@ -707,6 +877,71 @@ function CapitalAllocationCard({ data, accountValue, privacyMode }: {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Portfolio Greeks Card ───
+
+function PortfolioGreeksCard({ positions, privacyMode }: { positions: OpenPosition[]; privacyMode: boolean }) {
+  const positionsWithData = positions.filter(p => p.delta !== null || p.theta !== null || p.iv !== null);
+  if (positionsWithData.length === 0) return null;
+
+  const netDelta = positionsWithData.reduce((sum, p) => sum + (p.delta ?? 0), 0);
+  const dailyTheta = positionsWithData.reduce((sum, p) => sum + ((p.theta ?? 0) * 100), 0);
+  const ivValues = positionsWithData.filter(p => p.iv !== null).map(p => p.iv!);
+  const avgIV = ivValues.length > 0 ? ivValues.reduce((a, b) => a + b, 0) / ivValues.length : null;
+
+  const greekItems = [
+    {
+      label: 'Net Delta',
+      symbol: 'Δ',
+      value: privacyMode ? '***' : netDelta.toFixed(2),
+      subtext: netDelta > 0 ? 'Bullish bias' : netDelta < 0 ? 'Bearish bias' : 'Neutral',
+      color: Math.abs(netDelta) > 2 ? 'text-caution' : 'text-foreground',
+      iconBg: Math.abs(netDelta) > 2 ? 'bg-caution/10' : 'bg-accent/10',
+      iconColor: Math.abs(netDelta) > 2 ? 'text-caution' : 'text-accent',
+    },
+    {
+      label: 'Daily Theta',
+      symbol: 'Θ',
+      value: privacyMode ? '$***' : `${dailyTheta >= 0 ? '+' : ''}${rawFormatCurrency(dailyTheta)}`,
+      subtext: 'per day time decay',
+      color: dailyTheta >= 0 ? 'text-profit' : 'text-loss',
+      iconBg: dailyTheta >= 0 ? 'bg-profit/10' : 'bg-loss/10',
+      iconColor: dailyTheta >= 0 ? 'text-profit' : 'text-loss',
+    },
+    ...(avgIV !== null ? [{
+      label: 'Avg IV',
+      symbol: 'σ',
+      value: privacyMode ? '**%' : `${(avgIV * 100).toFixed(0)}%`,
+      subtext: avgIV > 0.5 ? 'Elevated' : avgIV > 0.3 ? 'Moderate' : 'Low',
+      color: avgIV > 0.5 ? 'text-amber-400' : 'text-foreground',
+      iconBg: avgIV > 0.5 ? 'bg-amber-500/10' : 'bg-zinc-500/10',
+      iconColor: avgIV > 0.5 ? 'text-amber-400' : 'text-zinc-400',
+    }] : []),
+  ];
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <h3 className="text-base font-semibold text-foreground">Portfolio Greeks</h3>
+        <span className="text-xs text-muted">{positionsWithData.length} positions</span>
+      </div>
+      <div className={cn('grid gap-4', greekItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+        {greekItems.map((g) => (
+          <div key={g.label} className="flex items-center gap-3">
+            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', g.iconBg)}>
+              <span className={cn('font-bold text-lg', g.iconColor)}>{g.symbol}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-muted">{g.label}</div>
+              <div className={cn('text-xl font-bold', g.color)}>{g.value}</div>
+              <div className="text-[11px] text-muted">{g.subtext}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
