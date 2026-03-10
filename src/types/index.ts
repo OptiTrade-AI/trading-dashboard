@@ -252,3 +252,12 @@ export interface TickerInfo {
   ticker: string;
   name: string;
 }
+
+export interface AggBar {
+  t: number;  // timestamp ms
+  o: number;  // open
+  h: number;  // high
+  l: number;  // low
+  c: number;  // close
+  v: number;  // volume
+}
