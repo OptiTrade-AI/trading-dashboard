@@ -1,46 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import useSWR from 'swr';
 import { CoveredCall } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateDTEFromEntry } from '@/lib/utils';
 
 export function useCoveredCalls() {
-  const [calls, setCalls] = useState<CoveredCall[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: calls = [], error: swrError, isLoading, mutate } = useSWR<CoveredCall[]>('/api/covered-calls');
+  const error = swrError?.message ?? null;
 
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const res = await fetch('/api/covered-calls');
-        if (!res.ok) throw new Error('Failed to load covered calls');
-        const data = await res.json();
-        setCalls(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load data';
-        setError(message);
-        console.error('Error loading covered calls:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const retry = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-    fetch('/api/covered-calls')
-      .then(async (res) => {
-        if (res.ok) setCalls(await res.json());
-        else throw new Error('Failed to load');
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load data'))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const retry = useCallback(() => { mutate(); }, [mutate]);
 
   const addCall = useCallback((call: Omit<CoveredCall, 'id' | 'dteAtEntry' | 'sharesHeld' | 'status'>) => {
     const newCall: CoveredCall = {
@@ -50,14 +20,14 @@ export function useCoveredCalls() {
       sharesHeld: call.contracts * 100,
       status: 'open',
     };
-    setCalls(prev => [newCall, ...prev]);
+    mutate(prev => [newCall, ...(prev || [])], { revalidate: false });
     fetch('/api/covered-calls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newCall),
     }).catch(err => console.error('Error adding covered call:', err));
     return newCall;
-  }, []);
+  }, [mutate]);
 
   const closeCall = useCallback((
     id: string,
@@ -72,24 +42,24 @@ export function useCoveredCalls() {
       exitDate,
       exitReason,
     };
-    setCalls(prev => prev.map(call =>
+    mutate(prev => (prev || []).map(call =>
       call.id === id ? { ...call, ...updates } : call
-    ));
+    ), { revalidate: false });
     fetch('/api/covered-calls', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updates }),
     }).catch(err => console.error('Error closing covered call:', err));
-  }, []);
+  }, [mutate]);
 
   const deleteCall = useCallback((id: string) => {
-    setCalls(prev => prev.filter(call => call.id !== id));
+    mutate(prev => (prev || []).filter(call => call.id !== id), { revalidate: false });
     fetch('/api/covered-calls', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     }).catch(err => console.error('Error deleting covered call:', err));
-  }, []);
+  }, [mutate]);
 
   const rollCall = useCallback((
     id: string,
@@ -97,39 +67,62 @@ export function useCoveredCalls() {
     exitDate: string,
     newCallData: Omit<CoveredCall, 'id' | 'dteAtEntry' | 'sharesHeld' | 'status' | 'rollChainId' | 'rollNumber'>
   ) => {
+    let newCall: CoveredCall | null = null;
+    mutate(prev => {
+      const currentCall = (prev || []).find(c => c.id === id);
+      if (!currentCall) return prev;
+
+      const rollChainId = currentCall.rollChainId || uuidv4();
+      const currentRollNumber = currentCall.rollNumber || 1;
+
+      const closeUpdates = {
+        status: 'closed' as const,
+        exitPrice,
+        exitDate,
+        exitReason: 'rolled' as const,
+        rollChainId,
+        rollNumber: currentRollNumber,
+      };
+
+      newCall = {
+        ...newCallData,
+        id: uuidv4(),
+        dteAtEntry: calculateDTEFromEntry(newCallData.entryDate, newCallData.expiration),
+        sharesHeld: newCallData.contracts * 100,
+        status: 'open',
+        rollChainId,
+        rollNumber: currentRollNumber + 1,
+      };
+
+      return [
+        newCall,
+        ...(prev || []).map(call =>
+          call.id === id ? { ...call, ...closeUpdates } : call
+        ),
+      ];
+    }, { revalidate: false });
+
+    if (!newCall) return null;
+
+    // Fire-and-forget API calls
     const currentCall = calls.find(c => c.id === id);
-    if (!currentCall) return null;
+    const rollChainId = currentCall?.rollChainId || (newCall as CoveredCall).rollChainId!;
+    const currentRollNumber = currentCall?.rollNumber || 1;
 
-    const rollChainId = currentCall.rollChainId || uuidv4();
-    const currentRollNumber = currentCall.rollNumber || 1;
-
-    const closeUpdates = {
-      status: 'closed' as const,
-      exitPrice,
-      exitDate,
-      exitReason: 'rolled' as const,
-      rollChainId,
-      rollNumber: currentRollNumber,
-    };
-    setCalls(prev => prev.map(call =>
-      call.id === id ? { ...call, ...closeUpdates } : call
-    ));
     fetch('/api/covered-calls', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...closeUpdates }),
+      body: JSON.stringify({
+        id,
+        status: 'closed',
+        exitPrice,
+        exitDate,
+        exitReason: 'rolled',
+        rollChainId,
+        rollNumber: currentRollNumber,
+      }),
     }).catch(err => console.error('Error closing rolled call:', err));
 
-    const newCall: CoveredCall = {
-      ...newCallData,
-      id: uuidv4(),
-      dteAtEntry: calculateDTEFromEntry(newCallData.entryDate, newCallData.expiration),
-      sharesHeld: newCallData.contracts * 100,
-      status: 'open',
-      rollChainId,
-      rollNumber: currentRollNumber + 1,
-    };
-    setCalls(prev => [newCall, ...prev]);
     fetch('/api/covered-calls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -137,7 +130,7 @@ export function useCoveredCalls() {
     }).catch(err => console.error('Error adding rolled call:', err));
 
     return newCall;
-  }, [calls]);
+  }, [mutate, calls]);
 
   const partialCloseCall = useCallback((
     id: string,
@@ -147,41 +140,49 @@ export function useCoveredCalls() {
     exitReason: CoveredCall['exitReason'],
     wasCalled: boolean = false
   ) => {
+    let closedPortion: CoveredCall | null = null;
+    mutate(prev => {
+      const call = (prev || []).find(c => c.id === id);
+      if (!call || contractsToClose >= call.contracts || contractsToClose < 1) return prev;
+
+      const totalContracts = call.originalContracts || call.contracts;
+      const remaining = call.contracts - contractsToClose;
+      const ratio = contractsToClose / call.contracts;
+
+      closedPortion = {
+        ...call,
+        id: uuidv4(),
+        contracts: contractsToClose,
+        sharesHeld: contractsToClose * 100,
+        premiumCollected: call.premiumCollected * ratio,
+        costBasis: call.costBasis * ratio,
+        status: wasCalled ? 'called' : 'closed',
+        exitPrice: exitPrice * ratio,
+        exitDate,
+        exitReason,
+        originalContracts: totalContracts,
+      };
+
+      const remainingUpdates = {
+        contracts: remaining,
+        sharesHeld: remaining * 100,
+        premiumCollected: call.premiumCollected * (1 - ratio),
+        costBasis: call.costBasis * (1 - ratio),
+        originalContracts: totalContracts,
+      };
+
+      return [
+        closedPortion,
+        ...(prev || []).map(c => c.id === id ? { ...c, ...remainingUpdates } : c),
+      ];
+    }, { revalidate: false });
+
+    if (!closedPortion) return null;
+
     const call = calls.find(c => c.id === id);
-    if (!call || contractsToClose >= call.contracts || contractsToClose < 1) return null;
-
-    const totalContracts = call.originalContracts || call.contracts;
-    const remaining = call.contracts - contractsToClose;
-    const ratio = contractsToClose / call.contracts;
-
-    // Create closed portion
-    const closedPortion: CoveredCall = {
-      ...call,
-      id: uuidv4(),
-      contracts: contractsToClose,
-      sharesHeld: contractsToClose * 100,
-      premiumCollected: call.premiumCollected * ratio,
-      costBasis: call.costBasis * ratio,
-      status: wasCalled ? 'called' : 'closed',
-      exitPrice: exitPrice * ratio,
-      exitDate,
-      exitReason,
-      originalContracts: totalContracts,
-    };
-
-    // Update remaining portion
-    const remainingUpdates = {
-      contracts: remaining,
-      sharesHeld: remaining * 100,
-      premiumCollected: call.premiumCollected * (1 - ratio),
-      costBasis: call.costBasis * (1 - ratio),
-      originalContracts: totalContracts,
-    };
-
-    setCalls(prev => [
-      closedPortion,
-      ...prev.map(c => c.id === id ? { ...c, ...remainingUpdates } : c),
-    ]);
+    const totalContracts = call?.originalContracts || call?.contracts || 0;
+    const remaining = (call?.contracts || 0) - contractsToClose;
+    const ratio = contractsToClose / (call?.contracts || 1);
 
     fetch('/api/covered-calls', {
       method: 'POST',
@@ -192,11 +193,18 @@ export function useCoveredCalls() {
     fetch('/api/covered-calls', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...remainingUpdates }),
+      body: JSON.stringify({
+        id,
+        contracts: remaining,
+        sharesHeld: remaining * 100,
+        premiumCollected: (call?.premiumCollected || 0) * (1 - ratio),
+        costBasis: (call?.costBasis || 0) * (1 - ratio),
+        originalContracts: totalContracts,
+      }),
     }).catch(err => console.error('Error updating remaining call:', err));
 
     return closedPortion;
-  }, [calls]);
+  }, [mutate, calls]);
 
   const getRollChain = useCallback((rollChainId: string) => {
     return calls

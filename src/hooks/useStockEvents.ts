@@ -1,44 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import useSWR from 'swr';
 import { StockEvent } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useStockEvents() {
-  const [stockEvents, setStockEvents] = useState<StockEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: stockEvents = [], error: swrError, isLoading, mutate } = useSWR<StockEvent[]>('/api/stock-events');
+  const error = swrError?.message ?? null;
 
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const res = await fetch('/api/stock-events');
-        if (!res.ok) throw new Error('Failed to load stock events');
-        const data = await res.json();
-        setStockEvents(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load stock events';
-        setError(message);
-        console.error('Error loading stock events:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const retry = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-    fetch('/api/stock-events')
-      .then(async (res) => {
-        if (res.ok) setStockEvents(await res.json());
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load stock events'))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const retry = useCallback(() => { mutate(); }, [mutate]);
 
   const addStockEvent = useCallback((event: Omit<StockEvent, 'id' | 'realizedPL'>) => {
     const newEvent: StockEvent = {
@@ -46,23 +17,23 @@ export function useStockEvents() {
       id: uuidv4(),
       realizedPL: (event.salePrice - event.costBasis) * event.shares,
     };
-    setStockEvents(prev => [newEvent, ...prev]);
+    mutate(prev => [newEvent, ...(prev || [])], { revalidate: false });
     fetch('/api/stock-events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newEvent),
     }).catch(err => console.error('Error adding stock event:', err));
     return newEvent;
-  }, []);
+  }, [mutate]);
 
   const deleteStockEvent = useCallback((id: string) => {
-    setStockEvents(prev => prev.filter(e => e.id !== id));
+    mutate(prev => (prev || []).filter(e => e.id !== id), { revalidate: false });
     fetch('/api/stock-events', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     }).catch(err => console.error('Error deleting stock event:', err));
-  }, []);
+  }, [mutate]);
 
   const totalStockPL = stockEvents.reduce((sum, e) => sum + e.realizedPL, 0);
   const tlhEvents = stockEvents.filter(e => e.isTaxLossHarvest);

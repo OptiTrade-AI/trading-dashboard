@@ -64,12 +64,29 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 - **Persistent** — Setting saved to localStorage, survives page refreshes
 - **Demo-friendly** — Perfect for sharing your screen or recording walkthroughs without exposing real P/L
 
+### AI Strategy Analyzer
+
+- **On-demand AI analysis** — Claude-powered review of your trading data with structured feedback
+- **Time range selection** — Analyze last 1W, 1M, 3M, 6M, YTD, all-time, or custom date ranges
+- **Streaming responses** — Real-time streaming output with section-by-section rendering
+- **Saved history** — Past analyses stored in MongoDB with browse/delete support
+- **Structured output** — Scorecard, Top Findings, and Action Items sections with custom rendering
+- **Privacy-aware** — Analysis content blurred when privacy mode is active
+
+### Performance
+
+- **SWR caching** — All trade data hooks use [SWR](https://swr.vercel.app/) for instant page transitions
+- **Request deduplication** — Identical requests within 10s are deduped (no redundant fetches)
+- **Optimistic mutations** — Add, close, roll, and delete operations update the UI instantly
+- **Background revalidation** — Stale data is refreshed in the background without blocking navigation
+
 ### UI / UX
 
 - **Dark-only glass morphism theme** — Semi-transparent cards with backdrop blur and glow effects
 - **Fully responsive** — Desktop grid layouts collapse gracefully to mobile
 - **Skeleton loaders** — Smooth loading states across all pages
 - **Color-coded P/L** — Green for profit, red for loss, amber for caution — everywhere
+- **Compact navigation** — Trades grouped in a dropdown menu, streamlined top nav
 
 ---
 
@@ -82,6 +99,8 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 | Database | MongoDB 7.x |
 | Styling | Tailwind CSS 3.4 |
 | Charts | Recharts 3.6 |
+| Caching | SWR 2.x |
+| AI | Anthropic Claude API |
 | Dates | date-fns 4.x |
 | IDs | uuid 13.x |
 
@@ -109,6 +128,7 @@ Create a `.env` file in the project root:
 ```env
 MONGODB_URI=mongodb+srv://your-connection-string
 MONGODB_DB=your-database-name
+ANTHROPIC_API_KEY=sk-ant-...    # Optional: enables AI Strategy Analyzer
 ```
 
 ### Run Development Server
@@ -133,14 +153,15 @@ src/
 │   ├── spreads/                    # Vertical spreads log
 │   ├── stock/                      # Stock events / TLH
 │   ├── analytics/                  # Analytics suite
-│   ├── strategy/                   # Strategy reference
+│   ├── analysis/                   # AI Strategy Analyzer
 │   └── api/                        # REST API routes
 │       ├── trades/
 │       ├── covered-calls/
 │       ├── directional-trades/
 │       ├── spreads/
 │       ├── stock-events/
-│       └── settings/
+│       ├── settings/
+│       └── analysis/               # AI analysis endpoint
 ├── components/                     # UI components
 │   ├── *Modal.tsx                  # Entry/close/roll modals
 │   ├── *Table.tsx                  # Sortable data tables
@@ -173,6 +194,7 @@ All routes support `GET` (fetch all) and `POST` (replace collection).
 | `/api/spreads` | Vertical spreads |
 | `/api/stock-events` | Stock events |
 | `/api/settings` | Account settings |
+| `/api/analysis` | AI trade analyses (GET/POST/DELETE) |
 
 ---
 
