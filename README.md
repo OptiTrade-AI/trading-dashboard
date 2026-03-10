@@ -55,6 +55,15 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 - **CSV Export** — Export trade data for external analysis
 - **Delete Confirmation** — Safe deletion with confirmation modals
 
+### Privacy Mode
+
+- **One-click toggle** — Eye icon in the navigation bar masks all financial data instantly
+- **Keyboard shortcut** — `Ctrl+Shift+H` (or `Cmd+Shift+H` on Mac) to toggle
+- **Full coverage** — All dollar amounts, percentages, strike prices, and P/L values replaced with `***`
+- **Chart blur** — Analytics charts are blurred with a "Hidden" overlay when privacy is active
+- **Persistent** — Setting saved to localStorage, survives page refreshes
+- **Demo-friendly** — Perfect for sharing your screen or recording walkthroughs without exposing real P/L
+
 ### UI / UX
 
 - **Dark-only glass morphism theme** — Semi-transparent cards with backdrop blur and glow effects
@@ -137,11 +146,15 @@ src/
 │   ├── *Table.tsx                  # Sortable data tables
 │   ├── Charts.tsx                  # 11+ chart components
 │   ├── Navigation.tsx              # App navigation
+│   ├── Providers.tsx               # Client-side context wrapper
 │   ├── StatCard.tsx                # Reusable stat display
 │   ├── PositionCard.tsx            # Open position cards
 │   ├── HeatGauge.tsx               # Portfolio heat visualization
 │   └── SkeletonLoader.tsx          # Loading states
+├── contexts/
+│   └── PrivacyContext.tsx          # Privacy mode global state
 ├── hooks/                          # Data fetching hooks
+│   └── useFormatters.ts            # Privacy-aware formatting hook
 ├── lib/                            # MongoDB connection, utilities, calculations
 └── types/                          # TypeScript interfaces
 ```
