@@ -176,3 +176,13 @@ export const CORE_WATCHLIST = {
 };
 
 export const ALL_TICKERS = [...CORE_WATCHLIST.tier1, ...CORE_WATCHLIST.tier2];
+
+// Trade Analysis (saved AI analyses)
+export interface TradeAnalysis {
+  id: string;
+  createdAt: string;       // ISO date
+  timeRange: string;       // '1W'|'1M'|'3M'|etc
+  startDate?: string;      // for CUSTOM range
+  endDate?: string;
+  content: string;         // full markdown analysis text
+}

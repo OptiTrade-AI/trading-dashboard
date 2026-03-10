@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import useSWR from 'swr';
 import { Trade, AccountSettings } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateDTEFromEntry, calculateCollateral } from '@/lib/utils';
@@ -11,50 +12,15 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
 };
 
 export function useTrades() {
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [accountSettings, setAccountSettings] = useState<AccountSettings>(DEFAULT_ACCOUNT_SETTINGS);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [tradesRes, settingsRes] = await Promise.all([
-          fetch('/api/trades'),
-          fetch('/api/settings')
-        ]);
-
-        if (!tradesRes.ok) throw new Error('Failed to load trades');
-        if (!settingsRes.ok) throw new Error('Failed to load settings');
-
-        const tradesData = await tradesRes.json();
-        const settingsData = await settingsRes.json();
-        setTrades(tradesData);
-        setAccountSettings(settingsData);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load data';
-        setError(message);
-        console.error('Error loading data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const { data: trades = [], error: trErr, isLoading: trLoading, mutate: mutateTrades } = useSWR<Trade[]>('/api/trades');
+  const { data: accountSettings = DEFAULT_ACCOUNT_SETTINGS, isLoading: setLoading, mutate: mutateSettings } = useSWR<AccountSettings>('/api/settings');
+  const isLoading = trLoading || setLoading;
+  const error = trErr?.message ?? null;
 
   const retry = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-    Promise.all([fetch('/api/trades'), fetch('/api/settings')])
-      .then(async ([tradesRes, settingsRes]) => {
-        if (tradesRes.ok) setTrades(await tradesRes.json());
-        if (settingsRes.ok) setAccountSettings(await settingsRes.json());
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load data'))
-      .finally(() => setIsLoading(false));
-  }, []);
+    mutateTrades();
+    mutateSettings();
+  }, [mutateTrades, mutateSettings]);
 
   const saveSettings = useCallback(async (newSettings: AccountSettings) => {
     try {
@@ -76,14 +42,14 @@ export function useTrades() {
       collateral: calculateCollateral(trade.strike, trade.contracts),
       status: 'open',
     };
-    setTrades(prev => [newTrade, ...prev]);
+    mutateTrades(prev => [newTrade, ...(prev || [])], { revalidate: false });
     fetch('/api/trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTrade),
     }).catch(err => console.error('Error adding trade:', err));
     return newTrade;
-  }, []);
+  }, [mutateTrades]);
 
   const closeTrade = useCallback((
     id: string,
@@ -92,24 +58,24 @@ export function useTrades() {
     exitReason: Trade['exitReason']
   ) => {
     const updates = { status: 'closed' as const, exitPrice, exitDate, exitReason };
-    setTrades(prev => prev.map(trade =>
+    mutateTrades(prev => (prev || []).map(trade =>
       trade.id === id ? { ...trade, ...updates } : trade
-    ));
+    ), { revalidate: false });
     fetch('/api/trades', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updates }),
     }).catch(err => console.error('Error closing trade:', err));
-  }, []);
+  }, [mutateTrades]);
 
   const deleteTrade = useCallback((id: string) => {
-    setTrades(prev => prev.filter(trade => trade.id !== id));
+    mutateTrades(prev => (prev || []).filter(trade => trade.id !== id), { revalidate: false });
     fetch('/api/trades', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     }).catch(err => console.error('Error deleting trade:', err));
-  }, []);
+  }, [mutateTrades]);
 
   const rollTrade = useCallback((
     id: string,
@@ -117,41 +83,61 @@ export function useTrades() {
     exitDate: string,
     newTradeData: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status' | 'rollChainId' | 'rollNumber'>
   ) => {
+    let newTrade: Trade | null = null;
+    mutateTrades(prev => {
+      const currentTrade = (prev || []).find(t => t.id === id);
+      if (!currentTrade) return prev;
+
+      const rollChainId = currentTrade.rollChainId || uuidv4();
+      const currentRollNumber = currentTrade.rollNumber || 1;
+
+      const closeUpdates = {
+        status: 'closed' as const,
+        exitPrice,
+        exitDate,
+        exitReason: 'rolled' as const,
+        rollChainId,
+        rollNumber: currentRollNumber,
+      };
+
+      newTrade = {
+        ...newTradeData,
+        id: uuidv4(),
+        dteAtEntry: calculateDTEFromEntry(newTradeData.entryDate, newTradeData.expiration),
+        collateral: calculateCollateral(newTradeData.strike, newTradeData.contracts),
+        status: 'open',
+        rollChainId,
+        rollNumber: currentRollNumber + 1,
+      };
+
+      return [
+        newTrade,
+        ...(prev || []).map(trade =>
+          trade.id === id ? { ...trade, ...closeUpdates } : trade
+        ),
+      ];
+    }, { revalidate: false });
+
+    if (!newTrade) return null;
+
     const currentTrade = trades.find(t => t.id === id);
-    if (!currentTrade) return null;
+    const rollChainId = currentTrade?.rollChainId || (newTrade as Trade).rollChainId!;
+    const currentRollNumber = currentTrade?.rollNumber || 1;
 
-    const rollChainId = currentTrade.rollChainId || uuidv4();
-    const currentRollNumber = currentTrade.rollNumber || 1;
-
-    // Close the current trade
-    const closeUpdates = {
-      status: 'closed' as const,
-      exitPrice,
-      exitDate,
-      exitReason: 'rolled' as const,
-      rollChainId,
-      rollNumber: currentRollNumber,
-    };
-    setTrades(prev => prev.map(trade =>
-      trade.id === id ? { ...trade, ...closeUpdates } : trade
-    ));
     fetch('/api/trades', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...closeUpdates }),
+      body: JSON.stringify({
+        id,
+        status: 'closed',
+        exitPrice,
+        exitDate,
+        exitReason: 'rolled',
+        rollChainId,
+        rollNumber: currentRollNumber,
+      }),
     }).catch(err => console.error('Error closing rolled trade:', err));
 
-    // Create the new rolled position
-    const newTrade: Trade = {
-      ...newTradeData,
-      id: uuidv4(),
-      dteAtEntry: calculateDTEFromEntry(newTradeData.entryDate, newTradeData.expiration),
-      collateral: calculateCollateral(newTradeData.strike, newTradeData.contracts),
-      status: 'open',
-      rollChainId,
-      rollNumber: currentRollNumber + 1,
-    };
-    setTrades(prev => [newTrade, ...prev]);
     fetch('/api/trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -159,7 +145,7 @@ export function useTrades() {
     }).catch(err => console.error('Error adding rolled trade:', err));
 
     return newTrade;
-  }, [trades]);
+  }, [mutateTrades, trades]);
 
   const partialCloseTrade = useCallback((
     id: string,
@@ -168,41 +154,48 @@ export function useTrades() {
     exitDate: string,
     exitReason: Trade['exitReason']
   ) => {
+    let closedPortion: Trade | null = null;
+    mutateTrades(prev => {
+      const trade = (prev || []).find(t => t.id === id);
+      if (!trade || contractsToClose >= trade.contracts || contractsToClose < 1) return prev;
+
+      const totalContracts = trade.originalContracts || trade.contracts;
+      const remaining = trade.contracts - contractsToClose;
+      const ratio = contractsToClose / trade.contracts;
+
+      closedPortion = {
+        ...trade,
+        id: uuidv4(),
+        contracts: contractsToClose,
+        premiumCollected: trade.premiumCollected * ratio,
+        collateral: calculateCollateral(trade.strike, contractsToClose),
+        status: 'closed',
+        exitPrice: exitPrice * ratio,
+        exitDate,
+        exitReason,
+        originalContracts: totalContracts,
+      };
+
+      const remainingUpdates = {
+        contracts: remaining,
+        premiumCollected: trade.premiumCollected * (1 - ratio),
+        collateral: calculateCollateral(trade.strike, remaining),
+        originalContracts: totalContracts,
+      };
+
+      return [
+        closedPortion,
+        ...(prev || []).map(t => t.id === id ? { ...t, ...remainingUpdates } : t),
+      ];
+    }, { revalidate: false });
+
+    if (!closedPortion) return null;
+
     const trade = trades.find(t => t.id === id);
-    if (!trade || contractsToClose >= trade.contracts || contractsToClose < 1) return null;
+    const totalContracts = trade?.originalContracts || trade?.contracts || 0;
+    const remaining = (trade?.contracts || 0) - contractsToClose;
+    const ratio = contractsToClose / (trade?.contracts || 1);
 
-    const totalContracts = trade.originalContracts || trade.contracts;
-    const remaining = trade.contracts - contractsToClose;
-    const ratio = contractsToClose / trade.contracts;
-
-    // Create closed portion
-    const closedPortion: Trade = {
-      ...trade,
-      id: uuidv4(),
-      contracts: contractsToClose,
-      premiumCollected: trade.premiumCollected * ratio,
-      collateral: calculateCollateral(trade.strike, contractsToClose),
-      status: 'closed',
-      exitPrice: exitPrice * ratio,
-      exitDate,
-      exitReason,
-      originalContracts: totalContracts,
-    };
-
-    // Update remaining portion
-    const remainingUpdates = {
-      contracts: remaining,
-      premiumCollected: trade.premiumCollected * (1 - ratio),
-      collateral: calculateCollateral(trade.strike, remaining),
-      originalContracts: totalContracts,
-    };
-
-    setTrades(prev => [
-      closedPortion,
-      ...prev.map(t => t.id === id ? { ...t, ...remainingUpdates } : t),
-    ]);
-
-    // POST closed portion, PATCH remaining
     fetch('/api/trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -212,11 +205,17 @@ export function useTrades() {
     fetch('/api/trades', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...remainingUpdates }),
+      body: JSON.stringify({
+        id,
+        contracts: remaining,
+        premiumCollected: (trade?.premiumCollected || 0) * (1 - ratio),
+        collateral: calculateCollateral(trade?.strike || 0, remaining),
+        originalContracts: totalContracts,
+      }),
     }).catch(err => console.error('Error updating remaining trade:', err));
 
     return closedPortion;
-  }, [trades]);
+  }, [mutateTrades, trades]);
 
   const getRollChain = useCallback((rollChainId: string) => {
     return trades
@@ -226,9 +225,9 @@ export function useTrades() {
 
   const updateAccountValue = useCallback((value: number) => {
     const newSettings = { ...accountSettings, accountValue: value };
-    setAccountSettings(newSettings);
+    mutateSettings(newSettings, { revalidate: false });
     saveSettings(newSettings);
-  }, [accountSettings, saveSettings]);
+  }, [accountSettings, saveSettings, mutateSettings]);
 
   const openTrades = trades.filter(t => t.status === 'open');
   const closedTrades = trades.filter(t => t.status === 'closed');

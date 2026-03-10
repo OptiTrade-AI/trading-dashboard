@@ -1,46 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import useSWR from 'swr';
 import { DirectionalTrade, DirectionalExitReason } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateDTEFromEntry } from '@/lib/utils';
 
 export function useDirectionalTrades() {
-  const [trades, setTrades] = useState<DirectionalTrade[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: trades = [], error: swrError, isLoading, mutate } = useSWR<DirectionalTrade[]>('/api/directional-trades');
+  const error = swrError?.message ?? null;
 
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const res = await fetch('/api/directional-trades');
-        if (!res.ok) throw new Error('Failed to load directional trades');
-        const data = await res.json();
-        setTrades(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load data';
-        setError(message);
-        console.error('Error loading directional trades:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const retry = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-    fetch('/api/directional-trades')
-      .then(async (res) => {
-        if (res.ok) setTrades(await res.json());
-        else throw new Error('Failed to load');
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load data'))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const retry = useCallback(() => { mutate(); }, [mutate]);
 
   const addTrade = useCallback((trade: Omit<DirectionalTrade, 'id' | 'dteAtEntry' | 'costAtOpen' | 'status'>) => {
     const newTrade: DirectionalTrade = {
@@ -50,14 +20,14 @@ export function useDirectionalTrades() {
       costAtOpen: trade.entryPrice * 100 * trade.contracts,
       status: 'open',
     };
-    setTrades(prev => [newTrade, ...prev]);
+    mutate(prev => [newTrade, ...(prev || [])], { revalidate: false });
     fetch('/api/directional-trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTrade),
     }).catch(err => console.error('Error adding directional trade:', err));
     return newTrade;
-  }, []);
+  }, [mutate]);
 
   const closeTrade = useCallback((
     id: string,
@@ -65,36 +35,39 @@ export function useDirectionalTrades() {
     exitDate: string,
     exitReason: DirectionalExitReason
   ) => {
+    mutate(prev => {
+      const trade = (prev || []).find(t => t.id === id);
+      if (!trade) return prev;
+      const creditAtClose = exitPrice * 100 * trade.contracts;
+      const updates = {
+        status: 'closed' as const,
+        exitPrice,
+        exitDate,
+        exitReason,
+        creditAtClose,
+      };
+      return (prev || []).map(t =>
+        t.id === id ? { ...t, ...updates } : t
+      );
+    }, { revalidate: false });
+    // Fire-and-forget — we need contracts from current data for creditAtClose
     const trade = trades.find(t => t.id === id);
-    if (!trade) return;
-
-    const creditAtClose = exitPrice * 100 * trade.contracts;
-    const updates = {
-      status: 'closed' as const,
-      exitPrice,
-      exitDate,
-      exitReason,
-      creditAtClose,
-    };
-
-    setTrades(prev => prev.map(t =>
-      t.id === id ? { ...t, ...updates } : t
-    ));
+    const creditAtClose = exitPrice * 100 * (trade?.contracts || 0);
     fetch('/api/directional-trades', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
+      body: JSON.stringify({ id, status: 'closed', exitPrice, exitDate, exitReason, creditAtClose }),
     }).catch(err => console.error('Error closing directional trade:', err));
-  }, [trades]);
+  }, [mutate, trades]);
 
   const deleteTrade = useCallback((id: string) => {
-    setTrades(prev => prev.filter(trade => trade.id !== id));
+    mutate(prev => (prev || []).filter(trade => trade.id !== id), { revalidate: false });
     fetch('/api/directional-trades', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     }).catch(err => console.error('Error deleting directional trade:', err));
-  }, []);
+  }, [mutate]);
 
   const rollTrade = useCallback((
     id: string,
@@ -102,41 +75,65 @@ export function useDirectionalTrades() {
     exitDate: string,
     newTradeData: Omit<DirectionalTrade, 'id' | 'dteAtEntry' | 'costAtOpen' | 'status' | 'rollChainId' | 'rollNumber'>
   ) => {
+    let newTrade: DirectionalTrade | null = null;
+    mutate(prev => {
+      const currentTrade = (prev || []).find(t => t.id === id);
+      if (!currentTrade) return prev;
+
+      const rollChainId = currentTrade.rollChainId || uuidv4();
+      const currentRollNumber = currentTrade.rollNumber || 1;
+      const creditAtClose = exitPrice * 100 * currentTrade.contracts;
+
+      const closeUpdates = {
+        status: 'closed' as const,
+        exitPrice,
+        exitDate,
+        exitReason: 'rolled' as const,
+        creditAtClose,
+        rollChainId,
+        rollNumber: currentRollNumber,
+      };
+
+      newTrade = {
+        ...newTradeData,
+        id: uuidv4(),
+        dteAtEntry: calculateDTEFromEntry(newTradeData.entryDate, newTradeData.expiration),
+        costAtOpen: newTradeData.entryPrice * 100 * newTradeData.contracts,
+        status: 'open',
+        rollChainId,
+        rollNumber: currentRollNumber + 1,
+      };
+
+      return [
+        newTrade,
+        ...(prev || []).map(trade =>
+          trade.id === id ? { ...trade, ...closeUpdates } : trade
+        ),
+      ];
+    }, { revalidate: false });
+
+    if (!newTrade) return null;
+
     const currentTrade = trades.find(t => t.id === id);
-    if (!currentTrade) return null;
+    const rollChainId = currentTrade?.rollChainId || (newTrade as DirectionalTrade).rollChainId!;
+    const currentRollNumber = currentTrade?.rollNumber || 1;
+    const creditAtClose = exitPrice * 100 * (currentTrade?.contracts || 0);
 
-    const rollChainId = currentTrade.rollChainId || uuidv4();
-    const currentRollNumber = currentTrade.rollNumber || 1;
-    const creditAtClose = exitPrice * 100 * currentTrade.contracts;
-
-    const closeUpdates = {
-      status: 'closed' as const,
-      exitPrice,
-      exitDate,
-      exitReason: 'rolled' as const,
-      creditAtClose,
-      rollChainId,
-      rollNumber: currentRollNumber,
-    };
-    setTrades(prev => prev.map(trade =>
-      trade.id === id ? { ...trade, ...closeUpdates } : trade
-    ));
     fetch('/api/directional-trades', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...closeUpdates }),
+      body: JSON.stringify({
+        id,
+        status: 'closed',
+        exitPrice,
+        exitDate,
+        exitReason: 'rolled',
+        creditAtClose,
+        rollChainId,
+        rollNumber: currentRollNumber,
+      }),
     }).catch(err => console.error('Error closing rolled trade:', err));
 
-    const newTrade: DirectionalTrade = {
-      ...newTradeData,
-      id: uuidv4(),
-      dteAtEntry: calculateDTEFromEntry(newTradeData.entryDate, newTradeData.expiration),
-      costAtOpen: newTradeData.entryPrice * 100 * newTradeData.contracts,
-      status: 'open',
-      rollChainId,
-      rollNumber: currentRollNumber + 1,
-    };
-    setTrades(prev => [newTrade, ...prev]);
     fetch('/api/directional-trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -144,7 +141,7 @@ export function useDirectionalTrades() {
     }).catch(err => console.error('Error adding rolled trade:', err));
 
     return newTrade;
-  }, [trades]);
+  }, [mutate, trades]);
 
   const partialCloseTrade = useCallback((
     id: string,
@@ -153,40 +150,47 @@ export function useDirectionalTrades() {
     exitDate: string,
     exitReason: DirectionalExitReason
   ) => {
+    let closedPortion: DirectionalTrade | null = null;
+    mutate(prev => {
+      const trade = (prev || []).find(t => t.id === id);
+      if (!trade || contractsToClose >= trade.contracts || contractsToClose < 1) return prev;
+
+      const totalContracts = trade.originalContracts || trade.contracts;
+      const remaining = trade.contracts - contractsToClose;
+      const ratio = contractsToClose / trade.contracts;
+      const creditAtClose = exitPrice * 100 * contractsToClose;
+
+      closedPortion = {
+        ...trade,
+        id: uuidv4(),
+        contracts: contractsToClose,
+        costAtOpen: trade.costAtOpen * ratio,
+        status: 'closed',
+        exitPrice,
+        exitDate,
+        exitReason,
+        creditAtClose,
+        originalContracts: totalContracts,
+      };
+
+      const remainingUpdates = {
+        contracts: remaining,
+        costAtOpen: trade.costAtOpen * (1 - ratio),
+        originalContracts: totalContracts,
+      };
+
+      return [
+        closedPortion,
+        ...(prev || []).map(t => t.id === id ? { ...t, ...remainingUpdates } : t),
+      ];
+    }, { revalidate: false });
+
+    if (!closedPortion) return null;
+
     const trade = trades.find(t => t.id === id);
-    if (!trade || contractsToClose >= trade.contracts || contractsToClose < 1) return null;
-
-    const totalContracts = trade.originalContracts || trade.contracts;
-    const remaining = trade.contracts - contractsToClose;
-    const ratio = contractsToClose / trade.contracts;
-
-    const creditAtClose = exitPrice * 100 * contractsToClose;
-
-    // Create closed portion
-    const closedPortion: DirectionalTrade = {
-      ...trade,
-      id: uuidv4(),
-      contracts: contractsToClose,
-      costAtOpen: trade.costAtOpen * ratio,
-      status: 'closed',
-      exitPrice,
-      exitDate,
-      exitReason,
-      creditAtClose,
-      originalContracts: totalContracts,
-    };
-
-    // Update remaining portion
-    const remainingUpdates = {
-      contracts: remaining,
-      costAtOpen: trade.costAtOpen * (1 - ratio),
-      originalContracts: totalContracts,
-    };
-
-    setTrades(prev => [
-      closedPortion,
-      ...prev.map(t => t.id === id ? { ...t, ...remainingUpdates } : t),
-    ]);
+    const totalContracts = trade?.originalContracts || trade?.contracts || 0;
+    const remaining = (trade?.contracts || 0) - contractsToClose;
+    const ratio = contractsToClose / (trade?.contracts || 1);
 
     fetch('/api/directional-trades', {
       method: 'POST',
@@ -197,11 +201,16 @@ export function useDirectionalTrades() {
     fetch('/api/directional-trades', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...remainingUpdates }),
+      body: JSON.stringify({
+        id,
+        contracts: remaining,
+        costAtOpen: (trade?.costAtOpen || 0) * (1 - ratio),
+        originalContracts: totalContracts,
+      }),
     }).catch(err => console.error('Error updating remaining trade:', err));
 
     return closedPortion;
-  }, [trades]);
+  }, [mutate, trades]);
 
   const getRollChain = useCallback((rollChainId: string) => {
     return trades

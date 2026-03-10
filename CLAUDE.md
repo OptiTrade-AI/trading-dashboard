@@ -35,7 +35,7 @@ Four independent trade types, each with its own type definition (`src/types/inde
 - `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection
 - `src/app/page.tsx` — Dashboard aggregating stats across all trade types
 - `src/app/analytics/page.tsx` — Charts and analytics (uses Recharts)
-- `src/app/strategy/page.tsx` — Strategy reference page
+- `src/app/analysis/page.tsx` — AI Strategy Analyzer with saved history
 
 ### UI Conventions
 
@@ -48,3 +48,4 @@ Four independent trade types, each with its own type definition (`src/types/inde
 
 - `MONGODB_URI` — MongoDB connection string
 - `MONGODB_DB` — Database name (defaults to `csp-tracker`)
+- `ANTHROPIC_API_KEY` — Anthropic API key for AI Strategy Analyzer (server-side only)
