@@ -1,44 +1,38 @@
-// Cash-Secured Put
-export interface Trade {
+// Base fields shared across all trade types
+export interface BaseTrade {
   id: string;
   ticker: string;
-  strike: number;
-  contracts: number; // number of contracts
+  contracts: number;
   expiration: string; // ISO date
   entryDate: string;
   exitDate?: string;
-  premiumCollected: number; // total premium (per contract * contracts * 100)
-  collateral: number; // total collateral (strike * 100 * contracts)
   dteAtEntry: number;
-  status: 'open' | 'closed';
-  exitPrice?: number; // total cost to close
-  exitReason?: ExitReason;
+  status: string;
   notes?: string;
   rollChainId?: string; // links rolled positions together
   rollNumber?: number; // position in roll chain (1 = original, 2 = first roll, etc.)
-  originalContracts?: number; // tracks original qty before partial close (e.g., 5 if "2/5 closed")
+  originalContracts?: number; // tracks original qty before partial close
+}
+
+// Cash-Secured Put
+export interface Trade extends BaseTrade {
+  strike: number;
+  premiumCollected: number; // total premium (per contract * contracts * 100)
+  collateral: number; // total collateral (strike * 100 * contracts)
+  status: 'open' | 'closed';
+  exitPrice?: number; // total cost to close
+  exitReason?: ExitReason;
 }
 
 // Covered Call
-export interface CoveredCall {
-  id: string;
-  ticker: string;
+export interface CoveredCall extends BaseTrade {
   strike: number;
-  contracts: number; // number of contracts (100 shares each)
-  expiration: string; // ISO date
-  entryDate: string;
-  exitDate?: string;
   premiumCollected: number; // total premium received
   sharesHeld: number; // typically contracts * 100
   costBasis: number; // total cost basis of shares
-  dteAtEntry: number;
   status: 'open' | 'closed' | 'called';
   exitPrice?: number; // cost to buy back the call (0 if expired/called)
   exitReason?: CCExitReason;
-  notes?: string;
-  rollChainId?: string;
-  rollNumber?: number;
-  originalContracts?: number;
 }
 
 export interface AccountSettings {
@@ -46,8 +40,11 @@ export interface AccountSettings {
   maxHeatPercent: number; // default 30
 }
 
+// Base exit reasons shared across strategies
+export type BaseExitReason = 'rolled' | 'partial close' | 'other';
+
 // CSP Exit Reasons
-export type ExitReason = '50% profit' | 'time stop' | 'rolled' | 'support broke' | 'assigned' | 'partial close' | 'other';
+export type ExitReason = BaseExitReason | '50% profit' | 'time stop' | 'support broke' | 'assigned';
 
 export const EXIT_REASONS: ExitReason[] = [
   '50% profit',
@@ -60,7 +57,7 @@ export const EXIT_REASONS: ExitReason[] = [
 ];
 
 // CC Exit Reasons
-export type CCExitReason = '50% profit' | 'time stop' | 'rolled' | 'called away' | 'expired' | 'partial close' | 'other';
+export type CCExitReason = BaseExitReason | '50% profit' | 'time stop' | 'called away' | 'expired';
 
 export const CC_EXIT_REASONS: CCExitReason[] = [
   '50% profit',
@@ -75,29 +72,18 @@ export const CC_EXIT_REASONS: CCExitReason[] = [
 // Directional Trades (long calls/puts)
 export type OptionType = 'call' | 'put';
 
-export interface DirectionalTrade {
-  id: string;
-  ticker: string;
+export interface DirectionalTrade extends BaseTrade {
   optionType: OptionType;
   strike: number;
-  contracts: number;
   entryPrice: number; // per-contract avg price paid
   costAtOpen: number; // entryPrice × 100 × contracts
-  expiration: string; // ISO date
-  entryDate: string;
-  exitDate?: string;
-  dteAtEntry: number;
   status: 'open' | 'closed';
   exitPrice?: number; // per-contract avg price received
   creditAtClose?: number; // exitPrice × 100 × contracts
   exitReason?: DirectionalExitReason;
-  notes?: string;
-  rollChainId?: string;
-  rollNumber?: number;
-  originalContracts?: number;
 }
 
-export type DirectionalExitReason = 'profit target' | 'stop loss' | 'expired worthless' | 'rolled' | 'partial close' | 'other';
+export type DirectionalExitReason = BaseExitReason | 'profit target' | 'stop loss' | 'expired worthless';
 
 export const DIRECTIONAL_EXIT_REASONS: DirectionalExitReason[] = [
   'profit target',
@@ -111,32 +97,21 @@ export const DIRECTIONAL_EXIT_REASONS: DirectionalExitReason[] = [
 // Vertical Spreads
 export type SpreadType = 'call_debit' | 'call_credit' | 'put_debit' | 'put_credit';
 
-export interface SpreadTrade {
-  id: string;
-  ticker: string;
+export interface SpreadTrade extends BaseTrade {
   spreadType: SpreadType;
   longStrike: number;
   shortStrike: number;
-  contracts: number;
   longPrice: number;      // per-contract price paid for long leg
   shortPrice: number;     // per-contract price received for short leg
   netDebit: number;       // (longPrice - shortPrice) × 100 × contracts (negative = net credit)
   maxProfit: number;
   maxLoss: number;
-  expiration: string;
-  entryDate: string;
-  exitDate?: string;
-  dteAtEntry: number;
   status: 'open' | 'closed';
   closeNetCredit?: number; // net credit received when closing
   exitReason?: SpreadExitReason;
-  notes?: string;
-  rollChainId?: string;
-  rollNumber?: number;
-  originalContracts?: number;
 }
 
-export type SpreadExitReason = 'max profit' | 'profit target' | 'stop loss' | 'expired' | 'rolled' | 'partial close' | 'other';
+export type SpreadExitReason = BaseExitReason | 'max profit' | 'profit target' | 'stop loss' | 'expired';
 
 export const SPREAD_EXIT_REASONS: SpreadExitReason[] = [
   'max profit',

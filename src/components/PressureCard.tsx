@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
 import { usePressure } from '@/hooks/usePressure';
 import { useMarketStatus } from '@/hooks/useMarketStatus';
 import { useTickerDetails } from '@/hooks/useTickerDetails';
@@ -9,6 +8,8 @@ import { useFormatters } from '@/hooks/useFormatters';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { cn } from '@/lib/utils';
 import { DEFAULT_PRESSURE_THRESHOLDS } from '@/types';
+import type { OpenPosition } from '@/components/dashboard/PositionsTimeline';
+import { PositionDetailModal } from '@/components/dashboard/PositionDetailModal';
 
 const SEVERITY_STYLES = {
   critical: 'border-l-red-500 bg-red-500/5',
@@ -40,7 +41,7 @@ function useRelativeTime(iso: string | null) {
   return `${hours}h ago`;
 }
 
-export function PressureCard() {
+export function PressureCard({ openPositions }: { openPositions: OpenPosition[] }) {
   const {
     pressurePositions,
     stockPrices,
@@ -49,6 +50,14 @@ export function PressureCard() {
     isLoading,
     error,
   } = usePressure();
+
+  const [selectedPosition, setSelectedPosition] = useState<OpenPosition | null>(null);
+
+  const positionMap = useMemo(() => {
+    const map = new Map<string, OpenPosition>();
+    openPositions.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [openPositions]);
 
   const { isOpen: isMarketOpen, isExtended, label: marketStatusLabel } = useMarketStatus();
   const pressureTickers = useMemo(() => pressurePositions.map(p => p.ticker), [pressurePositions]);
@@ -80,7 +89,7 @@ export function PressureCard() {
 
   const priceMap = new Map(stockPrices.map((p) => [p.ticker, p]));
 
-  return (
+  return (<>
     <div className="glass-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border/20">
@@ -239,11 +248,14 @@ export function PressureCard() {
             const changeUp = sp ? sp.change >= 0 : true;
 
             return (
-              <Link
+              <button
                 key={`${pos.tradeType}-${pos.id}`}
-                href={badge.href}
+                onClick={() => {
+                  const match = positionMap.get(pos.id);
+                  if (match) setSelectedPosition(match);
+                }}
                 className={cn(
-                  'flex items-center gap-3 px-5 py-3 border-l-[3px] transition-colors hover:bg-background/40',
+                  'flex items-center gap-3 px-5 py-3 border-l-[3px] transition-colors hover:bg-background/40 w-full text-left',
                   SEVERITY_STYLES[pos.severity],
                   pos.severity === 'critical' && 'ring-1 ring-red-500/20'
                 )}
@@ -316,11 +328,17 @@ export function PressureCard() {
                 >
                   {pos.dte}d
                 </span>
-              </Link>
+              </button>
             );
           })}
         </div>
       )}
     </div>
+    <PositionDetailModal
+      position={selectedPosition}
+      isOpen={!!selectedPosition}
+      onClose={() => setSelectedPosition(null)}
+    />
+  </>
   );
 }

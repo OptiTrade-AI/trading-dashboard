@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useCoveredCalls, calculateCCPL } from '@/hooks/useCoveredCalls';
 import { CCTable } from '@/components/CCTable';
-import { AddCCModal, CloseCCModal } from '@/components/CCModal';
+import { AddCCModal, EditCCModal, CloseCCModal } from '@/components/CCModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { StatCard } from '@/components/StatCard';
@@ -16,10 +16,11 @@ import { useFormatters } from '@/hooks/useFormatters';
 
 export default function CoveredCallsPage() {
   const { formatCurrency } = useFormatters();
-  const { calls, openCalls, closedCalls, addCall, closeCall, deleteCall, rollCall, partialCloseCall, getRollChain, isLoading, error, retry } = useCoveredCalls();
+  const { calls, openCalls, closedCalls, addCall, editCall, closeCall, deleteCall, rollCall, partialCloseCall, getRollChain, isLoading, error, retry } = useCoveredCalls();
   const { addStockEvent } = useStockEvents();
   const { getCostBasis, removeShares } = useHoldings();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editModalCall, setEditModalCall] = useState<CoveredCall | null>(null);
   const [closeModalCall, setCloseModalCall] = useState<CoveredCall | null>(null);
   const [deleteModalCall, setDeleteModalCall] = useState<CoveredCall | null>(null);
   const [rollChainId, setRollChainId] = useState<string | null>(null);
@@ -180,6 +181,7 @@ export default function CoveredCallsPage() {
           <CCTable
             calls={calls}
             onClose={(call) => setCloseModalCall(call)}
+            onEdit={(call) => setEditModalCall(call)}
             onDelete={handleDeleteCall}
             onViewRollChain={(chainId) => setRollChainId(chainId)}
           />
@@ -192,6 +194,12 @@ export default function CoveredCallsPage() {
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddCall}
         getCostBasis={getCostBasis}
+      />
+      <EditCCModal
+        isOpen={!!editModalCall}
+        call={editModalCall}
+        onClose={() => setEditModalCall(null)}
+        onSubmit={editCall}
       />
       <CloseCCModal
         isOpen={!!closeModalCall}

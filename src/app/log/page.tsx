@@ -1,22 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTrades } from '@/hooks/useTrades';
 import { TradeTable } from '@/components/TradeTable';
-import { AddTradeModal, CloseTradeModal } from '@/components/TradeModal';
+import { AddTradeModal, EditTradeModal, CloseTradeModal } from '@/components/TradeModal';
 import { RollHistoryModal } from '@/components/RollHistoryModal';
-import { SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { StatCard } from '@/components/StatCard';
+import { SkeletonStatCards, SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { Trade, ExitReason } from '@/types';
 import { useHoldings } from '@/hooks/useHoldings';
-import { exportToCSV } from '@/lib/utils';
+import { exportToCSV, calculatePL } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export default function TradeLog() {
-  const { trades, addTrade, closeTrade, deleteTrade, rollTrade, partialCloseTrade, getRollChain, isLoading, error, retry } = useTrades();
+  const { formatCurrency } = useFormatters();
+  const { trades, openTrades, closedTrades, addTrade, editTrade, closeTrade, deleteTrade, rollTrade, partialCloseTrade, getRollChain, isLoading, error, retry } = useTrades();
   const { addHolding } = useHoldings();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editModalTrade, setEditModalTrade] = useState<Trade | null>(null);
   const [closeModalTrade, setCloseModalTrade] = useState<Trade | null>(null);
   const [deleteConfirmTrade, setDeleteConfirmTrade] = useState<Trade | null>(null);
   const [rollChainId, setRollChainId] = useState<string | null>(null);
+
+  const stats = useMemo(() => {
+    const totalPL = closedTrades.reduce((sum, t) => sum + calculatePL(t), 0);
+    const totalPremium = trades.reduce((sum, t) => sum + t.premiumCollected, 0);
+    const totalCollateral = openTrades.reduce((sum, t) => sum + t.collateral, 0);
+    const winningTrades = closedTrades.filter((t) => calculatePL(t) > 0).length;
+    const winRate = closedTrades.length > 0 ? (winningTrades / closedTrades.length) * 100 : 0;
+
+    return { totalPL, totalPremium, totalCollateral, winRate, winningTrades };
+  }, [trades, openTrades, closedTrades]);
 
   const handleAddTrade = (trade: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status'>) => {
     addTrade(trade);
@@ -80,22 +95,13 @@ export default function TradeLog() {
     );
   }
 
-  const openCount = trades.filter(t => t.status === 'open').length;
-  const closedCount = trades.filter(t => t.status === 'closed').length;
-
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Trade Log</h1>
-          {isLoading ? (
-            <div className="h-5 w-48 animate-pulse rounded bg-zinc-800/60 mt-1" />
-          ) : (
-            <p className="text-muted mt-1">
-              {trades.length} total trades · {openCount} open · {closedCount} closed
-            </p>
-          )}
+          <p className="text-muted mt-1">Cash-secured puts</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -114,14 +120,55 @@ export default function TradeLog() {
         </div>
       </div>
 
+      {/* Stats */}
+      {isLoading ? (
+        <SkeletonStatCards count={5} />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard
+            label="Total P/L"
+            value={formatCurrency(stats.totalPL)}
+            variant={stats.totalPL >= 0 ? 'profit' : 'loss'}
+            subValue={`${closedTrades.length} closed`}
+          />
+          <StatCard
+            label="Total Premium"
+            value={formatCurrency(stats.totalPremium)}
+            variant="profit"
+            subValue="All time"
+          />
+          <StatCard
+            label="Open Positions"
+            value={openTrades.length.toString()}
+            subValue={formatCurrency(stats.totalCollateral) + ' collateral'}
+          />
+          <StatCard
+            label="Win Rate"
+            value={closedTrades.length > 0 ? `${stats.winRate.toFixed(0)}%` : '-'}
+            variant="accent"
+            subValue={closedTrades.length > 0 ? `${stats.winningTrades}/${closedTrades.length}` : 'No closed yet'}
+          />
+          <StatCard
+            label="Total Trades"
+            value={trades.length.toString()}
+            subValue={`${openTrades.length} open · ${closedTrades.length} closed`}
+          />
+        </div>
+      )}
+
       {/* Table */}
-      <div className="glass-card p-5">
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-foreground">All CSP Trades</h2>
+          <span className="text-muted text-sm">{trades.length} total</span>
+        </div>
         {isLoading ? (
           <SkeletonTable rows={6} />
         ) : (
           <TradeTable
             trades={trades}
             onClose={(trade) => setCloseModalTrade(trade)}
+            onEdit={(trade) => setEditModalTrade(trade)}
             onDelete={(trade) => setDeleteConfirmTrade(trade)}
             onViewRollChain={(chainId) => setRollChainId(chainId)}
           />
@@ -132,6 +179,13 @@ export default function TradeLog() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleAddTrade}
+      />
+
+      <EditTradeModal
+        isOpen={!!editModalTrade}
+        trade={editModalTrade}
+        onClose={() => setEditModalTrade(null)}
+        onSubmit={editTrade}
       />
 
       <CloseTradeModal
@@ -150,34 +204,13 @@ export default function TradeLog() {
         tradeType="csp"
       />
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmTrade && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card w-full max-w-sm p-6">
-            <div className="w-12 h-12 rounded-xl bg-loss/10 flex items-center justify-center mx-auto mb-4">
-              <span className="text-loss text-xl">⚠</span>
-            </div>
-            <h3 className="text-xl font-semibold text-foreground text-center mb-2">Delete Trade</h3>
-            <p className="text-muted text-center mb-6">
-              Are you sure you want to delete <span className="text-foreground font-medium">{deleteConfirmTrade.ticker} ${deleteConfirmTrade.strike}P</span>? This cannot be undone.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setDeleteConfirmTrade(null)}
-                className="btn-secondary flex-1"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteTrade}
-                className="flex-1 py-2.5 text-sm font-semibold bg-loss text-white rounded-xl hover:bg-loss/90 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={!!deleteConfirmTrade}
+        title="Delete Trade"
+        message={deleteConfirmTrade ? `Delete ${deleteConfirmTrade.ticker} $${deleteConfirmTrade.strike}P? This cannot be undone.` : ''}
+        onConfirm={handleDeleteTrade}
+        onCancel={() => setDeleteConfirmTrade(null)}
+      />
     </div>
   );
 }

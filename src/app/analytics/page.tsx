@@ -32,7 +32,7 @@ import {
 } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
-import { format, parseISO, startOfMonth, isThisMonth, isThisYear, subMonths, subDays, startOfYear, isAfter } from 'date-fns';
+import { format, parse, parseISO, startOfMonth, isThisMonth, isThisYear, subMonths, subDays, startOfYear, isAfter } from 'date-fns';
 
 type TimeRange = '1M' | '3M' | '6M' | 'YTD' | 'ALL';
 type StrategyTab = 'all' | 'csp' | 'cc' | 'directional' | 'spreads';
@@ -113,7 +113,7 @@ export default function Analytics() {
       type: 'cc' as const,
       pl: calculateCCPL(c),
       plPercent: calculateCCPLPercent(c),
-      daysHeld: calculateDaysHeld({ entryDate: c.entryDate, exitDate: c.exitDate } as any),
+      daysHeld: calculateDaysHeld({ entryDate: c.entryDate, exitDate: c.exitDate }),
     }));
 
     const ccTotalPL = ccWithPL.reduce((sum, c) => sum + c.pl, 0);
@@ -134,7 +134,7 @@ export default function Analytics() {
       type: 'directional' as const,
       pl: calculateDirectionalPL(t),
       plPercent: calculateDirectionalPLPercent(t),
-      daysHeld: calculateDaysHeld({ entryDate: t.entryDate, exitDate: t.exitDate } as any),
+      daysHeld: calculateDaysHeld({ entryDate: t.entryDate, exitDate: t.exitDate }),
     }));
 
     const dirTotalPL = dirWithPL.reduce((sum, t) => sum + t.pl, 0);
@@ -156,7 +156,7 @@ export default function Analytics() {
       type: 'spread' as const,
       pl: calculateSpreadPL(t),
       plPercent: calculateSpreadPLPercent(t),
-      daysHeld: calculateDaysHeld({ entryDate: t.entryDate, exitDate: t.exitDate } as any),
+      daysHeld: calculateDaysHeld({ entryDate: t.entryDate, exitDate: t.exitDate }),
     }));
 
     const spreadTotalPL = spreadWithPL.reduce((sum, t) => sum + t.pl, 0);
@@ -239,8 +239,8 @@ export default function Analytics() {
     const monthlyStacked = Array.from(monthlyStackedMap.entries())
       .map(([month, data]) => ({ month, ...data }))
       .sort((a, b) => {
-        const dateA = parseISO(`01 ${a.month}`);
-        const dateB = parseISO(`01 ${b.month}`);
+        const dateA = parse(a.month, 'MMM yyyy', new Date());
+        const dateB = parse(b.month, 'MMM yyyy', new Date());
         return dateA.getTime() - dateB.getTime();
       });
 
@@ -256,8 +256,8 @@ export default function Analytics() {
     const tradeFrequency = Array.from(frequencyMap.entries())
       .map(([month, count]) => ({ month, count }))
       .sort((a, b) => {
-        const dateA = parseISO(`01 ${a.month}`);
-        const dateB = parseISO(`01 ${b.month}`);
+        const dateA = parse(a.month, 'MMM yyyy', new Date());
+        const dateB = parse(b.month, 'MMM yyyy', new Date());
         return dateA.getTime() - dateB.getTime();
       });
 
@@ -454,7 +454,7 @@ export default function Analytics() {
       holdTimeStrategies,
       holdTimeBuckets,
     };
-  }, [closedTrades, closedCalls, closedDirectional, closedSpreads, stockEvents, includeStockPL, timeRange]);
+  }, [closedTrades, closedCalls, closedDirectional, closedSpreads, stockEvents, includeStockPL, timeRange, accountSettings.accountValue]);
 
   if (closedTrades.length === 0 && closedCalls.length === 0 && closedDirectional.length === 0 && closedSpreads.length === 0) {
     return (
@@ -846,7 +846,36 @@ function RiskMetricRow({ label, value, hint, variant }: { label: string; value: 
 
 // ─── Tabbed Strategy Breakdown ───
 
-function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analytics: any }) {
+interface AnalyticsData {
+  cspTotalPL: number; cspWinRate: number; cspCount: number; cspAvgDaysHeld: number; cspAvgReturn: number;
+  cspBestTrade: TradeWithPL | null; cspWorstTrade: TradeWithPL | null;
+  ccTotalPL: number; ccWinRate: number; ccCount: number; ccAvgDaysHeld: number; ccCalledAway: number;
+  ccBestTrade: TradeWithPL | null; ccWorstTrade: TradeWithPL | null;
+  dirTotalPL: number; dirWinRate: number; dirCount: number; dirAvgDaysHeld: number; dirTotalReturn: number;
+  dirBestTrade: TradeWithPL | null; dirWorstTrade: TradeWithPL | null;
+  spreadTotalPL: number; spreadWinRate: number; spreadCount: number; spreadAvgDaysHeld: number; spreadTotalReturn: number;
+  spreadBestTrade: TradeWithPL | null; spreadWorstTrade: TradeWithPL | null;
+}
+
+interface TradeWithPL {
+  ticker: string;
+  strike?: number;
+  contracts: number;
+  pl: number;
+  optionType?: string;
+  longStrike?: number;
+  shortStrike?: number;
+}
+
+interface StrategyConfig {
+  label: string; icon: string; iconBg: string; iconColor: string;
+  pl: number; winRate: number; count: number; avgDays: number;
+  best: TradeWithPL | null; worst: TradeWithPL | null;
+  formatDetails: (t: TradeWithPL) => string;
+  stats: { label: string; value: string; variant?: boolean }[];
+}
+
+function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analytics: AnalyticsData }) {
   if (tab === 'all') {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -907,12 +936,12 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
   }
 
   // Individual strategy tab
-  const configs: Record<string, any> = {
+  const configs: Record<string, StrategyConfig> = {
     csp: {
       label: 'Cash-Secured Puts', icon: 'P', iconBg: 'bg-accent/10', iconColor: 'text-accent',
       pl: analytics.cspTotalPL, winRate: analytics.cspWinRate, count: analytics.cspCount,
       avgDays: analytics.cspAvgDaysHeld, best: analytics.cspBestTrade, worst: analytics.cspWorstTrade,
-      formatDetails: (t: any) => `${t.ticker} $${t.strike}P x ${t.contracts}`,
+      formatDetails: (t: TradeWithPL) => `${t.ticker} $${t.strike}P x ${t.contracts}`,
       stats: [
         { label: 'Total P/L', value: `${analytics.cspTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.cspTotalPL)}`, variant: analytics.cspTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.cspWinRate.toFixed(0)}%` },
@@ -924,7 +953,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       label: 'Covered Calls', icon: 'C', iconBg: 'bg-blue-500/10', iconColor: 'text-blue-400',
       pl: analytics.ccTotalPL, winRate: analytics.ccWinRate, count: analytics.ccCount,
       avgDays: analytics.ccAvgDaysHeld, best: analytics.ccBestTrade, worst: analytics.ccWorstTrade,
-      formatDetails: (t: any) => `${t.ticker} $${t.strike}C x ${t.contracts}`,
+      formatDetails: (t: TradeWithPL) => `${t.ticker} $${t.strike}C x ${t.contracts}`,
       stats: [
         { label: 'Total P/L', value: `${analytics.ccTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.ccTotalPL)}`, variant: analytics.ccTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.ccWinRate.toFixed(0)}%` },
@@ -936,7 +965,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       label: 'Directional', icon: 'D', iconBg: 'bg-amber-500/10', iconColor: 'text-amber-400',
       pl: analytics.dirTotalPL, winRate: analytics.dirWinRate, count: analytics.dirCount,
       avgDays: analytics.dirAvgDaysHeld, best: analytics.dirBestTrade, worst: analytics.dirWorstTrade,
-      formatDetails: (t: any) => `${t.ticker} $${t.strike}${t.optionType === 'call' ? 'C' : 'P'} x ${t.contracts}`,
+      formatDetails: (t: TradeWithPL) => `${t.ticker} $${t.strike}${t.optionType === 'call' ? 'C' : 'P'} x ${t.contracts}`,
       stats: [
         { label: 'Total P/L', value: `${analytics.dirTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.dirTotalPL)}`, variant: analytics.dirTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.dirWinRate.toFixed(0)}%` },
@@ -948,7 +977,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       label: 'Spreads', icon: 'S', iconBg: 'bg-purple-500/10', iconColor: 'text-purple-400',
       pl: analytics.spreadTotalPL, winRate: analytics.spreadWinRate, count: analytics.spreadCount,
       avgDays: analytics.spreadAvgDaysHeld, best: analytics.spreadBestTrade, worst: analytics.spreadWorstTrade,
-      formatDetails: (t: any) => `${t.ticker} $${t.longStrike}/$${t.shortStrike} x ${t.contracts}`,
+      formatDetails: (t: TradeWithPL) => `${t.ticker} $${t.longStrike}/$${t.shortStrike} x ${t.contracts}`,
       stats: [
         { label: 'Total P/L', value: `${analytics.spreadTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.spreadTotalPL)}`, variant: analytics.spreadTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.spreadWinRate.toFixed(0)}%` },
@@ -965,7 +994,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
     <div className="space-y-5">
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {config.stats.map((s: any) => (
+        {config.stats.map((s: { label: string; value: string; variant?: boolean }) => (
           <div key={s.label} className="bg-card-solid/30 rounded-xl p-4 border border-border/30">
             <div className="stat-label mb-1">{s.label}</div>
             <div className={cn(
@@ -1029,7 +1058,7 @@ function StrategyMiniCard({ label, icon, iconBg, iconColor, pl, winRate, count, 
 }
 
 function BestWorstCard({ type, trade, formatDetails, iconBg, iconColor }: {
-  type: 'best' | 'worst'; trade: any; formatDetails: (t: any) => string;
+  type: 'best' | 'worst'; trade: TradeWithPL; formatDetails: (t: TradeWithPL) => string;
   iconBg: string; iconColor: string;
 }) {
   const isBest = type === 'best';
