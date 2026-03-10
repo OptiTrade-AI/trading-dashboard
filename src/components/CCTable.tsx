@@ -12,11 +12,12 @@ type SortDirection = 'asc' | 'desc';
 interface CCTableProps {
   calls: CoveredCall[];
   onClose?: (call: CoveredCall) => void;
+  onEdit?: (call: CoveredCall) => void;
   onDelete?: (call: CoveredCall) => void;
   onViewRollChain?: (rollChainId: string) => void;
 }
 
-export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTableProps) {
+export function CCTable({ calls, onClose, onEdit, onDelete, onViewRollChain }: CCTableProps) {
   const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -72,8 +73,8 @@ export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTablePr
           bVal = calculateCCPLPercent(b);
           break;
         case 'daysHeld':
-          aVal = calculateDaysHeld({ entryDate: a.entryDate, exitDate: a.exitDate } as any);
-          bVal = calculateDaysHeld({ entryDate: b.entryDate, exitDate: b.exitDate } as any);
+          aVal = calculateDaysHeld({ entryDate: a.entryDate, exitDate: a.exitDate });
+          bVal = calculateDaysHeld({ entryDate: b.entryDate, exitDate: b.exitDate });
           break;
         default:
           aVal = a[sortKey] ?? '';
@@ -303,6 +304,14 @@ export function CCTable({ calls, onClose, onDelete, onViewRollChain }: CCTablePr
                   </td>
                   <td className="px-4 py-3 text-sm text-right">
                     <div className="flex items-center justify-end gap-3">
+                      {call.status === 'open' && onEdit && (
+                        <button
+                          onClick={() => onEdit(call)}
+                          className="text-muted hover:text-foreground text-xs font-medium transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
                       {call.status === 'open' && onClose && (
                         <button
                           onClick={() => onClose(call)}

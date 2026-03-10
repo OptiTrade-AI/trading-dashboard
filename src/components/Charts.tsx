@@ -706,9 +706,9 @@ export function ExpirationTimeline({ items }: { items: TimelineItem[] }) {
 // ─── Payoff Diagram ───
 
 export function PayoffDiagram({
-  longStrike, shortStrike, netDebit, maxProfit, maxLoss, spreadType,
+  longStrike, shortStrike, netDebit, spreadType,
 }: {
-  longStrike: number; shortStrike: number; netDebit: number; maxProfit: number; maxLoss: number; spreadType: string;
+  longStrike: number; shortStrike: number; netDebit: number; maxProfit?: number; maxLoss?: number; spreadType: string;
 }) {
   const data = useMemo(() => {
     const low = Math.min(longStrike, shortStrike);
@@ -977,7 +977,7 @@ function ScatterTooltipContent({ active, payload }: any) {
 export function DaysHeldScatterChart({ data }: { data: ScatterData[] }) {
   if (data.length === 0) return <div className="h-64 flex items-center justify-center text-muted">No data</div>;
 
-  const types = [...new Set(data.map((d) => d.type))];
+  const types = Array.from(new Set(data.map((d) => d.type)));
 
   return (
     <div className="space-y-3">

@@ -13,6 +13,10 @@ import { useTickerDetails } from '@/hooks/useTickerDetails';
 import { PressureCard } from '@/components/PressureCard';
 import { CloseTradeModal } from '@/components/TradeModal';
 import { SkeletonDashboard } from '@/components/SkeletonLoader';
+import { PositionsTimeline } from '@/components/dashboard/PositionsTimeline';
+import { CapitalAllocationCard } from '@/components/dashboard/CapitalAllocationCard';
+import { PortfolioGreeksCard } from '@/components/dashboard/PortfolioGreeksCard';
+import { CompactHeat } from '@/components/dashboard/CompactHeat';
 import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
 import {
   formatCurrency as rawFormatCurrency,
@@ -160,6 +164,7 @@ export default function Dashboard() {
         subDetail: privacyMode ? '**% ROC' : `${calculateReturnOnCollateral(t).toFixed(1)}% ROC`,
         canClose: true,
         trade: t,
+        rawTrade: t,
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: t.premiumCollected,
         delta: oq?.delta ?? null,
@@ -185,6 +190,7 @@ export default function Dashboard() {
         subDetail: privacyMode ? '*** shares' : `${c.sharesHeld} shares`,
         canClose: false,
         trade: null,
+        rawTrade: c,
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: c.premiumCollected,
         delta: oq?.delta ?? null,
@@ -210,6 +216,7 @@ export default function Dashboard() {
         subDetail: '',
         canClose: false,
         trade: null,
+        rawTrade: t,
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: t.costAtOpen,
         delta: oq?.delta ?? null,
@@ -235,6 +242,7 @@ export default function Dashboard() {
         subDetail: privacyMode ? 'Max loss: $***' : `Max loss: ${formatCurrency(t.maxLoss)}`,
         canClose: false,
         trade: null,
+        rawTrade: t,
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: t.netDebit < 0 ? Math.abs(t.netDebit) : t.maxProfit,
         delta: oq?.delta ?? null,
@@ -459,7 +467,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Positions Under Pressure ── */}
-      <PressureCard />
+      <PressureCard openPositions={allOpenPositions} />
 
       {/* ── Open Positions ── */}
       <section>
@@ -551,441 +559,6 @@ export default function Dashboard() {
         onSubmit={handleCloseTrade}
         onRoll={handleRollTrade}
       />
-    </div>
-  );
-}
-
-// ─── Positions Timeline ───
-
-const URGENCY_ZONES = [
-  { key: 'critical', label: 'This Week', sublabel: '≤ 7 days', min: 0, max: 7, dotColor: 'bg-loss', borderColor: 'border-loss/30', glowColor: 'shadow-[0_0_15px_rgba(239,68,68,0.08)]' },
-  { key: 'caution', label: 'Next 2 Weeks', sublabel: '8–21 days', min: 8, max: 21, dotColor: 'bg-caution', borderColor: 'border-caution/20', glowColor: '' },
-  { key: 'safe', label: '3–4 Weeks', sublabel: '22–30 days', min: 22, max: 30, dotColor: 'bg-accent', borderColor: 'border-border/20', glowColor: '' },
-  { key: 'distant', label: '30+ Days', sublabel: 'Far out', min: 31, max: Infinity, dotColor: 'bg-zinc-500', borderColor: 'border-border/10', glowColor: '' },
-];
-
-const strategyColors: Record<string, string> = {
-  csp: '#10b981',
-  cc: '#3b82f6',
-  directional: '#f59e0b',
-  spread: '#a855f7',
-};
-
-const strategyLabels: Record<string, string> = {
-  csp: 'CSP',
-  cc: 'CC',
-  directional: 'DIR',
-  spread: 'SPREAD',
-};
-
-type OpenPosition = {
-  id: string;
-  ticker: string;
-  type: 'csp' | 'cc' | 'directional' | 'spread';
-  label: string;
-  badge: string;
-  badgeColor: string;
-  dte: number;
-  expiration: string;
-  detail: string;
-  value: string;
-  valueLabel: string;
-  subDetail: string;
-  canClose: boolean;
-  trade: Trade | null;
-  unrealizedPL: number | null;
-  maxPremium: number;       // max profit possible (for profit capture %)
-  delta: number | null;
-  theta: number | null;
-  iv: number | null;
-  companyName: string | null;
-};
-
-function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPosition[]; onCloseTrade: (trade: Trade) => void }) {
-  const { privacyMode } = useFormatters();
-  const sorted = [...positions].sort((a, b) => a.dte - b.dte);
-
-  const zones = URGENCY_ZONES
-    .map((zone) => ({
-      ...zone,
-      items: sorted.filter((p) => p.dte >= zone.min && p.dte <= zone.max),
-    }))
-    .filter((zone) => zone.items.length > 0);
-
-  const soonestDTE = sorted[0]?.dte ?? 0;
-
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-foreground">Positions & Expirations</h3>
-          <span className="text-sm text-muted">{sorted.length} active</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">Next expiry:</span>
-          <span className={cn('text-sm font-bold', soonestDTE <= 7 ? 'text-loss' : soonestDTE <= 21 ? 'text-caution' : 'text-accent')}>
-            {soonestDTE}d
-          </span>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-3">
-        {Object.entries({ CSP: '#10b981', CC: '#3b82f6', Dir: '#f59e0b', Spread: '#a855f7' }).map(
-          ([label, color]) => (
-            <div key={label} className="flex items-center gap-1.5 text-[11px] text-muted">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-              {label}
-            </div>
-          )
-        )}
-      </div>
-
-      {/* Urgency zones */}
-      {zones.map((zone) => (
-        <div key={zone.key}>
-          <div className="flex items-center gap-2 mb-2.5">
-            <div className={cn('w-2 h-2 rounded-full', zone.dotColor)} />
-            <span className="text-sm font-medium text-foreground">{zone.label}</span>
-            <span className="text-[11px] text-muted">{zone.sublabel}</span>
-            <span className="text-[11px] text-muted ml-auto">{zone.items.length}</span>
-          </div>
-          <div className="space-y-1.5">
-            {zone.items.map((pos) => {
-              const color = strategyColors[pos.type] || '#10b981';
-              const isSold = pos.type === 'csp' || pos.type === 'cc' || (pos.type === 'spread' && pos.valueLabel === 'credit');
-              const profitCapture = (pos.unrealizedPL !== null && isSold && pos.maxPremium > 0)
-                ? Math.min(Math.max((pos.unrealizedPL / pos.maxPremium) * 100, -100), 100)
-                : null;
-
-              return (
-                <div
-                  key={`${pos.type}-${pos.id}`}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all group',
-                    zone.borderColor,
-                    zone.glowColor,
-                    'bg-card-solid/20 hover:bg-card-solid/40',
-                  )}
-                >
-                  {/* Strategy color bar */}
-                  <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-
-                  {/* Ticker + type badge + company */}
-                  <div className="flex flex-col w-28 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{pos.ticker}</span>
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ backgroundColor: `${color}15`, color }}
-                      >
-                        {strategyLabels[pos.type]}
-                      </span>
-                    </div>
-                    {pos.companyName && (
-                      <span className="text-[11px] text-muted truncate">{pos.companyName}</span>
-                    )}
-                  </div>
-
-                  {/* Strike + contracts */}
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-muted">{pos.label} {pos.detail}</span>
-                  </div>
-
-                  {/* Unrealized P/L pill */}
-                  <div className="flex-shrink-0 w-24 hidden sm:block">
-                    {pos.unrealizedPL !== null ? (
-                      <div className={cn(
-                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-bold',
-                        pos.unrealizedPL >= 0
-                          ? 'bg-profit/10 text-profit'
-                          : 'bg-loss/10 text-loss'
-                      )}>
-                        {privacyMode ? '$***' : `${pos.unrealizedPL >= 0 ? '+' : ''}${rawFormatCurrency(pos.unrealizedPL)}`}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted">{pos.value}</div>
-                    )}
-                  </div>
-
-                  {/* Profit capture bar (sold positions) */}
-                  <div className="flex-shrink-0 w-20 hidden md:block">
-                    {profitCapture !== null && !privacyMode ? (
-                      <div>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className={cn('text-[10px] font-bold',
-                            profitCapture >= 50 ? 'text-profit' : profitCapture >= 0 ? 'text-caution' : 'text-loss'
-                          )}>
-                            {profitCapture.toFixed(0)}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-zinc-800/40 overflow-hidden">
-                          <div
-                            className={cn('h-full rounded-full transition-all duration-500',
-                              profitCapture >= 50 ? 'bg-profit' : profitCapture >= 0 ? 'bg-caution' : 'bg-loss'
-                            )}
-                            style={{ width: `${Math.abs(Math.min(profitCapture, 100))}%` }}
-                          />
-                        </div>
-                        <span className="text-[9px] text-muted">profit captured</span>
-                      </div>
-                    ) : profitCapture !== null && privacyMode ? (
-                      <span className="text-[11px] text-muted">**% captured</span>
-                    ) : pos.subDetail ? (
-                      <span className="text-[11px] text-muted">{pos.subDetail}</span>
-                    ) : null}
-                  </div>
-
-                  {/* Greeks badges */}
-                  <div className="flex-shrink-0 hidden lg:flex items-center gap-1.5">
-                    {pos.delta !== null && (
-                      <span className={cn(
-                        'text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
-                        Math.abs(pos.delta) > 0.5
-                          ? 'bg-loss/10 text-loss'
-                          : Math.abs(pos.delta) > 0.3
-                            ? 'bg-caution/10 text-caution'
-                            : 'bg-zinc-500/10 text-zinc-400'
-                      )}>
-                        {privacyMode ? 'Δ **' : `Δ${pos.delta.toFixed(2)}`}
-                      </span>
-                    )}
-                    {pos.theta !== null && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-profit/10 text-profit">
-                        {privacyMode ? 'Θ $**' : `Θ${rawFormatCurrency(Math.abs(pos.theta * 100))}`}
-                      </span>
-                    )}
-                    {pos.iv !== null && (
-                      <span className={cn(
-                        'text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
-                        pos.iv > 0.5
-                          ? 'bg-amber-500/10 text-amber-400'
-                          : 'bg-zinc-500/10 text-zinc-400'
-                      )}>
-                        {privacyMode ? 'IV **' : `${(pos.iv * 100).toFixed(0)}%`}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Expiration */}
-                  <span className="text-xs text-muted flex-shrink-0 w-20 text-right hidden md:block">
-                    {formatDateShort(pos.expiration)}
-                  </span>
-
-                  {/* DTE countdown */}
-                  <div className={cn(
-                    'flex-shrink-0 min-w-[48px] text-center px-2 py-1 rounded-lg text-sm font-bold',
-                    pos.dte <= 3 ? 'bg-loss/10 text-loss' :
-                    pos.dte <= 7 ? 'bg-loss/10 text-loss' :
-                    pos.dte <= 21 ? 'bg-caution/10 text-caution' : 'text-muted'
-                  )}>
-                    {pos.dte}d
-                  </div>
-
-                  {/* Close button for CSPs */}
-                  {pos.canClose && pos.trade ? (
-                    <button
-                      onClick={() => onCloseTrade(pos.trade!)}
-                      className="flex-shrink-0 text-[11px] font-semibold text-accent border border-accent/20 rounded-lg
-                                 px-2.5 py-1 bg-accent/5 hover:bg-accent/10 hover:border-accent/40
-                                 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                    >
-                      Close
-                    </button>
-                  ) : (
-                    <div className="w-[52px] flex-shrink-0" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Capital Allocation Card ───
-
-function CapitalAllocationCard({ data, accountValue, privacyMode }: {
-  data: { name: string; value: number; color: string }[];
-  accountValue: number;
-  privacyMode: boolean;
-}) {
-  const totalDeployed = data.reduce((sum, d) => sum + d.value, 0);
-  const utilization = accountValue > 0 ? (totalDeployed / accountValue) * 100 : 0;
-
-  return (
-    <div className="glass-card p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-lg font-semibold text-foreground">Capital Deployed</h3>
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-foreground">{privacyMode ? '$***' : rawFormatCurrency(totalDeployed)}</span>
-          <span className={cn('text-xs font-medium px-2 py-1 rounded-lg',
-            utilization < 50 ? 'bg-profit/10 text-profit' :
-            utilization < 75 ? 'bg-caution/10 text-caution' : 'bg-loss/10 text-loss'
-          )}>
-            {privacyMode ? '**%' : `${utilization.toFixed(0)}%`} of account
-          </span>
-        </div>
-      </div>
-
-      {/* Segmented bar */}
-      <div className="mb-6">
-        <div className="h-3 rounded-full bg-zinc-800/30 overflow-hidden flex">
-          {data.map((d, i) => {
-            const pct = accountValue > 0 ? (d.value / accountValue) * 100 : 0;
-            return (
-              <div
-                key={d.name}
-                className="h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full"
-                style={{
-                  width: `${pct}%`,
-                  backgroundColor: d.color,
-                  opacity: 0.8,
-                  marginLeft: i > 0 ? '2px' : 0,
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Strategy grid */}
-      <div className={cn('grid gap-5', data.length <= 3 ? `grid-cols-${data.length}` : 'grid-cols-2 lg:grid-cols-4')} style={{ gridTemplateColumns: data.length <= 4 ? `repeat(${data.length}, 1fr)` : undefined }}>
-        {data.map((d) => {
-          const pctOfAccount = accountValue > 0 ? (d.value / accountValue) * 100 : 0;
-          return (
-            <div key={d.name} className="flex items-center gap-4">
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: `${d.color}15` }}
-              >
-                <span className="text-base font-bold" style={{ color: d.color }}>
-                  {d.name === 'CSP Collateral' ? 'P' : d.name === 'CC Shares' ? 'C' : d.name === 'Directional' ? 'D' : 'S'}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-muted">{d.name}</div>
-                <div className="flex items-baseline gap-2.5">
-                  <span className="text-xl font-bold text-foreground">{privacyMode ? '$***' : rawFormatCurrency(d.value)}</span>
-                  <span className="text-sm text-muted">{privacyMode ? '**%' : `${pctOfAccount.toFixed(0)}%`}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Portfolio Greeks Card ───
-
-function PortfolioGreeksCard({ positions, privacyMode }: { positions: OpenPosition[]; privacyMode: boolean }) {
-  const positionsWithData = positions.filter(p => p.delta !== null || p.theta !== null || p.iv !== null);
-  if (positionsWithData.length === 0) return null;
-
-  const netDelta = positionsWithData.reduce((sum, p) => sum + (p.delta ?? 0), 0);
-  const dailyTheta = positionsWithData.reduce((sum, p) => sum + ((p.theta ?? 0) * 100), 0);
-  const ivValues = positionsWithData.filter(p => p.iv !== null).map(p => p.iv!);
-  const avgIV = ivValues.length > 0 ? ivValues.reduce((a, b) => a + b, 0) / ivValues.length : null;
-
-  const greekItems = [
-    {
-      label: 'Net Delta',
-      symbol: 'Δ',
-      value: privacyMode ? '***' : netDelta.toFixed(2),
-      subtext: netDelta > 0 ? 'Bullish bias' : netDelta < 0 ? 'Bearish bias' : 'Neutral',
-      color: Math.abs(netDelta) > 2 ? 'text-caution' : 'text-foreground',
-      iconBg: Math.abs(netDelta) > 2 ? 'bg-caution/10' : 'bg-accent/10',
-      iconColor: Math.abs(netDelta) > 2 ? 'text-caution' : 'text-accent',
-    },
-    {
-      label: 'Daily Theta',
-      symbol: 'Θ',
-      value: privacyMode ? '$***' : `${dailyTheta >= 0 ? '+' : ''}${rawFormatCurrency(dailyTheta)}`,
-      subtext: 'per day time decay',
-      color: dailyTheta >= 0 ? 'text-profit' : 'text-loss',
-      iconBg: dailyTheta >= 0 ? 'bg-profit/10' : 'bg-loss/10',
-      iconColor: dailyTheta >= 0 ? 'text-profit' : 'text-loss',
-    },
-    ...(avgIV !== null ? [{
-      label: 'Avg IV',
-      symbol: 'σ',
-      value: privacyMode ? '**%' : `${(avgIV * 100).toFixed(0)}%`,
-      subtext: avgIV > 0.5 ? 'Elevated' : avgIV > 0.3 ? 'Moderate' : 'Low',
-      color: avgIV > 0.5 ? 'text-amber-400' : 'text-foreground',
-      iconBg: avgIV > 0.5 ? 'bg-amber-500/10' : 'bg-zinc-500/10',
-      iconColor: avgIV > 0.5 ? 'text-amber-400' : 'text-zinc-400',
-    }] : []),
-  ];
-
-  return (
-    <div className="glass-card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-base font-semibold text-foreground">Portfolio Greeks</h3>
-        <span className="text-xs text-muted">{positionsWithData.length} positions</span>
-      </div>
-      <div className={cn('grid gap-4', greekItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
-        {greekItems.map((g) => (
-          <div key={g.label} className="flex items-center gap-3">
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', g.iconBg)}>
-              <span className={cn('font-bold text-lg', g.iconColor)}>{g.symbol}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs text-muted">{g.label}</div>
-              <div className={cn('text-xl font-bold', g.color)}>{g.value}</div>
-              <div className="text-[11px] text-muted">{g.subtext}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Compact Heat Gauge ───
-
-function CompactHeat({ heat, maxHeatPercent, privacyMode }: { heat: number; maxHeatPercent: number; privacyMode: boolean }) {
-  const maxHeat = maxHeatPercent;
-  const percentage = Math.min((heat / maxHeat) * 100, 100);
-  const level = heat < 25 ? 'green' : heat < 30 ? 'yellow' : 'red';
-
-  const config = {
-    green: { gradient: 'from-emerald-500 to-emerald-400', text: 'text-profit', label: 'Safe', glow: 'rgba(16,185,129,0.4)' },
-    yellow: { gradient: 'from-amber-500 to-amber-400', text: 'text-caution', label: 'Caution', glow: 'rgba(245,158,11,0.4)' },
-    red: { gradient: 'from-red-500 to-red-400', text: 'text-loss', label: 'Over Limit', glow: 'rgba(239,68,68,0.4)' },
-  }[level];
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="stat-label">Heat</span>
-        <div className="flex items-center gap-2">
-          <span className={cn('text-sm font-bold', config.text)}>{privacyMode ? '**%' : `${heat.toFixed(1)}%`}</span>
-          <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded',
-            level === 'green' ? 'bg-profit/10 text-profit' : level === 'yellow' ? 'bg-caution/10 text-caution' : 'bg-loss/10 text-loss'
-          )}>
-            {config.label}
-          </span>
-        </div>
-      </div>
-      <div className="relative h-2.5 bg-background/50 rounded-full overflow-hidden">
-        <div className="absolute inset-0 flex">
-          <div className="w-[62.5%] bg-gradient-to-r from-emerald-500/10 to-emerald-500/15" />
-          <div className="w-[12.5%] bg-gradient-to-r from-amber-500/10 to-amber-500/15" />
-          <div className="flex-1 bg-gradient-to-r from-red-500/10 to-red-500/15" />
-        </div>
-        <div
-          className={cn('absolute left-0 top-0 h-full rounded-full transition-all duration-700 bg-gradient-to-r', config.gradient)}
-          style={{ width: `${percentage}%`, boxShadow: `0 0 12px ${config.glow}` }}
-        />
-        <div className="absolute top-0 h-full w-0.5 bg-caution/50" style={{ left: `${(25 / maxHeat) * 100}%` }} />
-        <div className="absolute top-0 h-full w-0.5 bg-loss/50" style={{ left: `${(30 / maxHeat) * 100}%` }} />
-      </div>
     </div>
   );
 }

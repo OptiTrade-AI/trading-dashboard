@@ -18,11 +18,12 @@ type SortDirection = 'asc' | 'desc';
 interface TradeTableProps {
   trades: Trade[];
   onClose?: (trade: Trade) => void;
+  onEdit?: (trade: Trade) => void;
   onDelete?: (trade: Trade) => void;
   onViewRollChain?: (rollChainId: string) => void;
 }
 
-export function TradeTable({ trades, onClose, onDelete, onViewRollChain }: TradeTableProps) {
+export function TradeTable({ trades, onClose, onEdit, onDelete, onViewRollChain }: TradeTableProps) {
   const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -306,6 +307,14 @@ export function TradeTable({ trades, onClose, onDelete, onViewRollChain }: Trade
                   </td>
                   <td className="px-4 py-3 text-sm text-right">
                     <div className="flex items-center justify-end gap-3">
+                      {trade.status === 'open' && onEdit && (
+                        <button
+                          onClick={() => onEdit(trade)}
+                          className="text-muted hover:text-foreground text-xs font-medium transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
                       {trade.status === 'open' && onClose && (
                         <button
                           onClick={() => onClose(trade)}

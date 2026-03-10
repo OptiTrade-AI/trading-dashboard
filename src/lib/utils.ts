@@ -36,7 +36,7 @@ export function calculateReturnOnCollateral(trade: Trade): number {
   return (trade.premiumCollected / trade.collateral) * 100;
 }
 
-export function calculateDaysHeld(trade: Trade): number {
+export function calculateDaysHeld(trade: { entryDate: string; exitDate?: string }): number {
   const entry = parseISO(trade.entryDate);
   const exit = trade.exitDate ? parseISO(trade.exitDate) : new Date();
   return Math.max(1, differenceInDays(exit, entry));
@@ -128,58 +128,8 @@ export function cn(...classes: (string | boolean | undefined)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
-export function exportToCSV(trades: Trade[]): void {
-  const headers = [
-    'Ticker',
-    'Strike',
-    'Contracts',
-    'Expiration',
-    'Entry Date',
-    'Exit Date',
-    'DTE at Entry',
-    'Premium Collected',
-    'Collateral',
-    'Status',
-    'Exit Price',
-    'P/L',
-    'P/L %',
-    'Exit Reason',
-    'Notes'
-  ];
-
-  const rows = trades.map(trade => [
-    trade.ticker,
-    trade.strike,
-    trade.contracts,
-    trade.expiration,
-    trade.entryDate,
-    trade.exitDate || '',
-    trade.dteAtEntry,
-    trade.premiumCollected,
-    trade.collateral,
-    trade.status,
-    trade.exitPrice || '',
-    calculatePL(trade),
-    calculatePLPercent(trade).toFixed(2),
-    trade.exitReason || '',
-    trade.notes || ''
-  ]);
-
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `csp-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
+// Generic CSV export
+type CellValue = string | number | boolean;
 
 function downloadCSV(csvContent: string, filename: string): void {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -193,91 +143,117 @@ function downloadCSV(csvContent: string, filename: string): void {
   document.body.removeChild(link);
 }
 
-export function exportCCToCSV(calls: CoveredCall[]): void {
-  const headers = [
-    'Ticker', 'Strike', 'Contracts', 'Shares Held', 'Expiration', 'Entry Date', 'Exit Date',
-    'DTE at Entry', 'Premium Collected', 'Cost Basis', 'Status', 'Exit Price',
-    'P/L', 'Exit Reason', 'Notes'
-  ];
-
-  const rows = calls.map(c => [
-    c.ticker, c.strike, c.contracts, c.sharesHeld, c.expiration, c.entryDate,
-    c.exitDate || '', c.dteAtEntry, c.premiumCollected, c.costBasis, c.status,
-    c.exitPrice || '', c.status !== 'open' ? c.premiumCollected - (c.exitPrice ?? 0) : '',
-    c.exitReason || '', c.notes || ''
-  ]);
-
+function exportCSV<T>(
+  items: T[],
+  columns: { header: string; value: (item: T) => CellValue }[],
+  filename: string
+): void {
+  const headers = columns.map(c => c.header);
+  const rows = items.map(item => columns.map(c => c.value(item)));
   const csvContent = [
     headers.join(','),
     ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
   ].join('\n');
+  downloadCSV(csvContent, `${filename}-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+}
 
-  downloadCSV(csvContent, `covered-calls-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+export function exportToCSV(trades: Trade[]): void {
+  exportCSV(trades, [
+    { header: 'Ticker', value: t => t.ticker },
+    { header: 'Strike', value: t => t.strike },
+    { header: 'Contracts', value: t => t.contracts },
+    { header: 'Expiration', value: t => t.expiration },
+    { header: 'Entry Date', value: t => t.entryDate },
+    { header: 'Exit Date', value: t => t.exitDate || '' },
+    { header: 'DTE at Entry', value: t => t.dteAtEntry },
+    { header: 'Premium Collected', value: t => t.premiumCollected },
+    { header: 'Collateral', value: t => t.collateral },
+    { header: 'Status', value: t => t.status },
+    { header: 'Exit Price', value: t => t.exitPrice || '' },
+    { header: 'P/L', value: t => calculatePL(t) },
+    { header: 'P/L %', value: t => calculatePLPercent(t).toFixed(2) },
+    { header: 'Exit Reason', value: t => t.exitReason || '' },
+    { header: 'Notes', value: t => t.notes || '' },
+  ], 'csp-trades');
+}
+
+export function exportCCToCSV(calls: CoveredCall[]): void {
+  exportCSV(calls, [
+    { header: 'Ticker', value: c => c.ticker },
+    { header: 'Strike', value: c => c.strike },
+    { header: 'Contracts', value: c => c.contracts },
+    { header: 'Shares Held', value: c => c.sharesHeld },
+    { header: 'Expiration', value: c => c.expiration },
+    { header: 'Entry Date', value: c => c.entryDate },
+    { header: 'Exit Date', value: c => c.exitDate || '' },
+    { header: 'DTE at Entry', value: c => c.dteAtEntry },
+    { header: 'Premium Collected', value: c => c.premiumCollected },
+    { header: 'Cost Basis', value: c => c.costBasis },
+    { header: 'Status', value: c => c.status },
+    { header: 'Exit Price', value: c => c.exitPrice || '' },
+    { header: 'P/L', value: c => c.status !== 'open' ? c.premiumCollected - (c.exitPrice ?? 0) : '' },
+    { header: 'Exit Reason', value: c => c.exitReason || '' },
+    { header: 'Notes', value: c => c.notes || '' },
+  ], 'covered-calls');
 }
 
 export function exportDirectionalToCSV(trades: DirectionalTrade[]): void {
-  const headers = [
-    'Ticker', 'Type', 'Strike', 'Contracts', 'Entry Price', 'Cost at Open',
-    'Expiration', 'Entry Date', 'Exit Date', 'DTE at Entry', 'Status',
-    'Exit Price', 'Credit at Close', 'P/L', 'P/L %', 'Exit Reason', 'Notes'
-  ];
-
-  const rows = trades.map(t => [
-    t.ticker, t.optionType, t.strike, t.contracts, t.entryPrice, t.costAtOpen,
-    t.expiration, t.entryDate, t.exitDate || '', t.dteAtEntry, t.status,
-    t.exitPrice || '', t.creditAtClose || '',
-    calculateDirectionalPL(t), calculateDirectionalPLPercent(t).toFixed(2),
-    t.exitReason || '', t.notes || ''
-  ]);
-
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
-
-  downloadCSV(csvContent, `directional-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+  exportCSV(trades, [
+    { header: 'Ticker', value: t => t.ticker },
+    { header: 'Type', value: t => t.optionType },
+    { header: 'Strike', value: t => t.strike },
+    { header: 'Contracts', value: t => t.contracts },
+    { header: 'Entry Price', value: t => t.entryPrice },
+    { header: 'Cost at Open', value: t => t.costAtOpen },
+    { header: 'Expiration', value: t => t.expiration },
+    { header: 'Entry Date', value: t => t.entryDate },
+    { header: 'Exit Date', value: t => t.exitDate || '' },
+    { header: 'DTE at Entry', value: t => t.dteAtEntry },
+    { header: 'Status', value: t => t.status },
+    { header: 'Exit Price', value: t => t.exitPrice || '' },
+    { header: 'Credit at Close', value: t => t.creditAtClose || '' },
+    { header: 'P/L', value: t => calculateDirectionalPL(t) },
+    { header: 'P/L %', value: t => calculateDirectionalPLPercent(t).toFixed(2) },
+    { header: 'Exit Reason', value: t => t.exitReason || '' },
+    { header: 'Notes', value: t => t.notes || '' },
+  ], 'directional-trades');
 }
 
 export function exportSpreadsToCSV(trades: SpreadTrade[]): void {
-  const headers = [
-    'Ticker', 'Spread Type', 'Long Strike', 'Short Strike', 'Contracts',
-    'Long Price', 'Short Price', 'Net Debit', 'Max Profit', 'Max Loss',
-    'Expiration', 'Entry Date', 'Exit Date', 'DTE at Entry', 'Status',
-    'Close Net Credit', 'P/L', 'P/L %', 'Exit Reason', 'Notes'
-  ];
-
-  const rows = trades.map(t => [
-    t.ticker, SPREAD_TYPE_LABELS[t.spreadType], t.longStrike, t.shortStrike,
-    t.contracts, t.longPrice, t.shortPrice, t.netDebit, t.maxProfit, t.maxLoss,
-    t.expiration, t.entryDate, t.exitDate || '', t.dteAtEntry, t.status,
-    t.closeNetCredit || '', calculateSpreadPL(t), calculateSpreadPLPercent(t).toFixed(2),
-    t.exitReason || '', t.notes || ''
-  ]);
-
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
-
-  downloadCSV(csvContent, `spread-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+  exportCSV(trades, [
+    { header: 'Ticker', value: t => t.ticker },
+    { header: 'Spread Type', value: t => SPREAD_TYPE_LABELS[t.spreadType] },
+    { header: 'Long Strike', value: t => t.longStrike },
+    { header: 'Short Strike', value: t => t.shortStrike },
+    { header: 'Contracts', value: t => t.contracts },
+    { header: 'Long Price', value: t => t.longPrice },
+    { header: 'Short Price', value: t => t.shortPrice },
+    { header: 'Net Debit', value: t => t.netDebit },
+    { header: 'Max Profit', value: t => t.maxProfit },
+    { header: 'Max Loss', value: t => t.maxLoss },
+    { header: 'Expiration', value: t => t.expiration },
+    { header: 'Entry Date', value: t => t.entryDate },
+    { header: 'Exit Date', value: t => t.exitDate || '' },
+    { header: 'DTE at Entry', value: t => t.dteAtEntry },
+    { header: 'Status', value: t => t.status },
+    { header: 'Close Net Credit', value: t => t.closeNetCredit || '' },
+    { header: 'P/L', value: t => calculateSpreadPL(t) },
+    { header: 'P/L %', value: t => calculateSpreadPLPercent(t).toFixed(2) },
+    { header: 'Exit Reason', value: t => t.exitReason || '' },
+    { header: 'Notes', value: t => t.notes || '' },
+  ], 'spread-trades');
 }
 
 export function exportStockEventsToCSV(events: StockEvent[]): void {
-  const headers = [
-    'Ticker', 'Shares', 'Cost Basis', 'Sale Price', 'Sale Date',
-    'Realized P/L', 'Tax Loss Harvest', 'Replacement Type', 'Notes'
-  ];
-
-  const rows = events.map(e => [
-    e.ticker, e.shares, e.costBasis, e.salePrice, e.saleDate,
-    e.realizedPL, e.isTaxLossHarvest ? 'Yes' : 'No',
-    e.replacementTradeType || '', e.notes || ''
-  ]);
-
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
-
-  downloadCSV(csvContent, `stock-events-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+  exportCSV(events, [
+    { header: 'Ticker', value: e => e.ticker },
+    { header: 'Shares', value: e => e.shares },
+    { header: 'Cost Basis', value: e => e.costBasis },
+    { header: 'Sale Price', value: e => e.salePrice },
+    { header: 'Sale Date', value: e => e.saleDate },
+    { header: 'Realized P/L', value: e => e.realizedPL },
+    { header: 'Tax Loss Harvest', value: e => e.isTaxLossHarvest ? 'Yes' : 'No' },
+    { header: 'Replacement Type', value: e => e.replacementTradeType || '' },
+    { header: 'Notes', value: e => e.notes || '' },
+  ], 'stock-events');
 }

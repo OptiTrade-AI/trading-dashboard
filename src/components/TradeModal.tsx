@@ -202,6 +202,176 @@ export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps)
   );
 }
 
+interface EditTradeModalProps {
+  isOpen: boolean;
+  trade: Trade | null;
+  onClose: () => void;
+  onSubmit: (id: string, updates: Partial<Trade>) => void;
+}
+
+export function EditTradeModal({ isOpen, trade, onClose, onSubmit }: EditTradeModalProps) {
+  const [ticker, setTicker] = useState('');
+  const [strike, setStrike] = useState('');
+  const [contracts, setContracts] = useState('');
+  const [expiration, setExpiration] = useState('');
+  const [premium, setPremium] = useState('');
+  const [entryDate, setEntryDate] = useState('');
+
+  useEffect(() => {
+    if (trade) {
+      setTicker(trade.ticker);
+      setStrike(trade.strike.toString());
+      setContracts(trade.contracts.toString());
+      setExpiration(trade.expiration);
+      setPremium(trade.premiumCollected.toString());
+      setEntryDate(trade.entryDate);
+    }
+  }, [trade]);
+
+  const numContracts = parseInt(contracts) || 1;
+  const collateral = strike ? calculateCollateral(parseFloat(strike), numContracts) : 0;
+  const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trade || !ticker || !strike || !expiration || !premium || !contracts) return;
+
+    onSubmit(trade.id, {
+      ticker: ticker.toUpperCase(),
+      strike: parseFloat(strike),
+      contracts: numContracts,
+      expiration,
+      entryDate,
+      premiumCollected: parseFloat(premium),
+      dteAtEntry: dte,
+      collateral,
+    });
+    onClose();
+  };
+
+  if (!isOpen || !trade) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="glass-card w-full max-w-md overflow-hidden">
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <span className="text-accent font-bold text-sm">{trade.ticker.slice(0, 2)}</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Edit Trade</h2>
+              <p className="text-muted text-sm">{trade.ticker} ${trade.strike}P</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-background/50 flex items-center justify-center text-muted hover:text-foreground hover:bg-background transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          <div>
+            <label className="stat-label mb-2 block">Ticker</label>
+            <input
+              type="text"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value)}
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Strike Price</label>
+              <input
+                type="number"
+                step="0.01"
+                value={strike}
+                onChange={(e) => setStrike(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Contracts</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={contracts}
+                onChange={(e) => setContracts(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Premium</label>
+              <input
+                type="number"
+                step="0.01"
+                value={premium}
+                onChange={(e) => setPremium(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Entry Date</label>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Expiration</label>
+              <input
+                type="date"
+                value={expiration}
+                onChange={(e) => setExpiration(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="bg-background/30 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Collateral Required</span>
+              <span className="text-foreground font-semibold">{formatCurrency(collateral)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Days to Expiration</span>
+              <span className="text-foreground font-semibold">{dte} days</span>
+            </div>
+            {collateral > 0 && premium && (
+              <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                <span className="text-muted">Return on Collateral</span>
+                <span className="text-profit font-semibold">
+                  {((parseFloat(premium) / collateral) * 100).toFixed(2)}%
+                </span>
+              </div>
+            )}
+          </div>
+
+          <button type="submit" className="btn-primary w-full py-3">
+            Save Changes
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 interface CloseTradeModalProps {
   isOpen: boolean;
   trade: Trade | null;
@@ -211,12 +381,13 @@ interface CloseTradeModalProps {
   onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason) => void;
 }
 
+type CSPCloseMode = 'close' | 'partial' | 'roll' | 'assigned';
+
 export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPartialClose }: CloseTradeModalProps) {
+  const [mode, setMode] = useState<CSPCloseMode>('close');
   const [exitPrice, setExitPrice] = useState('');
   const [exitDate, setExitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [exitReason, setExitReason] = useState<ExitReason>('50% profit');
-  const [isRolling, setIsRolling] = useState(false);
-  const [isPartialClose, setIsPartialClose] = useState(false);
   const [contractsToClose, setContractsToClose] = useState('1');
 
   // Roll fields
@@ -225,34 +396,38 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
   const [newPremium, setNewPremium] = useState('');
   const [newContracts, setNewContracts] = useState('');
 
-  const isAssigned = exitReason === 'assigned';
-
   useEffect(() => {
     if (trade) {
-      if (isAssigned) {
-        setExitPrice(trade.premiumCollected.toFixed(2));
-      } else {
-        setExitPrice((trade.premiumCollected * 0.5).toFixed(2));
-      }
-      setIsRolling(false);
-      setIsPartialClose(false);
+      setMode('close');
+      setExitPrice((trade.premiumCollected * 0.5).toFixed(2));
+      setExitReason('50% profit');
       setContractsToClose('1');
       setNewStrike(trade.strike.toString());
       setNewContracts(trade.contracts.toString());
       setNewExpiration('');
       setNewPremium('');
     }
-  }, [trade, isAssigned]);
+  }, [trade]);
+
+  useEffect(() => {
+    if (mode === 'assigned') {
+      setExitPrice(trade?.premiumCollected.toFixed(2) ?? '0');
+      setExitReason('assigned');
+    } else if (trade) {
+      setExitPrice((trade.premiumCollected * 0.5).toFixed(2));
+      if (exitReason === 'assigned') setExitReason('50% profit');
+    }
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!exitPrice) return;
 
-    if (isPartialClose && onPartialClose && trade) {
+    if (mode === 'partial' && onPartialClose && trade) {
       const numToClose = parseInt(contractsToClose);
       if (!numToClose || numToClose < 1 || numToClose >= trade.contracts) return;
       onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason);
-    } else if (isRolling && onRoll && trade) {
+    } else if (mode === 'roll' && onRoll && trade) {
       if (!newStrike || !newExpiration || !newPremium) return;
       onRoll(parseFloat(exitPrice), exitDate, {
         ticker: trade.ticker,
@@ -275,18 +450,32 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
   const newCollateral = newStrike ? calculateCollateral(parseFloat(newStrike), parseInt(newContracts) || trade.contracts) : 0;
   const newDte = newExpiration && exitDate ? calculateDTEFromEntry(exitDate, newExpiration) : 0;
 
+  // Build available modes
+  const modes: { key: CSPCloseMode; label: string }[] = [
+    { key: 'close', label: 'Close' },
+    ...(onPartialClose && trade.contracts > 1 ? [{ key: 'partial' as const, label: 'Partial' }] : []),
+    ...(onRoll ? [{ key: 'roll' as const, label: 'Roll' }] : []),
+    { key: 'assigned', label: 'Assigned' },
+  ];
+
+  const modeTitle: Record<CSPCloseMode, string> = {
+    close: 'Close Position',
+    partial: 'Partial Close',
+    roll: 'Roll Position',
+    assigned: 'Assigned',
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="glass-card w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
+        {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
               <span className="text-accent font-bold text-sm">{trade.ticker.slice(0, 2)}</span>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
-                {isRolling ? 'Roll Position' : 'Close Position'}
-              </h2>
+              <h2 className="text-lg font-semibold text-foreground">{modeTitle[mode]}</h2>
               <p className="text-muted text-sm">{trade.ticker} ${trade.strike}P × {trade.contracts}</p>
             </div>
           </div>
@@ -299,6 +488,30 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          {/* Action mode selector */}
+          <div className="flex rounded-xl bg-background/30 p-1 gap-1">
+            {modes.map(m => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setMode(m.key)}
+                className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+                  mode === m.key
+                    ? m.key === 'assigned'
+                      ? 'bg-loss/20 text-loss shadow-sm'
+                      : m.key === 'roll'
+                      ? 'bg-accent/20 text-accent shadow-sm'
+                      : m.key === 'partial'
+                      ? 'bg-caution/20 text-caution shadow-sm'
+                      : 'bg-card-solid text-foreground shadow-sm'
+                    : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           {/* Position summary */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -315,65 +528,30 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
             </div>
           </div>
 
-          {/* Partial close toggle */}
-          {onPartialClose && trade.contracts > 1 && !isAssigned && !isRolling && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsPartialClose(!isPartialClose)}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${
-                    isPartialClose ? 'bg-caution' : 'bg-background/50'
-                  }`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                    isPartialClose ? 'left-7' : 'left-1'
-                  }`} />
-                </button>
-                <span className="text-foreground text-sm">Partial close (close some contracts)</span>
-              </div>
-              {isPartialClose && (
-                <div>
-                  <label className="stat-label mb-2 block">
-                    Contracts to close (of {trade.contracts})
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={trade.contracts - 1}
-                    step="1"
-                    value={contractsToClose}
-                    onChange={(e) => setContractsToClose(e.target.value)}
-                    className="input-field"
-                    required
-                  />
-                  <p className="text-muted text-xs mt-1">
-                    {parseInt(contractsToClose) || 0} will close, {trade.contracts - (parseInt(contractsToClose) || 0)} will remain open
-                  </p>
-                </div>
-              )}
+          {/* Partial close: contracts selector */}
+          {mode === 'partial' && (
+            <div>
+              <label className="stat-label mb-2 block">
+                Contracts to close (of {trade.contracts})
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={trade.contracts - 1}
+                step="1"
+                value={contractsToClose}
+                onChange={(e) => setContractsToClose(e.target.value)}
+                className="input-field"
+                required
+              />
+              <p className="text-muted text-xs mt-1">
+                {parseInt(contractsToClose) || 0} will close, {trade.contracts - (parseInt(contractsToClose) || 0)} will remain open
+              </p>
             </div>
           )}
 
-          {/* Roll toggle */}
-          {onRoll && !isAssigned && !isPartialClose && (
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsRolling(!isRolling)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  isRolling ? 'bg-accent' : 'bg-background/50'
-                }`}
-              >
-                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                  isRolling ? 'left-7' : 'left-1'
-                }`} />
-              </button>
-              <span className="text-foreground text-sm">Roll to new position</span>
-            </div>
-          )}
-
-          {!isRolling && (
+          {/* Exit reason (close & partial modes) */}
+          {mode !== 'roll' && mode !== 'assigned' && (
             <div>
               <label className="stat-label mb-2 block">Exit Reason</label>
               <select
@@ -381,7 +559,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
                 onChange={(e) => setExitReason(e.target.value as ExitReason)}
                 className="input-field"
               >
-                {EXIT_REASONS.map((reason) => (
+                {EXIT_REASONS.filter(r => r !== 'assigned').map((reason) => (
                   <option key={reason} value={reason}>
                     {reason}
                   </option>
@@ -390,7 +568,8 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
             </div>
           )}
 
-          {!isAssigned && (
+          {/* Exit price (not shown for assigned) */}
+          {mode !== 'assigned' && (
             <div>
               <label className="stat-label mb-2 block">Exit Price (cost to close)</label>
               <input
@@ -405,7 +584,8 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
             </div>
           )}
 
-          {isAssigned && (
+          {/* Assignment info */}
+          {mode === 'assigned' && (
             <div className="bg-accent/10 rounded-xl p-4 space-y-2">
               <p className="text-accent text-sm font-medium">
                 You now own {trade.contracts * 100} shares of {trade.ticker}
@@ -428,7 +608,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
           )}
 
           <div>
-            <label className="stat-label mb-2 block">{isRolling ? 'Roll Date' : 'Exit Date'}</label>
+            <label className="stat-label mb-2 block">{mode === 'roll' ? 'Roll Date' : 'Exit Date'}</label>
             <input
               type="date"
               value={exitDate}
@@ -439,7 +619,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
           </div>
 
           {/* Roll fields */}
-          {isRolling && (
+          {mode === 'roll' && (
             <>
               <div className="border-t border-border/30 pt-4">
                 <h3 className="text-sm font-semibold text-accent mb-3">New Position</h3>
@@ -514,8 +694,8 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
             </>
           )}
 
-          {/* P/L preview - only show for non-assignment, non-roll closes */}
-          {!isAssigned && !isRolling && (
+          {/* P/L preview (close & partial modes) */}
+          {(mode === 'close' || mode === 'partial') && (
             <div className={`rounded-xl p-4 ${pl >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
               <div className="flex justify-between items-center">
                 <span className={pl >= 0 ? 'text-profit' : 'text-loss'}>Estimated P/L</span>
@@ -528,7 +708,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
           )}
 
           {/* Roll P/L preview */}
-          {isRolling && (
+          {mode === 'roll' && (
             <div className={`rounded-xl p-4 space-y-2 ${pl >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
               <div className="flex justify-between items-center">
                 <span className="text-muted text-sm">P/L on closed leg</span>
@@ -548,7 +728,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
           )}
 
           {/* Assignment info */}
-          {isAssigned && (
+          {mode === 'assigned' && (
             <div className="rounded-xl p-4 bg-muted/10">
               <div className="flex justify-between items-center">
                 <span className="text-muted">Realized P/L</span>
@@ -561,7 +741,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
           )}
 
           <button type="submit" className="btn-primary w-full py-3">
-            {isPartialClose ? `Close ${contractsToClose} of ${trade.contracts} Contracts` : isRolling ? 'Roll Position' : 'Close Trade'}
+            {mode === 'partial' ? `Close ${contractsToClose} of ${trade.contracts} Contracts` : mode === 'roll' ? 'Roll Position' : mode === 'assigned' ? 'Mark as Assigned' : 'Close Trade'}
           </button>
         </form>
       </div>

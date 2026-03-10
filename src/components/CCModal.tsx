@@ -55,8 +55,10 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
   const shares = numContracts * 100;
   const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;
   const totalCostBasis = parseFloat(costBasis) || 0;
+  const perShare = parseFloat(premium) || 0;
+  const totalPremium = perShare * 100 * numContracts;
   const returnOnShares = totalCostBasis > 0 && premium
-    ? ((parseFloat(premium) / totalCostBasis) * 100).toFixed(2)
+    ? ((totalPremium / totalCostBasis) * 100).toFixed(2)
     : '0.00';
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -69,7 +71,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
       contracts: numContracts,
       expiration,
       entryDate,
-      premiumCollected: parseFloat(premium),
+      premiumCollected: totalPremium,
       costBasis: totalCostBasis,
     });
 
@@ -164,14 +166,14 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
               />
             </div>
             <div>
-              <label className="stat-label mb-2 block">Premium</label>
+              <label className="stat-label mb-2 block">Premium / Share</label>
               <input
                 type="number"
                 step="0.01"
                 value={premium}
                 onChange={(e) => setPremium(e.target.value)}
                 className="input-field"
-                placeholder="65.00"
+                placeholder="1.30"
                 required
               />
             </div>
@@ -224,6 +226,12 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
               <span className="text-muted">Days to Expiration</span>
               <span className="text-foreground font-semibold">{dte} days</span>
             </div>
+            {premium && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted">Total Premium</span>
+                <span className="text-profit font-semibold">{formatCurrency(totalPremium)}</span>
+              </div>
+            )}
             {totalCostBasis > 0 && premium && (
               <div className="flex justify-between items-center pt-2 border-t border-border/50">
                 <span className="text-muted">Return on Shares</span>
@@ -236,6 +244,194 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
 
           <button type="submit" className="btn-primary w-full py-3">
             Add Covered Call
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface EditCCModalProps {
+  isOpen: boolean;
+  call: CoveredCall | null;
+  onClose: () => void;
+  onSubmit: (id: string, updates: Partial<CoveredCall>) => void;
+}
+
+export function EditCCModal({ isOpen, call, onClose, onSubmit }: EditCCModalProps) {
+  const [ticker, setTicker] = useState('');
+  const [strike, setStrike] = useState('');
+  const [contracts, setContracts] = useState('');
+  const [expiration, setExpiration] = useState('');
+  const [premium, setPremium] = useState('');
+  const [costBasis, setCostBasis] = useState('');
+  const [entryDate, setEntryDate] = useState('');
+
+  useEffect(() => {
+    if (call) {
+      setTicker(call.ticker);
+      setStrike(call.strike.toString());
+      setContracts(call.contracts.toString());
+      setExpiration(call.expiration);
+      setPremium(call.premiumCollected.toString());
+      setCostBasis(call.costBasis.toString());
+      setEntryDate(call.entryDate);
+    }
+  }, [call]);
+
+  const numContracts = parseInt(contracts) || 1;
+  const shares = numContracts * 100;
+  const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;
+  const totalCostBasis = parseFloat(costBasis) || 0;
+  const totalPremium = parseFloat(premium) || 0;
+  const returnOnShares = totalCostBasis > 0 && totalPremium > 0
+    ? ((totalPremium / totalCostBasis) * 100).toFixed(2)
+    : '0.00';
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!call || !ticker || !strike || !expiration || !premium || !contracts || !costBasis) return;
+
+    onSubmit(call.id, {
+      ticker: ticker.toUpperCase(),
+      strike: parseFloat(strike),
+      contracts: numContracts,
+      sharesHeld: shares,
+      expiration,
+      entryDate,
+      premiumCollected: totalPremium,
+      costBasis: totalCostBasis,
+      dteAtEntry: dte,
+    });
+    onClose();
+  };
+
+  if (!isOpen || !call) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="glass-card w-full max-w-md overflow-hidden">
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <span className="text-blue-400 font-bold text-sm">{call.ticker.slice(0, 2)}</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Edit Covered Call</h2>
+              <p className="text-muted text-sm">{call.ticker} ${call.strike}C</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-background/50 flex items-center justify-center text-muted hover:text-foreground hover:bg-background transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          <div>
+            <label className="stat-label mb-2 block">Ticker</label>
+            <input
+              type="text"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value)}
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Strike Price</label>
+              <input
+                type="number"
+                step="0.01"
+                value={strike}
+                onChange={(e) => setStrike(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Contracts</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={contracts}
+                onChange={(e) => setContracts(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Premium</label>
+              <input
+                type="number"
+                step="0.01"
+                value={premium}
+                onChange={(e) => setPremium(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="stat-label mb-2 block">Total Cost Basis (for {shares} shares)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={costBasis}
+              onChange={(e) => setCostBasis(e.target.value)}
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Entry Date</label>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Expiration</label>
+              <input
+                type="date"
+                value={expiration}
+                onChange={(e) => setExpiration(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="bg-background/30 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Shares Covered</span>
+              <span className="text-foreground font-semibold">{shares}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Days to Expiration</span>
+              <span className="text-foreground font-semibold">{dte} days</span>
+            </div>
+            {totalCostBasis > 0 && totalPremium > 0 && (
+              <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                <span className="text-muted">Return on Shares</span>
+                <span className="text-profit font-semibold">{returnOnShares}%</span>
+              </div>
+            )}
+          </div>
+
+          <button type="submit" className="btn-primary w-full py-3">
+            Save Changes
           </button>
         </form>
       </div>
@@ -304,7 +500,7 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
         contracts: call.contracts,
         expiration: newExpiration,
         entryDate: exitDate,
-        premiumCollected: parseFloat(newPremium),
+        premiumCollected: parseFloat(newPremium) * 100 * call.contracts,
         costBasis: call.costBasis,
       });
     } else {
@@ -479,13 +675,14 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
                   />
                 </div>
                 <div>
-                  <label className="stat-label mb-2 block">Premium</label>
+                  <label className="stat-label mb-2 block">Premium / Share</label>
                   <input
                     type="number"
                     step="0.01"
                     value={newPremium}
                     onChange={(e) => setNewPremium(e.target.value)}
                     className="input-field"
+                    placeholder="1.30"
                     required
                   />
                 </div>
@@ -562,7 +759,7 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
                 <div className="flex justify-between items-center pt-1 border-t border-border/20">
                   <span className="text-muted text-sm">Net credit (close + new)</span>
                   <span className="text-foreground font-semibold">
-                    {formatCurrency(pl + parseFloat(newPremium))}
+                    {formatCurrency(pl + parseFloat(newPremium) * 100 * call.contracts)}
                   </span>
                 </div>
               )}
