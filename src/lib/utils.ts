@@ -104,6 +104,26 @@ export function calculateSpreadPLPercent(trade: SpreadTrade): number {
   return (pl / trade.netDebit) * 100;
 }
 
+export function isMarketOpen(): boolean {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay();
+  if (day === 0 || day === 6) return false;
+  const minutes = et.getHours() * 60 + et.getMinutes();
+  return minutes >= 570 && minutes < 960; // 9:30 AM - 4:00 PM ET
+}
+
+export function buildOptionSymbol(
+  ticker: string, expiration: string, type: 'C' | 'P', strike: number
+): string {
+  const d = parseISO(expiration);
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const strikeStr = String(Math.round(strike * 1000)).padStart(8, '0');
+  return `O:${ticker}${yy}${mm}${dd}${type}${strikeStr}`;
+}
+
 export function cn(...classes: (string | boolean | undefined)[]): string {
   return classes.filter(Boolean).join(' ');
 }

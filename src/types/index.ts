@@ -170,12 +170,51 @@ export interface StockEvent {
   notes?: string;
 }
 
+// Stock Holdings
+export interface StockHolding {
+  id: string;
+  ticker: string;
+  shares: number;
+  costBasisPerShare: number;
+  acquiredDate: string;       // ISO date
+  notes?: string;
+}
+
 export const CORE_WATCHLIST = {
   tier1: [] as string[],
   tier2: [] as string[]
 };
 
 export const ALL_TICKERS = [...CORE_WATCHLIST.tier1, ...CORE_WATCHLIST.tier2];
+
+// Stock Prices (from Polygon.io)
+export interface StockPrice {
+  ticker: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  updatedAt: string;
+}
+
+export interface PressurePosition {
+  id: string;
+  ticker: string;
+  tradeType: 'csp' | 'cc' | 'credit_spread';
+  strike: number;
+  currentPrice: number;
+  priceToStrikePercent: number;
+  dte: number;
+  expiration: string;
+  contracts: number;
+  severity: 'warning' | 'danger' | 'critical';
+  label: string;
+}
+
+export const DEFAULT_PRESSURE_THRESHOLDS = {
+  csp: 105,
+  cc: 95,
+  creditSpread: 105,
+};
 
 // Trade Analysis (saved AI analyses)
 export interface TradeAnalysis {
@@ -185,4 +224,31 @@ export interface TradeAnalysis {
   startDate?: string;      // for CUSTOM range
   endDate?: string;
   content: string;         // full markdown analysis text
+}
+
+// Option Quotes (from Polygon.io)
+export interface OptionQuote {
+  symbol: string;        // O:AAPL250321C00150000
+  underlying: string;
+  bid: number;
+  ask: number;
+  midpoint: number;
+  lastPrice: number;
+  volume: number;
+  openInterest: number;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+  vega: number | null;
+  iv: number | null;
+}
+
+export interface MarketStatus {
+  market: 'open' | 'closed' | 'extended-hours';
+  serverTime: string;
+}
+
+export interface TickerInfo {
+  ticker: string;
+  name: string;
 }

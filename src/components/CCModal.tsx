@@ -9,9 +9,10 @@ interface AddCCModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (call: Omit<CoveredCall, 'id' | 'dteAtEntry' | 'sharesHeld' | 'status'>) => void;
+  getCostBasis?: (ticker: string, sharesNeeded: number) => number | null;
 }
 
-export function AddCCModal({ isOpen, onClose, onSubmit }: AddCCModalProps) {
+export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCModalProps) {
   const [ticker, setTicker] = useState('');
   const [strike, setStrike] = useState('');
   const [contracts, setContracts] = useState('1');
@@ -21,6 +22,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit }: AddCCModalProps) {
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showTickerList, setShowTickerList] = useState(false);
   const [filteredTickers, setFilteredTickers] = useState(ALL_TICKERS);
+  const [autoFilled, setAutoFilled] = useState(false);
 
   useEffect(() => {
     if (ticker) {
@@ -31,6 +33,23 @@ export function AddCCModal({ isOpen, onClose, onSubmit }: AddCCModalProps) {
       setFilteredTickers(ALL_TICKERS);
     }
   }, [ticker]);
+
+  // Auto-fill cost basis from holdings
+  useEffect(() => {
+    if (!getCostBasis || !ticker) return;
+    const numC = parseInt(contracts) || 1;
+    const sharesNeeded = numC * 100;
+    const basis = getCostBasis(ticker, sharesNeeded);
+    if (basis !== null) {
+      setCostBasis(basis.toFixed(2));
+      setAutoFilled(true);
+    } else {
+      if (autoFilled) {
+        setCostBasis('');
+        setAutoFilled(false);
+      }
+    }
+  }, [ticker, contracts, getCostBasis]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const numContracts = parseInt(contracts) || 1;
   const shares = numContracts * 100;
@@ -60,6 +79,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit }: AddCCModalProps) {
     setExpiration('');
     setPremium('');
     setCostBasis('');
+    setAutoFilled(false);
     setEntryDate(format(new Date(), 'yyyy-MM-dd'));
     onClose();
   };
@@ -163,11 +183,12 @@ export function AddCCModal({ isOpen, onClose, onSubmit }: AddCCModalProps) {
               type="number"
               step="0.01"
               value={costBasis}
-              onChange={(e) => setCostBasis(e.target.value)}
+              onChange={(e) => { setCostBasis(e.target.value); setAutoFilled(false); }}
               className="input-field"
               placeholder="2500.00"
               required
             />
+            {autoFilled && <p className="text-accent text-xs mt-1">Auto-filled from holdings</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

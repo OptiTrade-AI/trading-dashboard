@@ -9,6 +9,7 @@ import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonStatCards, SkeletonTable, ErrorState } from '@/components/SkeletonLoader';
 import { useStockEvents } from '@/hooks/useStockEvents';
+import { useHoldings } from '@/hooks/useHoldings';
 import { CoveredCall, CCExitReason } from '@/types';
 import { exportCCToCSV } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
@@ -17,6 +18,7 @@ export default function CoveredCallsPage() {
   const { formatCurrency } = useFormatters();
   const { calls, openCalls, closedCalls, addCall, closeCall, deleteCall, rollCall, partialCloseCall, getRollChain, isLoading, error, retry } = useCoveredCalls();
   const { addStockEvent } = useStockEvents();
+  const { getCostBasis, removeShares } = useHoldings();
   const [showAddModal, setShowAddModal] = useState(false);
   const [closeModalCall, setCloseModalCall] = useState<CoveredCall | null>(null);
   const [deleteModalCall, setDeleteModalCall] = useState<CoveredCall | null>(null);
@@ -41,6 +43,7 @@ export default function CoveredCallsPage() {
       closeCall(closeModalCall.id, exitPrice, exitDate, exitReason, wasCalled);
       if (wasCalled) {
         const shares = closeModalCall.contracts * 100;
+        removeShares(closeModalCall.ticker, shares);
         const costPerShare = closeModalCall.costBasis / shares;
         addStockEvent({
           ticker: closeModalCall.ticker,
@@ -68,6 +71,7 @@ export default function CoveredCallsPage() {
       partialCloseCall(closeModalCall.id, contractsToClose, exitPrice, exitDate, exitReason, wasCalled);
       if (wasCalled) {
         const shares = contractsToClose * 100;
+        removeShares(closeModalCall.ticker, shares);
         const costPerShare = closeModalCall.costBasis / (closeModalCall.contracts * 100);
         addStockEvent({
           ticker: closeModalCall.ticker,
@@ -187,6 +191,7 @@ export default function CoveredCallsPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddCall}
+        getCostBasis={getCostBasis}
       />
       <CloseCCModal
         isOpen={!!closeModalCall}

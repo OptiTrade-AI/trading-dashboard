@@ -26,6 +26,7 @@ Four independent trade types, each with its own type definition (`src/types/inde
 | Covered Calls (CC) | `useCoveredCalls` | `/api/covered-calls` | `/cc` |
 | Directional (long calls/puts) | `useDirectionalTrades` | `/api/directional-trades` | `/directional` |
 | Vertical Spreads | `useSpreads` | `/api/spreads` | `/spreads` |
+| Stock Holdings | `useHoldings` | `/api/holdings` | `/holdings` |
 
 ### Key Files
 
@@ -49,3 +50,4 @@ Four independent trade types, each with its own type definition (`src/types/inde
 - `MONGODB_URI` — MongoDB connection string
 - `MONGODB_DB` — Database name (defaults to `csp-tracker`)
 - `ANTHROPIC_API_KEY` — Anthropic API key for AI Strategy Analyzer (server-side only)
+- `POLYGON_API_KEY` — Polygon.io API key for real-time stock prices (server-side only)
