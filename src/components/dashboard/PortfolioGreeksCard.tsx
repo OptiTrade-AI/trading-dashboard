@@ -16,6 +16,7 @@ import {
 interface PortfolioGreeksCardProps {
   positions: OpenPosition[];
   privacyMode: boolean;
+  fetchedAt: string | null;
 }
 
 /* ── SVG helpers ── */
@@ -159,7 +160,7 @@ function MagnitudeBar({ pct, color }: { pct: number; color: string }) {
 }
 
 /* ── Main component ── */
-export function PortfolioGreeksCard({ positions, privacyMode }: PortfolioGreeksCardProps) {
+export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: PortfolioGreeksCardProps) {
   const positionsWithData = positions.filter(
     (p) => p.delta !== null || p.theta !== null || p.iv !== null,
   );
@@ -217,6 +218,11 @@ export function PortfolioGreeksCard({ positions, privacyMode }: PortfolioGreeksC
         <div className="flex items-center gap-2 mb-5">
           <h3 className="text-base font-semibold text-foreground">Portfolio Greeks</h3>
           <span className="text-xs text-muted">{positionsWithData.length} positions</span>
+          {fetchedAt && (
+            <span className="text-[10px] text-muted" title={`Data fetched: ${fetchedAt}`}>
+              {new Date(fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            </span>
+          )}
           <div className="flex-1" />
           <span
             className={cn(

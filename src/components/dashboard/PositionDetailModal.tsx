@@ -236,6 +236,92 @@ function OptionChart({
   );
 }
 
+function StockPriceChart({
+  bars,
+  strike,
+  timespan,
+  privacyMode,
+}: {
+  bars: AggBar[];
+  strike: number | undefined;
+  timespan: 'minute' | 'day';
+  privacyMode: boolean;
+}) {
+  if (bars.length === 0) {
+    return (
+      <div className="h-[200px] w-full flex items-center justify-center text-muted text-sm">
+        {timespan === 'minute' ? 'No intraday data yet — market may be closed' : 'No data available'}
+      </div>
+    );
+  }
+
+  const data = bars.map((b) => ({
+    label:
+      timespan === 'minute'
+        ? new Date(b.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        : new Date(b.t).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+    price: b.c,
+  }));
+
+  const firstPrice = bars[0].c;
+  const lastPrice = bars[bars.length - 1].c;
+  const isUp = lastPrice >= firstPrice;
+  const color = isUp ? COLORS.profit : COLORS.loss;
+
+  const prices = bars.map((b) => b.c);
+  const allPrices = strike ? [...prices, strike] : prices;
+  const minPrice = Math.min(...allPrices);
+  const maxPrice = Math.max(...allPrices);
+  const padding = (maxPrice - minPrice) * 0.1 || 1;
+
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <AreaChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+        <defs>
+          <linearGradient id="stockDetailGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 10, fill: '#71717a' }}
+          interval="preserveStartEnd"
+          tickLine={false}
+        />
+        <YAxis
+          domain={[minPrice - padding, maxPrice + padding]}
+          tick={{ fontSize: 10, fill: '#71717a' }}
+          tickFormatter={(v: number) => privacyMode ? '$*' : `$${v.toFixed(2)}`}
+          width={55}
+          tickLine={false}
+        />
+        <Tooltip
+          {...tooltipStyle}
+          formatter={(v: any) => [privacyMode ? '$***' : `$${Number(v).toFixed(2)}`, 'Stock Price']}
+        />
+        {strike && !privacyMode && (
+          <ReferenceLine
+            y={strike}
+            stroke="#f59e0b"
+            strokeDasharray="4 4"
+            label={{ value: `Strike $${strike}`, position: 'right', fill: '#f59e0b', fontSize: 10 }}
+          />
+        )}
+        <Area
+          type="monotone"
+          dataKey="price"
+          stroke={color}
+          fill="url(#stockDetailGrad)"
+          strokeWidth={1.5}
+          dot={false}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 type ChartTab = 'today' | 'sinceEntry' | 'stock1y';
 
 export function PositionDetailModal({ position, isOpen, onClose }: PositionDetailModalProps) {
@@ -295,17 +381,34 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
   const entryDate = position?.rawTrade?.entryDate?.slice(0, 10) ?? today;
 
   const isSpread = position?.type === 'spread';
+  // Sold positions (CSP, CC): show stock chart instead of illiquid option charts
+  const isSoldPosition = position?.type === 'csp' || position?.type === 'cc';
+  const useStockChart = isSoldPosition;
 
-  // Only fetch when modal open + relevant tab active
+  // Option charts — only for bought positions and spreads
   const intradayResult = useOptionAggregates(
-    isOpen && chartTab === 'today' ? optionSymbol : null,
-    isOpen && chartTab === 'today' && isSpread ? secondSymbol : null,
+    isOpen && chartTab === 'today' && !useStockChart ? optionSymbol : null,
+    isOpen && chartTab === 'today' && !useStockChart && isSpread ? secondSymbol : null,
     today, today, 'minute', 5
   );
 
   const historyResult = useOptionAggregates(
-    isOpen && chartTab === 'sinceEntry' ? optionSymbol : null,
-    isOpen && chartTab === 'sinceEntry' && isSpread ? secondSymbol : null,
+    isOpen && chartTab === 'sinceEntry' && !useStockChart ? optionSymbol : null,
+    isOpen && chartTab === 'sinceEntry' && !useStockChart && isSpread ? secondSymbol : null,
+    entryDate, today, 'day', 1
+  );
+
+  // Stock charts — for sold positions (CSP, CC) and as fallback
+  const stockTicker = position?.ticker ?? '';
+  const stockIntradayResult = useOptionAggregates(
+    isOpen && chartTab === 'today' && useStockChart ? stockTicker : null,
+    null,
+    today, today, 'minute', 5
+  );
+
+  const stockHistoryResult = useOptionAggregates(
+    isOpen && chartTab === 'sinceEntry' && useStockChart ? stockTicker : null,
+    null,
     entryDate, today, 'day', 1
   );
 
@@ -568,7 +671,18 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
             ))}
           </div>
           {chartTab === 'today' ? (
-            intradayResult.isLoading ? (
+            useStockChart ? (
+              stockIntradayResult.isLoading ? (
+                <div className="h-[200px] w-full bg-foreground/5 rounded-lg animate-pulse" />
+              ) : (
+                <StockPriceChart
+                  bars={stockIntradayResult.bars}
+                  strike={strike}
+                  timespan="minute"
+                  privacyMode={privacyMode}
+                />
+              )
+            ) : intradayResult.isLoading ? (
               <div className="h-[200px] w-full bg-foreground/5 rounded-lg animate-pulse" />
             ) : (
               <OptionChart
@@ -579,7 +693,18 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
               />
             )
           ) : chartTab === 'sinceEntry' ? (
-            historyResult.isLoading ? (
+            useStockChart ? (
+              stockHistoryResult.isLoading ? (
+                <div className="h-[200px] w-full bg-foreground/5 rounded-lg animate-pulse" />
+              ) : (
+                <StockPriceChart
+                  bars={stockHistoryResult.bars}
+                  strike={strike}
+                  timespan="day"
+                  privacyMode={privacyMode}
+                />
+              )
+            ) : historyResult.isLoading ? (
               <div className="h-[200px] w-full bg-foreground/5 rounded-lg animate-pulse" />
             ) : (
               <OptionChart

@@ -118,7 +118,7 @@ export function useOptionQuotes() {
 
   const refreshInterval = symbols.length > 0 ? (isOpen ? 60000 : 300000) : 0;
 
-  const { data, error, isLoading } = useSWR<{ quotes: OptionQuote[] }>(
+  const { data, error, isLoading } = useSWR<{ quotes: OptionQuote[]; fetchedAt?: string }>(
     symbols.length > 0 ? `/api/option-quotes?symbols=${symbols.join(',')}` : null,
     { refreshInterval }
   );
@@ -150,12 +150,16 @@ export function useOptionQuotes() {
         unrealizedPL = (mid - mapping.entryPrice) * 100 * mapping.contracts;
       }
 
+      // Sold positions: negate Greeks to reflect seller's perspective
+      // (Polygon reports from the holder's view; selling flips the exposure)
+      const sign = mapping.direction === 'sold' ? -1 : 1;
+
       map.set(mapping.positionId, {
         unrealizedPL,
-        delta: q.delta,
-        gamma: q.gamma,
-        theta: q.theta,
-        vega: q.vega,
+        delta: q.delta != null ? q.delta * sign : null,
+        gamma: q.gamma != null ? q.gamma * sign : null,
+        theta: q.theta != null ? q.theta * sign : null,
+        vega: q.vega != null ? q.vega * sign : null,
         iv: q.iv,
         midpoint: mid,
         bid: q.bid,
@@ -198,6 +202,7 @@ export function useOptionQuotes() {
   return {
     positions,
     isLoading,
+    fetchedAt: data?.fetchedAt ?? null,
     error: error?.message ?? null,
   };
 }

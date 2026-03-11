@@ -41,7 +41,7 @@ export async function GET() {
       serverTime: data.serverTime ?? new Date().toISOString(),
     };
 
-    return NextResponse.json({ status });
+    return NextResponse.json({ status, fetchedAt: new Date().toISOString() });
   } catch (err) {
     console.error('Market status fetch error:', err);
     return NextResponse.json(

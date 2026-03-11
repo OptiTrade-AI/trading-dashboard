@@ -34,7 +34,7 @@ export function usePressure() {
   const { isOpen: marketOpen, label: marketStatusLabel } = useMarketStatus();
   const refreshInterval = tickers.length > 0 ? (marketOpen ? 60000 : 300000) : 0;
 
-  const { data: priceData, error } = useSWR<{ prices: StockPrice[] }>(
+  const { data: priceData, error } = useSWR<{ prices: StockPrice[]; fetchedAt?: string }>(
     tickers.length > 0 ? `/api/stock-prices?tickers=${tickers.join(',')}` : null,
     { refreshInterval }
   );
@@ -158,6 +158,7 @@ export function usePressure() {
     isLoading: tickers.length > 0 && !priceData && !error,
     isMarketOpen: marketOpen,
     marketStatusLabel,
+    fetchedAt: priceData?.fetchedAt ?? null,
     error: error?.message ?? null,
   };
 }
