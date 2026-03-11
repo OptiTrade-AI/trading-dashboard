@@ -19,7 +19,10 @@ import {
   WinLossStreakBar,
   RollingPLSparkline,
   HoldTimeAnalyzer,
+  BenchmarkComparisonChart,
 } from '@/components/Charts';
+import { useStockAggregates } from '@/hooks/useStockAggregates';
+import { useAnnotations } from '@/hooks/useAnnotations';
 import {
   formatCurrency as rawFormatCurrency,
   calculatePL,
@@ -46,7 +49,11 @@ export default function Analytics() {
   const [includeStockPL, setIncludeStockPL] = useState(true);
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const [strategyTab, setStrategyTab] = useState<StrategyTab>('all');
+  const [showBenchmark, setShowBenchmark] = useState(false);
+  const [annotationInput, setAnnotationInput] = useState<{ date: string; label: string } | null>(null);
   const { formatCurrency, privacyMode } = useFormatters();
+  const { allBars: spyBars } = useStockAggregates(showBenchmark ? ['SPY'] : []);
+  const { annotations, addAnnotation, deleteAnnotation } = useAnnotations();
 
   const analytics = useMemo(() => {
     // Time range filter
@@ -581,7 +588,20 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 glass-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-foreground">Cumulative P/L</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold text-foreground">Cumulative P/L</h3>
+              <button
+                onClick={() => setShowBenchmark(!showBenchmark)}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
+                  showBenchmark
+                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                    : 'bg-background/30 text-muted border-border/30 hover:text-foreground'
+                )}
+              >
+                {showBenchmark ? 'vs SPY On' : 'vs SPY'}
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               {analytics.biggestWin > 0 && (
                 <span className="text-xs text-profit bg-profit/10 px-2 py-1 rounded-lg">
@@ -596,7 +616,37 @@ export default function Analytics() {
             </div>
           </div>
           <ChartBlur active={privacyMode}>
-            <CumulativePLWithDrawdownChart data={analytics.cumulativeWithDrawdown} />
+            {showBenchmark ? (
+              <BenchmarkComparisonChart data={(() => {
+                const spyData = spyBars.get('SPY') || [];
+                const cumData = analytics.cumulativeWithDrawdown;
+                if (cumData.length === 0 || spyData.length === 0) return [];
+
+                // Normalize portfolio returns as % of account value
+                const accountVal = accountSettings.accountValue || 1;
+                const benchmarkData = cumData.map(point => {
+                  const portfolioReturn = (point.total / accountVal) * 100;
+                  // Find nearest SPY bar by date
+                  const pointDate = point.date; // MM/dd format
+                  return { date: pointDate, portfolio: portfolioReturn, spy: 0 };
+                });
+
+                // Calculate SPY return from first trade date
+                if (spyData.length > 0) {
+                  const spyStart = spyData[0].c;
+                  // Sample SPY at even intervals matching trade count
+                  const step = Math.max(1, Math.floor(spyData.length / benchmarkData.length));
+                  benchmarkData.forEach((point, i) => {
+                    const spyIdx = Math.min(i * step, spyData.length - 1);
+                    const spyReturn = ((spyData[spyIdx].c - spyStart) / spyStart) * 100;
+                    point.spy = Math.round(spyReturn * 100) / 100;
+                  });
+                }
+                return benchmarkData;
+              })()} />
+            ) : (
+              <CumulativePLWithDrawdownChart data={analytics.cumulativeWithDrawdown} />
+            )}
           </ChartBlur>
         </div>
         <div className="lg:col-span-2 glass-card p-5">
@@ -605,6 +655,67 @@ export default function Analytics() {
             <StrategyDonutChart data={analytics.strategyPL} centerLabel="Total P/L" />
           </ChartBlur>
         </div>
+      </div>
+
+      {/* ── P/L Annotations ── */}
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-foreground">Chart Annotations</h3>
+          <button
+            onClick={() => setAnnotationInput({ date: new Date().toISOString().slice(0, 10), label: '' })}
+            className="text-xs text-accent hover:text-accent-light transition-colors"
+          >
+            + Add Note
+          </button>
+        </div>
+        {annotationInput && (
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="date"
+              value={annotationInput.date}
+              onChange={e => setAnnotationInput({ ...annotationInput, date: e.target.value })}
+              className="input-field text-xs py-1.5 w-36"
+            />
+            <input
+              type="text"
+              value={annotationInput.label}
+              onChange={e => setAnnotationInput({ ...annotationInput, label: e.target.value })}
+              placeholder="e.g. Fed rate decision"
+              className="input-field text-xs py-1.5 flex-1"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && annotationInput.label.trim()) {
+                  addAnnotation(annotationInput.date, annotationInput.label.trim());
+                  setAnnotationInput(null);
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (annotationInput.label.trim()) {
+                  addAnnotation(annotationInput.date, annotationInput.label.trim());
+                }
+                setAnnotationInput(null);
+              }}
+              className="text-xs text-accent hover:text-accent-light px-2 py-1.5"
+            >
+              Save
+            </button>
+            <button onClick={() => setAnnotationInput(null)} className="text-xs text-muted hover:text-foreground px-1">
+              &times;
+            </button>
+          </div>
+        )}
+        {annotations.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {annotations.map(a => (
+              <span key={a.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/5 border border-accent/10 text-xs">
+                <span className="text-muted">{a.date.slice(5)}</span>
+                <span className="text-foreground">{a.label}</span>
+                <button onClick={() => deleteAnnotation(a.id)} className="text-muted hover:text-loss ml-0.5">&times;</button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Monthly P/L by Strategy (full width, best chart) ── */}

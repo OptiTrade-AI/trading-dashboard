@@ -166,22 +166,22 @@ export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: Portf
   );
   if (positionsWithData.length === 0) return null;
 
-  // Aggregations
-  const netDelta = positionsWithData.reduce((sum, p) => sum + (p.delta ?? 0), 0);
-  const netGamma = positionsWithData.reduce((sum, p) => sum + (p.gamma ?? 0), 0);
-  const dailyTheta = positionsWithData.reduce((sum, p) => sum + (p.theta ?? 0) * 100, 0);
-  const netVega = positionsWithData.reduce((sum, p) => sum + (p.vega ?? 0), 0);
+  // Aggregations — multiply per-share Greeks by contracts for portfolio totals
+  const netDelta = positionsWithData.reduce((sum, p) => sum + (p.delta ?? 0) * p.contracts, 0);
+  const netGamma = positionsWithData.reduce((sum, p) => sum + (p.gamma ?? 0) * p.contracts, 0);
+  const dailyTheta = positionsWithData.reduce((sum, p) => sum + (p.theta ?? 0) * 100 * p.contracts, 0);
+  const netVega = positionsWithData.reduce((sum, p) => sum + (p.vega ?? 0) * p.contracts, 0);
   const ivValues = positionsWithData.filter((p) => p.iv !== null).map((p) => p.iv!);
   const avgIV = ivValues.length > 0 ? ivValues.reduce((a, b) => a + b, 0) / ivValues.length : null;
 
   const monthlyTheta = dailyTheta * 30;
   const risk = computeRiskLevel(netDelta, netGamma, avgIV, dailyTheta);
 
-  // Delta by ticker
+  // Delta by ticker — total delta exposure (per-share × contracts)
   const deltaByTicker = new Map<string, number>();
   positionsWithData.forEach((p) => {
     if (p.delta != null) {
-      deltaByTicker.set(p.ticker, (deltaByTicker.get(p.ticker) || 0) + p.delta);
+      deltaByTicker.set(p.ticker, (deltaByTicker.get(p.ticker) || 0) + p.delta * p.contracts);
     }
   });
   const deltaExposure = Array.from(deltaByTicker.entries())

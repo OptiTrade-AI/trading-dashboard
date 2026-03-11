@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import useSWR from 'swr';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateDTEFromEntry } from '@/lib/utils';
+import { useToast } from '@/contexts/ToastContext';
 
 interface TradeHookConfig<T extends { id: string; status: string; entryDate: string; expiration: string; contracts: number; rollChainId?: string; rollNumber?: number; originalContracts?: number }> {
   apiEndpoint: string;
@@ -33,19 +34,23 @@ export function createTradeHook<T extends {
   return function useTradeData() {
     const { data: items = [], error: swrError, isLoading, mutate } = useSWR<T[]>(config.apiEndpoint);
     const error = swrError?.message ?? null;
+    const toast = useToast();
 
     const retry = useCallback(() => { mutate(); }, [mutate]);
 
     const addItem = useCallback((input: Record<string, unknown>) => {
       const newItem = config.prepareNew(input);
+      const ticker = (input.ticker as string) || '';
       mutate(prev => [newItem, ...(prev || [])], { revalidate: false });
       fetch(config.apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem),
-      }).catch(err => console.error(`Error adding item:`, err));
+      })
+        .then(res => { if (!res.ok) throw new Error('Save failed'); toast.success(`${ticker} trade added`); })
+        .catch(err => { console.error(`Error adding item:`, err); toast.error(`Failed to add trade`); });
       return newItem;
-    }, [mutate]);
+    }, [mutate, toast]);
 
     const closeItem = useCallback((id: string, ...closeArgs: unknown[]) => {
       mutate(prev => {
@@ -57,13 +62,16 @@ export function createTradeHook<T extends {
 
       const item = items.find(t => t.id === id);
       if (!item) return;
+      const ticker = (item as Record<string, unknown>).ticker as string || '';
       const updates = config.prepareClose(item, ...closeArgs);
       fetch(config.apiEndpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...updates }),
-      }).catch(err => console.error(`Error closing item:`, err));
-    }, [mutate, items]);
+      })
+        .then(res => { if (!res.ok) throw new Error('Save failed'); toast.success(`${ticker} position closed`); })
+        .catch(err => { console.error(`Error closing item:`, err); toast.error(`Failed to close position`); });
+    }, [mutate, items, toast]);
 
     const deleteItem = useCallback((id: string) => {
       mutate(prev => (prev || []).filter(item => item.id !== id), { revalidate: false });
@@ -71,8 +79,10 @@ export function createTradeHook<T extends {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
-      }).catch(err => console.error(`Error deleting item:`, err));
-    }, [mutate]);
+      })
+        .then(res => { if (!res.ok) throw new Error('Delete failed'); toast.success(`Trade deleted`); })
+        .catch(err => { console.error(`Error deleting item:`, err); toast.error(`Failed to delete trade`); });
+    }, [mutate, toast]);
 
     const rollItem = useCallback((
       id: string,
@@ -117,6 +127,7 @@ export function createTradeHook<T extends {
       const currentRollNumber = currentItem?.rollNumber || 1;
 
       const closeUpdates = currentItem ? config.prepareClose(currentItem, ...closeArgs) : {};
+      const ticker = (currentItem as Record<string, unknown>)?.ticker as string || '';
       fetch(config.apiEndpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -127,16 +138,18 @@ export function createTradeHook<T extends {
           rollChainId,
           rollNumber: currentRollNumber,
         }),
-      }).catch(err => console.error('Error closing rolled item:', err));
+      }).catch(err => { console.error('Error closing rolled item:', err); toast.error('Failed to roll position'); });
 
       fetch(config.apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem),
-      }).catch(err => console.error('Error adding rolled item:', err));
+      })
+        .then(res => { if (!res.ok) throw new Error('Save failed'); toast.success(`${ticker} position rolled`); })
+        .catch(err => { console.error('Error adding rolled item:', err); toast.error('Failed to roll position'); });
 
       return newItem;
-    }, [mutate, items]);
+    }, [mutate, items, toast]);
 
     const partialCloseItem = useCallback((
       id: string,
@@ -173,11 +186,14 @@ export function createTradeHook<T extends {
       const totalContracts = item.originalContracts || item.contracts;
       const { remainingUpdates } = config.preparePartialClose(item, contractsToClose, ...closeArgs);
 
+      const ticker = (item as Record<string, unknown>).ticker as string || '';
       fetch(config.apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(closedPortion),
-      }).catch(err => console.error('Error adding partial close:', err));
+      })
+        .then(res => { if (!res.ok) throw new Error('Save failed'); toast.success(`${ticker} partially closed`); })
+        .catch(err => { console.error('Error adding partial close:', err); toast.error('Failed to partial close'); });
 
       fetch(config.apiEndpoint, {
         method: 'PATCH',
@@ -187,10 +203,10 @@ export function createTradeHook<T extends {
           ...remainingUpdates,
           originalContracts: totalContracts,
         }),
-      }).catch(err => console.error('Error updating remaining:', err));
+      }).catch(err => { console.error('Error updating remaining:', err); toast.error('Failed to update remaining'); });
 
       return closedPortion;
-    }, [mutate, items]);
+    }, [mutate, items, toast]);
 
     const editItem = useCallback((id: string, updates: Partial<T>) => {
       mutate(prev => (prev || []).map(t => t.id === id ? { ...t, ...updates } : t), { revalidate: false });
@@ -198,8 +214,10 @@ export function createTradeHook<T extends {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...updates }),
-      }).catch(err => console.error(`Error editing item:`, err));
-    }, [mutate]);
+      })
+        .then(res => { if (!res.ok) throw new Error('Save failed'); toast.success('Trade updated'); })
+        .catch(err => { console.error(`Error editing item:`, err); toast.error('Failed to update trade'); });
+    }, [mutate, toast]);
 
     const getRollChain = useCallback((rollChainId: string) => {
       return items

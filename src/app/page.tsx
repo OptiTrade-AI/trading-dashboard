@@ -19,6 +19,16 @@ import { CapitalAllocationCard } from '@/components/dashboard/CapitalAllocationC
 import { PortfolioGreeksCard } from '@/components/dashboard/PortfolioGreeksCard';
 import { CompactHeat } from '@/components/dashboard/CompactHeat';
 import { UncoveredHoldingsCard } from '@/components/dashboard/UncoveredHoldingsCard';
+import { ExpirationAlertBanner } from '@/components/dashboard/ExpirationAlertBanner';
+import { ThetaDashboardCard } from '@/components/dashboard/ThetaDashboardCard';
+import { QuickAddFAB } from '@/components/QuickAddFAB';
+import { AddTradeModal } from '@/components/TradeModal';
+import { AddCCModal } from '@/components/CCModal';
+import { AddDirectionalModal } from '@/components/DirectionalModal';
+import { AddSpreadModal } from '@/components/SpreadsModal';
+import { CommandPalette } from '@/components/CommandPalette';
+import { PositionSizerModal } from '@/components/PositionSizerModal';
+import { ImportModal } from '@/components/ImportModal';
 import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
 import {
   formatCurrency as rawFormatCurrency,
@@ -34,23 +44,26 @@ import { useFormatters } from '@/hooks/useFormatters';
 
 export default function Dashboard() {
   const {
+    trades: allCSPTrades,
     openTrades,
     closedTrades,
     accountSettings,
     totalCollateral,
     heat,
+    addTrade,
     closeTrade,
     rollTrade,
     updateAccountValue,
     isLoading: tradesLoading,
   } = useTrades();
 
-  const { openCalls, closedCalls, isLoading: ccLoading } = useCoveredCalls();
+  const { openCalls, closedCalls, calls: allCCTrades, addCall, isLoading: ccLoading } = useCoveredCalls();
 
   const {
     openTrades: openDirectional,
     closedTrades: closedDirectional,
     trades: allDirectional,
+    addTrade: addDirectional,
     isLoading: dirLoading,
   } = useDirectionalTrades();
 
@@ -58,6 +71,7 @@ export default function Dashboard() {
     openSpreads,
     closedSpreads,
     spreads: allSpreads,
+    addSpread,
     isLoading: spreadsLoading,
   } = useSpreads();
 
@@ -91,6 +105,9 @@ export default function Dashboard() {
     accountSettings.accountValue.toString()
   );
   const [closeModalTrade, setCloseModalTrade] = useState<Trade | null>(null);
+  const [quickAddType, setQuickAddType] = useState<'csp' | 'cc' | 'directional' | 'spread' | null>(null);
+  const [showSizer, setShowSizer] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const handleSaveAccountValue = () => {
     const value = parseFloat(accountValueInput);
@@ -163,6 +180,7 @@ export default function Dashboard() {
         badgeColor: 'bg-emerald-500/10 text-emerald-400',
         dte: calculateDTE(t.expiration),
         expiration: t.expiration,
+        contracts: t.contracts,
         detail: `x${t.contracts}`,
         value: formatCurrency(t.premiumCollected),
         valueLabel: 'premium',
@@ -191,6 +209,7 @@ export default function Dashboard() {
         badgeColor: 'bg-blue-500/10 text-blue-400',
         dte: calculateDTE(c.expiration),
         expiration: c.expiration,
+        contracts: c.contracts,
         detail: `x${c.contracts}`,
         value: formatCurrency(c.premiumCollected),
         valueLabel: 'premium',
@@ -219,6 +238,7 @@ export default function Dashboard() {
         badgeColor: t.optionType === 'call' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400',
         dte: calculateDTE(t.expiration),
         expiration: t.expiration,
+        contracts: t.contracts,
         detail: `x${t.contracts}`,
         value: formatCurrency(t.costAtOpen),
         valueLabel: 'cost',
@@ -247,6 +267,7 @@ export default function Dashboard() {
         badgeColor: 'bg-purple-500/10 text-purple-400',
         dte: calculateDTE(t.expiration),
         expiration: t.expiration,
+        contracts: t.contracts,
         detail: `x${t.contracts}`,
         value: privacyMode ? '$***' : (t.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(t.netDebit))}` : rawFormatCurrency(t.netDebit)),
         valueLabel: t.netDebit < 0 ? 'credit' : 'debit',
@@ -342,6 +363,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* ── Expiration Alert ── */}
+      <ExpirationAlertBanner positions={allOpenPositions} />
+
       {/* ── Hero Banner ── */}
       <div className="glass-card p-6">
         <div className="flex flex-col lg:flex-row lg:items-center gap-6">
@@ -484,6 +508,11 @@ export default function Dashboard() {
         <PortfolioGreeksCard positions={allOpenPositions} privacyMode={privacyMode} fetchedAt={greeksFetchedAt} />
       )}
 
+      {/* ── Theta Income ── */}
+      {hasUnrealizedData && (
+        <ThetaDashboardCard positions={allOpenPositions} fetchedAt={greeksFetchedAt} />
+      )}
+
       {/* ── Positions Under Pressure ── */}
       <PressureCard openPositions={allOpenPositions} />
 
@@ -501,7 +530,11 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-foreground">Open Positions</h2>
-          <Link href="/log" className="btn-primary text-sm">+ New Trade</Link>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowSizer(true)} className="btn-secondary text-sm">Position Sizer</button>
+            <button onClick={() => setShowImport(true)} className="btn-secondary text-sm">Import</button>
+            <Link href="/log" className="btn-primary text-sm">+ New Trade</Link>
+          </div>
         </div>
 
         {allOpenPositions.length === 0 ? (
@@ -587,6 +620,72 @@ export default function Dashboard() {
         onSubmit={handleCloseTrade}
         onRoll={handleRollTrade}
       />
+
+      {/* Quick-Add Modals */}
+      <AddTradeModal
+        isOpen={quickAddType === 'csp'}
+        onClose={() => setQuickAddType(null)}
+        onSubmit={(trade) => { addTrade(trade); setQuickAddType(null); }}
+      />
+      <AddCCModal
+        isOpen={quickAddType === 'cc'}
+        onClose={() => setQuickAddType(null)}
+        onSubmit={(call) => { addCall(call); setQuickAddType(null); }}
+      />
+      <AddDirectionalModal
+        isOpen={quickAddType === 'directional'}
+        onClose={() => setQuickAddType(null)}
+        onSubmit={(trade) => { addDirectional(trade); setQuickAddType(null); }}
+      />
+      <AddSpreadModal
+        isOpen={quickAddType === 'spread'}
+        onClose={() => setQuickAddType(null)}
+        onSubmit={(spread) => { addSpread(spread); setQuickAddType(null); }}
+      />
+
+      {/* Position Sizer */}
+      <PositionSizerModal
+        isOpen={showSizer}
+        onClose={() => setShowSizer(false)}
+        accountValue={accountSettings.accountValue}
+        maxHeatPercent={accountSettings.maxHeatPercent}
+        totalCollateral={totalCollateral}
+      />
+
+      {/* CSV Import */}
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={(type, rows) => {
+          rows.forEach(row => {
+            const normalizedRow: Record<string, unknown> = {};
+            Object.entries(row).forEach(([k, v]) => {
+              const num = parseFloat(v);
+              normalizedRow[k] = isNaN(num) || k.toLowerCase().includes('date') || k === 'ticker' || k === 'optionType' || k === 'spreadType' || k === 'notes'
+                ? v
+                : num;
+            });
+            if (type === 'csp') addTrade(normalizedRow as unknown as Parameters<typeof addTrade>[0]);
+            else if (type === 'cc') addCall(normalizedRow as unknown as Parameters<typeof addCall>[0]);
+            else if (type === 'directional') addDirectional(normalizedRow as unknown as Parameters<typeof addDirectional>[0]);
+            else if (type === 'spread') addSpread(normalizedRow as unknown as Parameters<typeof addSpread>[0]);
+          });
+        }}
+      />
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        trades={allCSPTrades}
+        coveredCalls={allCCTrades}
+        directionalTrades={allDirectional}
+        spreads={allSpreads}
+        holdings={holdings}
+        stockEvents={stockEvents}
+        tickerNames={tickerNames}
+      />
+
+      {/* Quick-Add FAB */}
+      <QuickAddFAB onSelect={(type) => setQuickAddType(type)} />
     </div>
   );
 }

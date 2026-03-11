@@ -14,6 +14,7 @@ All trade routes support `GET` (fetch all) and `POST` (replace collection). Hold
 | `/api/stock-events` | Stock events | GET, POST, PATCH, DELETE |
 | `/api/settings` | Account settings | GET, POST |
 | `/api/analysis` | AI trade analyses | GET, POST, DELETE |
+| `/api/annotations` | P/L chart annotations | GET, POST |
 
 ## Market Data (Polygon.io)
 
