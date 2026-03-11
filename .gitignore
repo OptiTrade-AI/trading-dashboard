@@ -36,8 +36,10 @@ yarn-error.log*
 /data/
 data_backup.zip
 
-# claude code local settings
+# claude code local settings (keep skills tracked)
 .claude/
+!.claude/skills/
+!.claude/skills/**
 
 # planning docs
 /plan/
