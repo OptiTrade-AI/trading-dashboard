@@ -46,7 +46,9 @@ export type OpenPosition = {
   unrealizedPL: number | null;
   maxPremium: number;
   delta: number | null;
+  gamma: number | null;
   theta: number | null;
+  vega: number | null;
   iv: number | null;
   companyName: string | null;
 };

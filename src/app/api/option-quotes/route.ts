@@ -38,14 +38,18 @@ export async function GET(request: NextRequest) {
       const lastQuote = r.last_quote || {};
       const bid = lastQuote.bid ?? 0;
       const ask = lastQuote.ask ?? 0;
+      const lastTradePrice = r.last_trade?.price ?? 0;
+      // During off-hours bid/ask are 0; use last trade price, then session close
+      const midpoint =
+        bid && ask ? (bid + ask) / 2 : lastTradePrice || r.day?.close || r.session?.close || 0;
 
       return {
         symbol: r.ticker ?? '',
         underlying: r.underlying_asset?.ticker ?? '',
         bid,
         ask,
-        midpoint: bid && ask ? (bid + ask) / 2 : r.last_trade?.price ?? 0,
-        lastPrice: r.last_trade?.price ?? 0,
+        midpoint,
+        lastPrice: lastTradePrice,
         volume: r.day?.volume ?? 0,
         openInterest: r.open_interest ?? 0,
         delta: greeks.delta ?? null,
