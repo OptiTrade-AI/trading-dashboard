@@ -12,6 +12,18 @@ OptiTrade supports five independent trade types, each with its own dedicated pag
 | **Vertical Spreads** | `/spreads` | Call/put debit & credit spreads with max profit/loss calculations |
 | **Stock Holdings** | `/holdings` | Current share inventory with cost basis per lot |
 
+### Cash-Secured Puts (`/log`)
+Fields: ticker, strike, contracts, expiration, premium collected, entry date, notes. Auto-calculates collateral, DTE at entry, ROC%, and annualized return.
+
+### Covered Calls (`/cc`)
+Fields: ticker, strike, contracts, shares held, cost basis, expiration, premium collected, entry date, notes. Links to holdings for cost basis lookups.
+
+### Directional Trades (`/directional`)
+Fields: ticker, option type (call/put), strike, contracts, entry price, expiration, entry date, notes. Tracks cost at open and credit at close.
+
+### Vertical Spreads (`/spreads`)
+Four spread types: call debit, call credit, put debit, put credit. Fields: ticker, long/short strikes, long/short prices, contracts, expiration, entry date, notes. Auto-calculates net debit/credit, max profit, and max loss.
+
 ## Stock Events
 
 The **Stock Events** page (`/stock`) serves as a sales ledger for realized stock P/L and tax loss harvesting. It supports replacement trade linking for wash sale tracking.

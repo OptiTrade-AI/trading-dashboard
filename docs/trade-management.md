@@ -1,5 +1,14 @@
 # Trade Management
 
+## Trade Editing
+
+Edit modals allow updating any field on an open or closed trade:
+
+- **CSP Edit Modal** — Edit ticker, strike, contracts, expiration, premium, entry date, notes
+- **CC Edit Modal** — Edit ticker, strike, contracts, shares held, cost basis, expiration, premium, entry date, notes
+
+Directional trades and vertical spreads do not currently have edit modals (add and close only).
+
 ## Roll Tracking
 
 Rolls create a chain linking the original trade to each successor: Original → Roll 1 → Roll 2, etc. Each leg tracks its own P/L. Roll history is viewable via a dedicated modal on each trade log page.

@@ -4,6 +4,27 @@
 
 The Holdings page (`/holdings`) tracks your current share inventory — ticker, shares, cost basis per share, and acquisition date. Holdings are used by Covered Calls for automatic cost basis lookups when opening new positions.
 
+### Visual Features
+
+- **Portfolio Return Chart** — Line chart showing realized P/L over time
+- **Portfolio Donut Chart** — P/L breakdown by ticker with interactive segments
+- **Return Ranking Chart** — Horizontal bar chart ranking tickers by returns
+- **Holdings Treemap** — Visual representation of position sizes (larger blocks = bigger positions)
+- **Sparklines** — 52-week price sparklines per ticker row
+- **52-Week High/Low Bar** — Visual context showing where current price sits within the yearly range
+- **Intraday Chart** — Real-time price chart for the current trading session
+- **SPY Benchmark** — Portfolio performance compared against SPY in charts
+
+### Real-Time Data
+
+- **Live Pricing** — Current stock prices with daily change % (via Polygon API)
+- **Market Status Badge** — Shows market open/closed/extended hours
+- **Edit Modal** — Modify holdings (shares, cost basis, date) inline
+
+### Holdings Heatmap
+
+Color-coded grid showing daily performance across all holdings. Green for gains, red for losses, intensity proportional to magnitude.
+
 ## Auto-Sync: CSP Assignment
 
 When a Cash-Secured Put is closed with exit reason **"assigned"** (full or partial close), a new holding lot is automatically created:

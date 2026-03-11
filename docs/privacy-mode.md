@@ -12,6 +12,11 @@ Privacy mode masks all financial data across the entire app — useful for scree
 - All dollar amounts, percentages, strike prices, and P/L values replaced with `***`
 - Analytics charts are blurred with a "Hidden" overlay
 - AI analysis content is blurred
+- Portfolio Greeks card masks all values; delta exposure chart hidden entirely
+- Positions Under Pressure masks prices and percentages
+- Position Detail Modal masks all financial metrics
+- Holdings page masks prices, cost basis, and P/L values
+- Dashboard hero banner masks account value, realized/unrealized P/L
 
 ## Persistence
 
