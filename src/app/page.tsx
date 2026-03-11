@@ -168,7 +168,9 @@ export default function Dashboard() {
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: t.premiumCollected,
         delta: oq?.delta ?? null,
+        gamma: oq?.gamma ?? null,
         theta: oq?.theta ?? null,
+        vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(t.ticker) ?? null,
       };
@@ -194,7 +196,9 @@ export default function Dashboard() {
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: c.premiumCollected,
         delta: oq?.delta ?? null,
+        gamma: oq?.gamma ?? null,
         theta: oq?.theta ?? null,
+        vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(c.ticker) ?? null,
       };
@@ -220,7 +224,9 @@ export default function Dashboard() {
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: t.costAtOpen,
         delta: oq?.delta ?? null,
+        gamma: oq?.gamma ?? null,
         theta: oq?.theta ?? null,
+        vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(t.ticker) ?? null,
       };
@@ -246,7 +252,9 @@ export default function Dashboard() {
         unrealizedPL: oq?.unrealizedPL ?? null,
         maxPremium: t.netDebit < 0 ? Math.abs(t.netDebit) : t.maxProfit,
         delta: oq?.delta ?? null,
+        gamma: oq?.gamma ?? null,
         theta: oq?.theta ?? null,
+        vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(t.ticker) ?? null,
       };

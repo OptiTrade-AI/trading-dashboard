@@ -13,7 +13,9 @@ import { buildOptionSymbol } from '@/lib/utils';
 export interface PositionQuoteData {
   unrealizedPL: number;
   delta: number | null;
+  gamma: number | null;
   theta: number | null;
+  vega: number | null;
   iv: number | null;
   midpoint: number;
   bid: number;
@@ -151,7 +153,9 @@ export function useOptionQuotes() {
       map.set(mapping.positionId, {
         unrealizedPL,
         delta: q.delta,
+        gamma: q.gamma,
         theta: q.theta,
+        vega: q.vega,
         iv: q.iv,
         midpoint: mid,
         bid: q.bid,
@@ -171,12 +175,16 @@ export function useOptionQuotes() {
       const unrealizedPL = (pair.netEntry - currentSpreadMid) * -100 * pair.contracts;
 
       const netDelta = ((longQ?.delta ?? 0) - (shortQ?.delta ?? 0)) || null;
+      const netGamma = ((longQ?.gamma ?? 0) - (shortQ?.gamma ?? 0)) || null;
       const netTheta = ((longQ?.theta ?? 0) - (shortQ?.theta ?? 0)) || null;
+      const netVega = ((longQ?.vega ?? 0) - (shortQ?.vega ?? 0)) || null;
 
       map.set(posId, {
         unrealizedPL,
         delta: netDelta,
+        gamma: netGamma,
         theta: netTheta,
+        vega: netVega,
         iv: longQ?.iv ?? shortQ?.iv ?? null,
         midpoint: longMid - shortMid,
         bid: 0,
