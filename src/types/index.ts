@@ -44,23 +44,26 @@ export interface AccountSettings {
 export type BaseExitReason = 'rolled' | 'partial close' | 'other';
 
 // CSP Exit Reasons
-export type ExitReason = BaseExitReason | '50% profit' | 'time stop' | 'support broke' | 'assigned';
+export type ExitReason = BaseExitReason | '50% profit' | 'early profit' | 'time stop' | 'support broke' | 'assigned' | 'expired worthless';
 
 export const EXIT_REASONS: ExitReason[] = [
   '50% profit',
+  'early profit',
   'time stop',
   'rolled',
   'support broke',
   'assigned',
+  'expired worthless',
   'partial close',
   'other'
 ];
 
 // CC Exit Reasons
-export type CCExitReason = BaseExitReason | '50% profit' | 'time stop' | 'called away' | 'expired';
+export type CCExitReason = BaseExitReason | '50% profit' | 'early profit' | 'time stop' | 'called away' | 'expired';
 
 export const CC_EXIT_REASONS: CCExitReason[] = [
   '50% profit',
+  'early profit',
   'time stop',
   'rolled',
   'called away',
@@ -226,6 +229,14 @@ export interface MarketStatus {
 export interface TickerInfo {
   ticker: string;
   name: string;
+}
+
+// P/L Annotations
+export interface PLAnnotation {
+  id: string;
+  date: string;      // ISO date (YYYY-MM-DD)
+  label: string;     // Short annotation text
+  color?: string;    // Optional color override
 }
 
 export interface AggBar {

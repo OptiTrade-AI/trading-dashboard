@@ -16,14 +16,17 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 | Feature | Description | Docs |
 |---------|-------------|------|
 | **Trade Logging** | CSPs, CCs, directional, spreads, holdings | [docs/trade-logging.md](docs/trade-logging.md) |
-| **Dashboard** | Account overview, heat gauge, positions timeline | [docs/dashboard.md](docs/dashboard.md) |
-| **Analytics** | 10+ interactive charts (P/L, streaks, heatmaps) | [docs/analytics.md](docs/analytics.md) |
-| **Trade Management** | Rolls, partial closes, sorting, CSV export | [docs/trade-management.md](docs/trade-management.md) |
+| **Dashboard** | Account overview, heat gauge, positions timeline, expiration alerts, theta income | [docs/dashboard.md](docs/dashboard.md) |
+| **Analytics** | 10+ interactive charts, SPY benchmark comparison, P/L annotations | [docs/analytics.md](docs/analytics.md) |
+| **Trade Management** | Rolls, partial closes, sorting, CSV export/import | [docs/trade-management.md](docs/trade-management.md) |
 | **Holdings Auto-Sync** | CSP assignment adds shares, CC called away removes | [docs/holdings-sync.md](docs/holdings-sync.md) |
 | **Privacy Mode** | One-click mask for all financial data | [docs/privacy-mode.md](docs/privacy-mode.md) |
 | **AI Analyzer** | Claude-powered strategy review with saved history | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
 | **Performance** | SWR caching, optimistic mutations, deduplication | [docs/performance.md](docs/performance.md) |
 | **API Routes** | REST endpoints for all trade types and market data | [docs/api-routes.md](docs/api-routes.md) |
+| **Toast Notifications** | Success/error/info feedback for all mutations | [docs/ux-enhancements.md](docs/ux-enhancements.md) |
+| **Quick-Add & Search** | FAB button (N key), Command Palette (Ctrl+K) | [docs/ux-enhancements.md](docs/ux-enhancements.md) |
+| **Position Sizing** | Max contracts calculator with projected heat | [docs/ux-enhancements.md](docs/ux-enhancements.md) |
 
 ### UI / UX
 
@@ -31,6 +34,10 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 - Fully responsive — desktop grids collapse gracefully to mobile
 - Skeleton loaders across all pages
 - Color-coded P/L — green for profit, red for loss, amber for caution
+- Toast notifications for all trade actions with auto-dismiss
+- Keyboard shortcuts: `N` (quick-add), `Ctrl+K` (search), `Ctrl+Shift+H` (privacy)
+- Expiration day alerts for positions within 2 DTE
+- Profit target progress bars with 50%/75% threshold indicators
 
 ---
 

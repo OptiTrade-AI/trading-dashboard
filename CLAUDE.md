@@ -41,14 +41,14 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 
 | Page | Route | Description |
 |------|-------|-------------|
-| Dashboard | `/` | Aggregated overview: hero banner, strategy pulse, Greeks card, pressure card, positions timeline, capital allocation, recent activity |
+| Dashboard | `/` | Aggregated overview: hero banner, expiration alerts, strategy pulse, Greeks card, theta income, pressure card, positions timeline, capital allocation, recent activity, quick-add FAB, command palette, position sizer, CSV import |
 | CSP Log | `/log` | Cash-secured puts table with add/edit/close/roll modals |
 | Covered Calls | `/cc` | Covered calls table with add/edit/close modals |
 | Directional | `/directional` | Long calls/puts table with add/close modals |
 | Spreads | `/spreads` | Vertical spreads table with add/close modals |
 | Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap |
 | Stock Events | `/stock` | Realized stock P/L and tax loss harvest ledger |
-| Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.) |
+| Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations |
 | AI Analyzer | `/analysis` | Claude-powered strategy review with streaming output and saved history |
 
 ### Trade Types
@@ -67,31 +67,40 @@ Five independent trade types, each with its own type definition (`src/types/inde
 
 | Hook | Purpose |
 |------|---------|
-| `useOptionQuotes` | Live Greeks (delta, gamma, theta, vega), IV, unrealized P/L for all open positions |
+| `useOptionQuotes` | Live Greeks (delta, gamma, theta, vega), IV, unrealized P/L for all open positions. Greeks are per-share; sold positions have sign flipped to reflect seller's perspective. Portfolio aggregation multiplies by contracts. |
 | `usePressure` | Monitors positions approaching strike prices with severity levels |
 | `useMarketStatus` | Market open/closed/extended-hours status from Polygon |
 | `useTickerDetails` | Company name lookup for tickers |
-| `useStockAggregates` | OHLC chart data for position detail modal |
+| `useStockAggregates` | OHLC chart data for position detail modal and SPY benchmark |
+| `useAnnotations` | CRUD for P/L chart annotations stored in MongoDB |
 
 ### Dashboard Components
 
 | Component | File | Description |
 |-----------|------|-------------|
-| PortfolioGreeksCard | `src/components/dashboard/PortfolioGreeksCard.tsx` | SVG delta gauge, theta block, gamma/vega/IV row, delta exposure chart, risk badge |
+| ExpirationAlertBanner | `src/components/dashboard/ExpirationAlertBanner.tsx` | Warns about positions expiring within 2 DTE, links to trade log, dismissible per session |
+| PortfolioGreeksCard | `src/components/dashboard/PortfolioGreeksCard.tsx` | SVG delta gauge, theta block, gamma/vega/IV row, delta exposure chart, risk badge. Greeks multiplied by contracts for portfolio totals. |
+| ThetaDashboardCard | `src/components/dashboard/ThetaDashboardCard.tsx` | Daily/weekly/monthly theta income, decay acceleration by DTE, top contributors |
 | PressureCard | `src/components/PressureCard.tsx` | Real-time pressure monitoring with configurable thresholds and severity levels |
-| PositionsTimeline | `src/components/dashboard/PositionsTimeline.tsx` | Positions grouped by DTE urgency zones with Greeks badges |
+| PositionsTimeline | `src/components/dashboard/PositionsTimeline.tsx` | Positions grouped by DTE urgency zones with Greeks badges and profit target progress bars (pulse at 50%, gold at 75%) |
 | PositionDetailModal | `src/components/dashboard/PositionDetailModal.tsx` | 3-tab chart modal (intraday, since entry, 1Y) with metrics and risk analysis |
 | CapitalAllocationCard | `src/components/dashboard/CapitalAllocationCard.tsx` | Segmented bar showing capital deployment across strategies |
 | CompactHeat | `src/components/dashboard/CompactHeat.tsx` | Portfolio heat gauge with safe/caution/over-limit zones |
+| QuickAddFAB | `src/components/QuickAddFAB.tsx` | Floating action button for adding trades from dashboard (keyboard shortcut: N) |
+| CommandPalette | `src/components/CommandPalette.tsx` | Global search across all trades/pages (keyboard shortcut: Ctrl+K) |
+| PositionSizerModal | `src/components/PositionSizerModal.tsx` | Max contracts calculator with projected heat gauge |
+| ImportModal | `src/components/ImportModal.tsx` | CSV import with file upload, drag-and-drop, paste, row validation |
 
 ### Key Files
 
-- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types
+- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation
 - `src/lib/utils.ts` — P/L calculations, formatting, CSV export, `cn()` class helper
 - `src/lib/mongodb.ts` — MongoDB connection with dev-mode global caching
-- `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection
+- `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection (including annotations)
+- `src/contexts/ToastContext.tsx` — Toast notification system (success/error/info) with auto-dismiss
+- `src/contexts/PrivacyContext.tsx` — Privacy mode toggle with keyboard shortcut
 - `src/app/page.tsx` — Dashboard aggregating stats across all trade types
-- `src/app/analytics/page.tsx` — Charts and analytics (uses Recharts)
+- `src/app/analytics/page.tsx` — Charts, analytics, SPY benchmark, and P/L annotations
 - `src/app/analysis/page.tsx` — AI Strategy Analyzer with saved history
 
 ### API Routes — Market Data (Polygon.io)
@@ -103,6 +112,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/stock-aggregates` | OHLC bar data for charts (5-min in-memory cache) |
 | `/api/ticker-details` | Company name metadata |
 | `/api/market-status` | Market open/closed/extended-hours |
+| `/api/annotations` | CRUD for P/L chart annotations |
 
 ### UI Conventions
 
@@ -111,6 +121,8 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - Glass-card styling via `glass-card` CSS class; button styles via `btn-primary`
 - `cn()` utility for conditional class names (simple filter+join, not clsx/tailwind-merge)
 - Privacy mode: toggled via eye icon or `Ctrl+Shift+H`, masks all financial data, persisted in localStorage
+- Toast notifications: auto-dismiss 4s, slide-in from right, success/error/info variants
+- Keyboard shortcuts: `N` (quick-add trade), `Ctrl+K` (global search), `Ctrl+Shift+H` (privacy mode)
 
 ### Environment Variables
 

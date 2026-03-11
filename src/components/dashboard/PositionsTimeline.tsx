@@ -36,6 +36,7 @@ export type OpenPosition = {
   badgeColor: string;
   dte: number;
   expiration: string;
+  contracts: number;
   detail: string;
   value: string;
   valueLabel: string;
@@ -164,20 +165,32 @@ export function PositionsTimeline({ positions, onCloseTrade }: { positions: Open
                   </div>
 
                   {/* Profit capture bar (sold positions) */}
-                  <div className="flex-shrink-0 w-20 hidden md:block">
+                  <div className="flex-shrink-0 w-24 hidden md:block">
                     {profitCapture !== null && !privacyMode ? (
                       <div>
                         <div className="flex items-center justify-between mb-0.5">
                           <span className={cn('text-[10px] font-bold',
-                            profitCapture >= 50 ? 'text-profit' : profitCapture >= 0 ? 'text-caution' : 'text-loss'
+                            profitCapture >= 75 ? 'text-amber-400' :
+                            profitCapture >= 50 ? 'text-profit' :
+                            profitCapture >= 25 ? 'text-emerald-400/70' :
+                            profitCapture >= 0 ? 'text-zinc-400' : 'text-loss'
                           )}>
                             {profitCapture.toFixed(0)}%
                           </span>
+                          {profitCapture >= 75 && (
+                            <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 px-1 rounded">75%</span>
+                          )}
+                          {profitCapture >= 50 && profitCapture < 75 && (
+                            <span className="text-[9px] font-bold text-profit bg-profit/10 px-1 rounded animate-pulse">50%</span>
+                          )}
                         </div>
                         <div className="h-1.5 rounded-full bg-zinc-800/40 overflow-hidden">
                           <div
                             className={cn('h-full rounded-full transition-all duration-500',
-                              profitCapture >= 50 ? 'bg-profit' : profitCapture >= 0 ? 'bg-caution' : 'bg-loss'
+                              profitCapture >= 75 ? 'bg-amber-400' :
+                              profitCapture >= 50 ? 'bg-profit animate-pulse' :
+                              profitCapture >= 25 ? 'bg-emerald-600/70' :
+                              profitCapture >= 0 ? 'bg-zinc-500' : 'bg-loss'
                             )}
                             style={{ width: `${Math.abs(Math.min(profitCapture, 100))}%` }}
                           />

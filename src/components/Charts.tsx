@@ -17,10 +17,12 @@ import {
   PieChart,
   Pie,
   Line,
+  LineChart,
   ComposedChart,
   ScatterChart,
   Scatter,
   ReferenceLine,
+  Legend,
   ZAxis,
 } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -1239,5 +1241,56 @@ export function HoldTimeAnalyzer({ strategies, buckets }: HoldTimeAnalyzerProps)
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Benchmark Comparison Chart (vs SPY) ───
+
+interface BenchmarkDataPoint {
+  date: string;
+  portfolio: number;
+  spy: number;
+}
+
+export function BenchmarkComparisonChart({ data }: { data: BenchmarkDataPoint[] }) {
+  if (data.length === 0) return <div className="h-64 flex items-center justify-center text-muted">No data</div>;
+  return (
+    <ResponsiveContainer width="100%" height={350}>
+      <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+        <XAxis dataKey="date" tick={{ fill: COLORS.text, fontSize: 11 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: COLORS.text, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v.toFixed(1)}%`} />
+        <Tooltip
+          content={({ active, payload, label }: any) => {
+            if (!active || !payload?.length) return null;
+            return (
+              <div
+                className="rounded-xl px-4 py-3 shadow-xl border"
+                style={{ backgroundColor: 'rgba(24,24,27,0.95)', borderColor: 'rgba(63,63,70,0.5)' }}
+              >
+                <div className="text-zinc-300 font-semibold text-sm mb-1.5">{label}</div>
+                <div className="space-y-1">
+                  {payload.map((p: any) => (
+                    <div key={p.dataKey} className="flex justify-between gap-4">
+                      <span className="text-xs" style={{ color: p.stroke }}>{p.dataKey === 'portfolio' ? 'Portfolio' : 'SPY'}</span>
+                      <span className={cn('text-xs font-bold', p.value >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {p.value >= 0 ? '+' : ''}{p.value.toFixed(2)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }}
+        />
+        <ReferenceLine y={0} stroke="rgba(113, 113, 122, 0.3)" strokeDasharray="4 4" />
+        <Line type="monotone" dataKey="portfolio" stroke={COLORS.accent} strokeWidth={2.5} dot={false} name="Portfolio" />
+        <Line type="monotone" dataKey="spy" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="6 3" name="SPY" />
+        <Legend
+          iconType="line"
+          wrapperStyle={{ fontSize: 12, color: COLORS.text }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
