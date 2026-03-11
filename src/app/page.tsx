@@ -10,6 +10,7 @@ import { useStockEvents } from '@/hooks/useStockEvents';
 import { useOptionQuotes } from '@/hooks/useOptionQuotes';
 import { useMarketStatus } from '@/hooks/useMarketStatus';
 import { useTickerDetails } from '@/hooks/useTickerDetails';
+import { useHoldings } from '@/hooks/useHoldings';
 import { PressureCard } from '@/components/PressureCard';
 import { CloseTradeModal } from '@/components/TradeModal';
 import { SkeletonDashboard } from '@/components/SkeletonLoader';
@@ -17,6 +18,7 @@ import { PositionsTimeline } from '@/components/dashboard/PositionsTimeline';
 import { CapitalAllocationCard } from '@/components/dashboard/CapitalAllocationCard';
 import { PortfolioGreeksCard } from '@/components/dashboard/PortfolioGreeksCard';
 import { CompactHeat } from '@/components/dashboard/CompactHeat';
+import { UncoveredHoldingsCard } from '@/components/dashboard/UncoveredHoldingsCard';
 import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
 import {
   formatCurrency as rawFormatCurrency,
@@ -65,6 +67,8 @@ export default function Dashboard() {
     isLoading: stockLoading,
   } = useStockEvents();
 
+  const { holdings, isLoading: holdingsLoading } = useHoldings();
+
   const { positions: optionPositions, fetchedAt: greeksFetchedAt } = useOptionQuotes();
   useMarketStatus(); // triggers SWR caching for child components
 
@@ -75,11 +79,12 @@ export default function Dashboard() {
     openCalls.forEach(c => set.add(c.ticker));
     openDirectional.forEach(t => set.add(t.ticker));
     openSpreads.forEach(s => set.add(s.ticker));
+    holdings.forEach(h => set.add(h.ticker.toUpperCase()));
     return Array.from(set);
-  }, [openTrades, openCalls, openDirectional, openSpreads]);
+  }, [openTrades, openCalls, openDirectional, openSpreads, holdings]);
   const { nameMap: tickerNames } = useTickerDetails(allTickers);
 
-  const isLoading = tradesLoading || ccLoading || dirLoading || spreadsLoading || stockLoading;
+  const isLoading = tradesLoading || ccLoading || dirLoading || spreadsLoading || stockLoading || holdingsLoading;
 
   const [editingAccountValue, setEditingAccountValue] = useState(false);
   const [accountValueInput, setAccountValueInput] = useState(
@@ -481,6 +486,16 @@ export default function Dashboard() {
 
       {/* ── Positions Under Pressure ── */}
       <PressureCard openPositions={allOpenPositions} />
+
+      {/* ── Uncovered Holdings ── */}
+      {holdings.length > 0 && (
+        <UncoveredHoldingsCard
+          holdings={holdings}
+          openCalls={openCalls}
+          privacyMode={privacyMode}
+          tickerNames={tickerNames}
+        />
+      )}
 
       {/* ── Open Positions ── */}
       <section>
