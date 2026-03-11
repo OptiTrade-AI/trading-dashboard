@@ -48,6 +48,7 @@ export function PressureCard({ openPositions }: { openPositions: OpenPosition[] 
     thresholds,
     setThresholds,
     isLoading,
+    fetchedAt,
     error,
   } = usePressure();
 
@@ -130,8 +131,16 @@ export function PressureCard({ openPositions }: { openPositions: OpenPosition[] 
           )}
         </div>
         <div className="flex items-center gap-3">
-          {relativeTime && (
-            <span className="text-[11px] text-muted">{relativeTime}</span>
+          {(relativeTime || fetchedAt) && (
+            <span
+              className="text-[10px] text-muted"
+              title={fetchedAt ? `Data fetched: ${fetchedAt}` : undefined}
+            >
+              {fetchedAt
+                ? new Date(fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                : relativeTime}
+              {relativeTime && fetchedAt ? ` · ${relativeTime}` : ''}
+            </span>
           )}
           <span
             className={cn(

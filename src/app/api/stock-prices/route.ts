@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { prices },
+      { prices, fetchedAt: new Date().toISOString() },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {

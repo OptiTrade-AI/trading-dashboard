@@ -65,7 +65,7 @@ export default function Dashboard() {
     isLoading: stockLoading,
   } = useStockEvents();
 
-  const { positions: optionPositions } = useOptionQuotes();
+  const { positions: optionPositions, fetchedAt: greeksFetchedAt } = useOptionQuotes();
   useMarketStatus(); // triggers SWR caching for child components
 
   // Collect all unique tickers for company name lookup
@@ -400,6 +400,11 @@ export default function Dashboard() {
                 </div>
                 <div className="text-xs text-muted mt-1">
                   {allOpenPositions.filter(p => p.unrealizedPL !== null).length} positions live
+                  {greeksFetchedAt && (
+                    <span className="ml-1.5" title={`Data fetched: ${greeksFetchedAt}`}>
+                      · {new Date(greeksFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  )}
                 </div>
               </div>
             </>
@@ -471,7 +476,7 @@ export default function Dashboard() {
 
       {/* ── Portfolio Greeks ── */}
       {hasUnrealizedData && (
-        <PortfolioGreeksCard positions={allOpenPositions} privacyMode={privacyMode} />
+        <PortfolioGreeksCard positions={allOpenPositions} privacyMode={privacyMode} fetchedAt={greeksFetchedAt} />
       )}
 
       {/* ── Positions Under Pressure ── */}

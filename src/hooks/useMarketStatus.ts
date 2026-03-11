@@ -5,7 +5,7 @@ import { MarketStatus } from '@/types';
 import { isMarketOpen as isMarketOpenLocal } from '@/lib/utils';
 
 export function useMarketStatus() {
-  const { data, error, isLoading } = useSWR<{ status: MarketStatus }>(
+  const { data, error, isLoading } = useSWR<{ status: MarketStatus; fetchedAt?: string }>(
     '/api/market-status',
     { refreshInterval: 60000 }
   );

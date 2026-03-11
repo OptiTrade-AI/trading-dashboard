@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { quotes },
+      { quotes, fetchedAt: new Date().toISOString() },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
