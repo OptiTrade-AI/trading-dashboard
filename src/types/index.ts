@@ -222,6 +222,9 @@ export interface OptionQuote {
   theta: number | null;
   vega: number | null;
   iv: number | null;
+  change: number | null;         // session daily change in price
+  changePercent: number | null;  // session daily change percent
+  previousClose: number | null;
 }
 
 export interface MarketStatus {

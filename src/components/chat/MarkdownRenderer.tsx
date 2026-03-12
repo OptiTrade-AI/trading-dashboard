@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface MarkdownRendererProps {
@@ -18,18 +18,85 @@ export function parseFollowups(content: string): { cleanContent: string; followu
   return { cleanContent, followups };
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="text-muted/50 hover:text-foreground transition-colors p-1"
+      title="Copy code"
+    >
+      {copied ? (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M3 11V3.5A1.5 1.5 0 014.5 2H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function renderInline(text: string): React.ReactNode[] {
-  // Handle bold, inline code, and regular text
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="text-foreground font-semibold">{part.slice(2, -2)}</strong>;
+  // Order: bold → inline code → links → italic → bare URLs → plain text
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|\*[^*]+\*|https?:\/\/[^\s<>)"]+)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    // Text before this match
+    if (match.index > lastIndex) {
+      parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
     }
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={i} className="px-1.5 py-0.5 rounded bg-card-solid/60 text-accent text-xs font-mono">{part.slice(1, -1)}</code>;
+
+    const m = match[0];
+    const key = `m-${match.index}`;
+
+    if (m.startsWith('**') && m.endsWith('**')) {
+      parts.push(<strong key={key} className="text-foreground font-semibold">{m.slice(2, -2)}</strong>);
+    } else if (m.startsWith('`') && m.endsWith('`')) {
+      parts.push(<code key={key} className="px-1.5 py-0.5 rounded bg-card-solid/60 text-accent text-xs font-mono">{m.slice(1, -1)}</code>);
+    } else if (m.startsWith('[')) {
+      const linkMatch = m.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch && /^https?:\/\//i.test(linkMatch[2])) {
+        parts.push(
+          <a key={key} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+            {linkMatch[1]}
+          </a>
+        );
+      } else {
+        parts.push(<span key={key}>{m}</span>);
+      }
+    } else if (m.startsWith('*') && m.endsWith('*') && !m.startsWith('**')) {
+      parts.push(<em key={key} className="italic">{m.slice(1, -1)}</em>);
+    } else if (m.startsWith('http')) {
+      parts.push(
+        <a key={key} href={m} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+          {m}
+        </a>
+      );
+    } else {
+      parts.push(<span key={key}>{m}</span>);
     }
-    return <span key={i}>{part}</span>;
-  });
+
+    lastIndex = match.index + m.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex)}</span>);
+  }
+
+  return parts.length > 0 ? parts : [<span key="0">{text}</span>];
 }
 
 function isTableRow(line: string): boolean {
@@ -44,6 +111,43 @@ function parseTableCells(line: string): string[] {
   return line.trim().slice(1, -1).split('|').map(c => c.trim());
 }
 
+// Parse a list block (bullet or numbered), handling nesting up to 2 levels
+function parseListBlock(lines: string[], startIdx: number): { items: { text: string; children: { text: string; ordered: boolean }[] }[]; endIdx: number; ordered: boolean } {
+  const items: { text: string; children: { text: string; ordered: boolean }[] }[] = [];
+  let i = startIdx;
+  const firstLine = lines[i];
+  const ordered = /^\d+\.\s/.test(firstLine);
+
+  const isTopLevelItem = (line: string) => {
+    if (ordered) return /^\d+\.\s/.test(line);
+    return /^[-*]\s/.test(line);
+  };
+
+  const isNestedItem = (line: string) => /^(\s{2,})[-*]\s/.test(line) || /^(\s{2,})\d+\.\s/.test(line);
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    if (!isTopLevelItem(line) && !isNestedItem(line)) break;
+
+    if (isTopLevelItem(line)) {
+      const text = ordered ? line.replace(/^\d+\.\s/, '') : line.slice(2);
+      items.push({ text, children: [] });
+      i++;
+    } else if (isNestedItem(line) && items.length > 0) {
+      const trimmed = line.trimStart();
+      const childOrdered = /^\d+\.\s/.test(trimmed);
+      const childText = childOrdered ? trimmed.replace(/^\d+\.\s/, '') : trimmed.slice(2);
+      items[items.length - 1].children.push({ text: childText, ordered: childOrdered });
+      i++;
+    } else {
+      break;
+    }
+  }
+
+  return { items, endIdx: i, ordered };
+}
+
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
@@ -54,6 +158,39 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
 
     // Empty line
     if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    // Fenced code blocks
+    if (line.trimStart().startsWith('```')) {
+      const lang = line.trimStart().slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trimStart().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++; // skip closing fence
+
+      const code = codeLines.join('\n');
+      elements.push(
+        <div key={`code-${i}`} className="my-3 rounded-lg overflow-hidden border border-border/30">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#0d0d0f] border-b border-border/20">
+            <span className="text-[10px] text-muted/50 font-mono uppercase">{lang || 'code'}</span>
+            <CopyButton text={code} />
+          </div>
+          <pre className="bg-[#0d0d0f] px-4 py-3 overflow-x-auto">
+            <code className="text-xs font-mono text-foreground/80 leading-relaxed">{code}</code>
+          </pre>
+        </div>
+      );
+      continue;
+    }
+
+    // Horizontal rules
+    if (/^(\s*[-*_]){3,}\s*$/.test(line)) {
+      elements.push(<hr key={`hr-${i}`} className="border-border/30 my-3" />);
       i++;
       continue;
     }
@@ -78,6 +215,23 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       continue;
     }
 
+    // Blockquotes
+    if (line.startsWith('> ')) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith('> ')) {
+        quoteLines.push(lines[i].slice(2));
+        i++;
+      }
+      elements.push(
+        <blockquote key={`bq-${i}`} className="border-l-2 border-accent/40 pl-3 italic text-sm text-muted/80 my-2">
+          {quoteLines.map((ql, qi) => (
+            <p key={qi} className="leading-relaxed">{renderInline(ql)}</p>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
     // Table
     if (isTableRow(line)) {
       const tableRows: string[] = [];
@@ -86,7 +240,6 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
         i++;
       }
 
-      // Parse header, separator, and body
       if (tableRows.length >= 2) {
         const headerCells = parseTableCells(tableRows[0]);
         const hasSeparator = tableRows.length >= 2 && isSeparatorRow(tableRows[1]);
@@ -126,45 +279,60 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       }
     }
 
-    // Numbered list
-    if (/^\d+\.\s/.test(line)) {
-      const listItems: string[] = [];
-      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-        listItems.push(lines[i].replace(/^\d+\.\s/, ''));
-        i++;
-      }
-      elements.push(
-        <ol key={`ol-${i}`} className="space-y-1.5 my-2">
-          {listItems.map((item, li) => (
-            <li key={li} className="flex gap-2.5 text-sm text-muted leading-relaxed">
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center mt-0.5">
-                <span className="text-accent text-[10px] font-bold">{li + 1}</span>
-              </span>
-              <span className="flex-1">{renderInline(item)}</span>
-            </li>
-          ))}
-        </ol>
-      );
-      continue;
-    }
+    // Lists (bullet or numbered, with nesting)
+    if (/^[-*]\s/.test(line) || /^\d+\.\s/.test(line)) {
+      const { items, endIdx, ordered } = parseListBlock(lines, i);
+      i = endIdx;
 
-    // Bullet list
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      const listItems: string[] = [];
-      while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('* '))) {
-        listItems.push(lines[i].slice(2));
-        i++;
+      if (ordered) {
+        elements.push(
+          <ol key={`ol-${i}`} className="space-y-1.5 my-2">
+            {items.map((item, li) => (
+              <li key={li}>
+                <div className="flex gap-2.5 text-sm text-muted leading-relaxed">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center mt-0.5">
+                    <span className="text-accent text-[10px] font-bold">{li + 1}</span>
+                  </span>
+                  <span className="flex-1">{renderInline(item.text)}</span>
+                </div>
+                {item.children.length > 0 && (
+                  <ul className="ml-8 mt-1 space-y-1">
+                    {item.children.map((child, ci) => (
+                      <li key={ci} className="flex gap-2 text-sm text-muted leading-relaxed">
+                        <span className="text-accent/40 mt-1.5 text-[6px]">●</span>
+                        <span className="flex-1">{renderInline(child.text)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ol>
+        );
+      } else {
+        elements.push(
+          <ul key={`ul-${i}`} className="space-y-1 my-2">
+            {items.map((item, li) => (
+              <li key={li}>
+                <div className="flex gap-2 text-sm text-muted leading-relaxed">
+                  <span className="text-accent/40 mt-1.5 text-[6px]">●</span>
+                  <span className="flex-1">{renderInline(item.text)}</span>
+                </div>
+                {item.children.length > 0 && (
+                  <ul className="ml-4 mt-1 space-y-1">
+                    {item.children.map((child, ci) => (
+                      <li key={ci} className="flex gap-2 text-sm text-muted leading-relaxed">
+                        <span className="text-muted/30 mt-1.5 text-[6px]">●</span>
+                        <span className="flex-1">{renderInline(child.text)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        );
       }
-      elements.push(
-        <ul key={`ul-${i}`} className="space-y-1 my-2">
-          {listItems.map((item, li) => (
-            <li key={li} className="flex gap-2 text-sm text-muted leading-relaxed">
-              <span className="text-accent/40 mt-1.5 text-[6px]">●</span>
-              <span className="flex-1">{renderInline(item)}</span>
-            </li>
-          ))}
-        </ul>
-      );
       continue;
     }
 

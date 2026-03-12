@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Conversation, ChatMessage } from '@/types';
 
 const METADATA_DELIMITER = '\n---METADATA---\n';
@@ -13,6 +13,8 @@ export function useChat() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamingContentRef = useRef('');
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -31,10 +33,26 @@ export function useChat() {
     fetchConversations();
   }, [fetchConversations]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
   const sendMessage = useCallback(async (message: string, portfolioContext: Record<string, unknown>) => {
     setIsStreaming(true);
     setError(null);
     setStreamingContent('');
+    streamingContentRef.current = '';
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     // Optimistically add user message to active conversation
     const tempUserMsg: ChatMessage = {
@@ -60,6 +78,7 @@ export function useChat() {
           message,
           portfolioContext,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -79,11 +98,9 @@ export function useChat() {
         accumulated += decoder.decode(value, { stream: true });
 
         const metaIdx = accumulated.indexOf(METADATA_DELIMITER);
-        if (metaIdx !== -1) {
-          setStreamingContent(accumulated.slice(0, metaIdx));
-        } else {
-          setStreamingContent(accumulated);
-        }
+        const visible = metaIdx !== -1 ? accumulated.slice(0, metaIdx) : accumulated;
+        setStreamingContent(visible);
+        streamingContentRef.current = visible;
       }
 
       // Parse metadata
@@ -126,18 +143,52 @@ export function useChat() {
       }
 
       setStreamingContent('');
+      streamingContentRef.current = '';
       await fetchConversations();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chat failed');
-      // Remove optimistic user message on error
-      if (activeConversation) {
-        setActiveConversation(prev => prev ? {
-          ...prev,
-          messages: prev.messages.filter(m => m.id !== tempUserMsg.id),
-        } : prev);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Keep partial content as a message — use ref to avoid stale closure
+        const partialContent = streamingContentRef.current;
+        if (partialContent) {
+          const assistantMsg: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: partialContent,
+            createdAt: new Date().toISOString(),
+          };
+
+          if (activeConversation) {
+            setActiveConversation(prev => prev ? {
+              ...prev,
+              messages: [...prev.messages, assistantMsg],
+              updatedAt: new Date().toISOString(),
+            } : prev);
+          } else {
+            const newConv: Conversation = {
+              id: crypto.randomUUID(),
+              title: message.slice(0, 60) + (message.length > 60 ? '...' : ''),
+              messages: [tempUserMsg, assistantMsg],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            setActiveConversation(newConv);
+          }
+        }
+        setStreamingContent('');
+        streamingContentRef.current = '';
+      } else {
+        setError(err instanceof Error ? err.message : 'Chat failed');
+        // Remove optimistic user message on error
+        if (activeConversation) {
+          setActiveConversation(prev => prev ? {
+            ...prev,
+            messages: prev.messages.filter(m => m.id !== tempUserMsg.id),
+          } : prev);
+        }
       }
     } finally {
       setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   }, [activeConversation, fetchConversations]);
 
@@ -189,6 +240,7 @@ export function useChat() {
     isLoading,
     error,
     sendMessage,
+    stopStreaming,
     startNewConversation,
     selectConversation,
     deleteConversation,

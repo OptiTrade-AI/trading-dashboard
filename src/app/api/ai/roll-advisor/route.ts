@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { aiCall } from '@/lib/ai';
 import { gatherPortfolioData, getClosedTradesForTicker } from '@/lib/ai-data';
+import { calculateDTE } from '@/lib/utils';
 import { fetchOptionsChain } from '@/lib/polygon';
 
 export async function POST(request: NextRequest) {
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
   const tickerHistory = getClosedTradesForTicker(data, position.ticker);
   const rollHistory = tickerHistory.filter(t => t.exitReason === 'rolled');
 
-  const dte = Math.max(0, Math.round((new Date(position.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const dte = calculateDTE(position.expiration);
 
   let posDesc = `${position.strategy} | ${position.ticker} $${position.strike} | ${position.contracts} contracts | DTE ${dte} | Exp ${position.expiration}`;
   if (position.premiumCollected) posDesc += ` | Premium $${position.premiumCollected.toFixed(0)}`;

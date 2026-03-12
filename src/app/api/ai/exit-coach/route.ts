@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { aiStream } from '@/lib/ai';
 import { gatherPortfolioData, getClosedTradesForTicker } from '@/lib/ai-data';
+import { calculateDTE } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   // Build focused prompt
   const now = new Date().toISOString().slice(0, 10);
-  const dte = Math.max(0, Math.round((new Date(position.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const dte = calculateDTE(position.expiration);
 
   let positionDesc = `${position.strategy} | ${position.ticker} $${position.strike}`;
   if (position.strategy === 'Spread' && position.longStrike) {

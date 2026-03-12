@@ -7,9 +7,11 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  isStreaming?: boolean;
+  onStop?: () => void;
 }
 
-export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, placeholder, isStreaming, onStop }: ChatInputProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -47,30 +49,42 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
           value={input}
           onChange={e => { setInput(e.target.value); handleInput(); }}
           onKeyDown={handleKeyDown}
-          disabled={disabled}
+          disabled={disabled || isStreaming}
           placeholder={placeholder || 'Ask about your portfolio...'}
           rows={1}
           className={cn(
             'flex-1 resize-none bg-card-solid/50 border border-border/50 rounded-xl px-4 py-2.5 text-sm text-foreground',
             'placeholder:text-muted/50 focus:outline-none focus:border-accent/50 transition-colors',
             'min-h-[40px] max-h-[120px]',
-            disabled && 'opacity-50 cursor-not-allowed'
+            (disabled || isStreaming) && 'opacity-50 cursor-not-allowed'
           )}
         />
-        <button
-          onClick={handleSend}
-          disabled={disabled || !input.trim()}
-          className={cn(
-            'flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all',
-            input.trim() && !disabled
-              ? 'bg-accent text-white hover:bg-accent/80'
-              : 'bg-card-solid/50 text-muted/30 border border-border/50'
-          )}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M14 2L7 9M14 2L9.5 14L7 9M14 2L2 6.5L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        {isStreaming ? (
+          <button
+            onClick={onStop}
+            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-loss/15 text-loss border border-loss/30 hover:bg-loss/25 transition-all"
+            title="Stop generating"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={disabled || !input.trim()}
+            className={cn(
+              'flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all',
+              input.trim() && !disabled
+                ? 'bg-accent text-white hover:bg-accent/80'
+                : 'bg-card-solid/50 text-muted/30 border border-border/50'
+            )}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M14 2L7 9M14 2L9.5 14L7 9M14 2L2 6.5L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
       </div>
       <p className="text-[10px] text-muted/30 text-center mt-1.5">
         Enter to send · Shift+Enter for new line
