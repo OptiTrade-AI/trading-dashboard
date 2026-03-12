@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { DirectionalTrade, ALL_TICKERS, DIRECTIONAL_EXIT_REASONS, DirectionalExitReason, OptionType } from '@/types';
 import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import { AITradeCheck } from './AITradeCheck';
 
 interface AddDirectionalModalProps {
   isOpen: boolean;
@@ -231,6 +232,19 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
               <span className="text-foreground font-semibold">{dte} days</span>
             </div>
           </div>
+
+          <AITradeCheck
+            trade={{
+              ticker: ticker.toUpperCase(),
+              strategy: 'Directional',
+              strike: parseFloat(strike) || undefined,
+              contracts: numContracts,
+              expiration,
+              entryPrice: price || undefined,
+              costAtOpen: totalCost || undefined,
+            }}
+            disabled={!ticker || !strike || !expiration || !entryPrice}
+          />
 
           <button type="submit" className="btn-primary w-full py-3">
             Add Directional Trade

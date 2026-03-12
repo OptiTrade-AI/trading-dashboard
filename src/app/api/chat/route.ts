@@ -4,6 +4,7 @@ import { getConversationsCollection, getCspTradesCollection, getCoveredCallsColl
 import { calculatePL, calculateDirectionalPL, calculateSpreadPL, calculateDTE } from '@/lib/utils';
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, ChatMessage } from '@/types';
 import { differenceInDays, parseISO, subMonths } from 'date-fns';
+import { trackAICall } from '@/lib/ai';
 
 function calculateCCPL(call: CoveredCall): number {
   if (call.status === 'open') return 0;
@@ -338,6 +339,15 @@ export async function POST(request: NextRequest) {
             accumulated += event.delta.text;
             controller.enqueue(encoder.encode(event.delta.text));
           }
+        }
+
+        // Track AI usage
+        try {
+          const finalMsg = await stream.finalMessage();
+          const { input_tokens, output_tokens } = finalMsg.usage;
+          await trackAICall('chat', 'claude-sonnet-4-6', input_tokens, output_tokens);
+        } catch {
+          // Don't fail if tracking fails
         }
 
         // Save conversation to MongoDB

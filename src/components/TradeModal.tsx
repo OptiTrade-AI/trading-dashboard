@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { Trade, ALL_TICKERS, EXIT_REASONS, ExitReason } from '@/types';
 import { calculateCollateral, calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import { AITradeCheck } from './AITradeCheck';
+import { AIRollAdvisor } from './AIRollAdvisor';
+import type { RollRecommendation } from '@/types';
 
 interface AddTradeModalProps {
   isOpen: boolean;
@@ -192,6 +195,19 @@ export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps)
               </div>
             )}
           </div>
+
+          <AITradeCheck
+            trade={{
+              ticker: ticker.toUpperCase(),
+              strategy: 'CSP',
+              strike: parseFloat(strike) || undefined,
+              contracts: numContracts,
+              expiration,
+              premium: parseFloat(premium) || undefined,
+              collateral,
+            }}
+            disabled={!ticker || !strike || !expiration || !premium}
+          />
 
           <button type="submit" className="btn-primary w-full py-3">
             Add Trade
@@ -621,6 +637,23 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
           {/* Roll fields */}
           {mode === 'roll' && (
             <>
+              <AIRollAdvisor
+                position={{
+                  ticker: trade.ticker,
+                  strategy: 'CSP',
+                  strike: trade.strike,
+                  contracts: trade.contracts,
+                  expiration: trade.expiration,
+                  entryDate: trade.entryDate,
+                  premiumCollected: trade.premiumCollected,
+                  collateral: trade.collateral,
+                }}
+                onApply={(rec: RollRecommendation) => {
+                  setNewStrike(rec.targetStrike.toString());
+                  setNewExpiration(rec.targetExpiration);
+                  if (rec.expectedCredit > 0) setNewPremium(rec.expectedCredit.toString());
+                }}
+              />
               <div className="border-t border-border/30 pt-4">
                 <h3 className="text-sm font-semibold text-accent mb-3">New Position</h3>
                 <div className="grid grid-cols-3 gap-4">

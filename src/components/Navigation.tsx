@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { usePrivacy } from '@/contexts/PrivacyContext';
+import { AICostIndicator } from './AICostIndicator';
 
 const tradePages = [
   { href: '/log', label: 'Cash-Secured Puts' },
@@ -140,6 +141,9 @@ export function Navigation() {
 
           {/* Right side */}
           <div className="flex items-center gap-1">
+            {/* AI Cost Indicator */}
+            <AICostIndicator />
+
             {/* Privacy toggle */}
             <button
               onClick={togglePrivacy}

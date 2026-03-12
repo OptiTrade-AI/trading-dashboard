@@ -34,6 +34,7 @@ import {
   calculateSpreadPLPercent,
 } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { BehavioralPatterns } from '@/components/BehavioralPatterns';
 import { useFormatters } from '@/hooks/useFormatters';
 import { format, parse, parseISO, startOfMonth, isThisMonth, isThisYear, subMonths, subDays, startOfYear, isAfter } from 'date-fns';
 
@@ -867,6 +868,9 @@ export default function Analytics() {
         />
         </ChartBlur>
       </div>
+
+      {/* ── Behavioral Patterns (AI) ── */}
+      <BehavioralPatterns />
     </div>
   );
 }

@@ -52,6 +52,7 @@ export type OpenPosition = {
   vega: number | null;
   iv: number | null;
   companyName: string | null;
+  stockPrice: number | null;
 };
 
 export function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPosition[]; onCloseTrade: (trade: Trade) => void }) {

@@ -20,14 +20,17 @@ import { PortfolioGreeksCard } from '@/components/dashboard/PortfolioGreeksCard'
 import { CompactHeat } from '@/components/dashboard/CompactHeat';
 import { UncoveredHoldingsCard } from '@/components/dashboard/UncoveredHoldingsCard';
 import { ExpirationAlertBanner } from '@/components/dashboard/ExpirationAlertBanner';
+import { SmartAlertsBadge } from '@/components/dashboard/SmartAlertsBadge';
+import { EarningsWatchCard } from '@/components/dashboard/EarningsWatchCard';
 import { ThetaDashboardCard } from '@/components/dashboard/ThetaDashboardCard';
+import { ScenarioSimulator } from '@/components/dashboard/ScenarioSimulator';
 import { QuickAddFAB } from '@/components/QuickAddFAB';
 import { AddTradeModal } from '@/components/TradeModal';
 import { AddCCModal } from '@/components/CCModal';
 import { AddDirectionalModal } from '@/components/DirectionalModal';
 import { AddSpreadModal } from '@/components/SpreadsModal';
 import { CommandPalette } from '@/components/CommandPalette';
-import { PositionSizerModal } from '@/components/PositionSizerModal';
+import { useStockPrices } from '@/hooks/useStockPrices';
 import { ImportModal } from '@/components/ImportModal';
 import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
 import {
@@ -86,7 +89,7 @@ export default function Dashboard() {
   const { positions: optionPositions, fetchedAt: greeksFetchedAt } = useOptionQuotes();
   useMarketStatus(); // triggers SWR caching for child components
 
-  // Collect all unique tickers for company name lookup
+  // Collect all unique tickers for company name lookup + stock prices
   const allTickers = useMemo(() => {
     const set = new Set<string>();
     openTrades.forEach(t => set.add(t.ticker));
@@ -97,6 +100,7 @@ export default function Dashboard() {
     return Array.from(set);
   }, [openTrades, openCalls, openDirectional, openSpreads, holdings]);
   const { nameMap: tickerNames } = useTickerDetails(allTickers);
+  const { prices: stockPrices } = useStockPrices(allTickers);
 
   const isLoading = tradesLoading || ccLoading || dirLoading || spreadsLoading || stockLoading || holdingsLoading;
 
@@ -106,7 +110,6 @@ export default function Dashboard() {
   );
   const [closeModalTrade, setCloseModalTrade] = useState<Trade | null>(null);
   const [quickAddType, setQuickAddType] = useState<'csp' | 'cc' | 'directional' | 'spread' | null>(null);
-  const [showSizer, setShowSizer] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
   const handleSaveAccountValue = () => {
@@ -196,6 +199,7 @@ export default function Dashboard() {
         vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(t.ticker) ?? null,
+        stockPrice: stockPrices.get(t.ticker)?.price ?? null,
       };
     }),
     ...openCalls.map((c) => {
@@ -225,6 +229,7 @@ export default function Dashboard() {
         vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(c.ticker) ?? null,
+        stockPrice: stockPrices.get(c.ticker)?.price ?? null,
       };
     }),
     ...openDirectional.map((t) => {
@@ -254,6 +259,7 @@ export default function Dashboard() {
         vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(t.ticker) ?? null,
+        stockPrice: stockPrices.get(t.ticker)?.price ?? null,
       };
     }),
     ...openSpreads.map((t) => {
@@ -283,6 +289,7 @@ export default function Dashboard() {
         vega: oq?.vega ?? null,
         iv: oq?.iv ?? null,
         companyName: tickerNames.get(t.ticker) ?? null,
+        stockPrice: stockPrices.get(t.ticker)?.price ?? null,
       };
     }),
   ].sort((a, b) => a.dte - b.dte);
@@ -292,6 +299,24 @@ export default function Dashboard() {
     (sum, p) => sum + (p.unrealizedPL ?? 0), 0
   );
   const hasUnrealizedData = allOpenPositions.some(p => p.unrealizedPL !== null);
+
+  // Unrealized breakdown by strategy
+  const unrealizedByStrategy = {
+    csp: { unrealized: 0, premiumCollected: 0, count: 0 },
+    cc: { unrealized: 0, premiumCollected: 0, count: 0 },
+    directional: { unrealized: 0, cost: 0, count: 0 },
+    spread: { unrealized: 0, netDebit: 0, count: 0 },
+  };
+  for (const p of allOpenPositions) {
+    if (p.unrealizedPL == null) continue;
+    const s = unrealizedByStrategy[p.type];
+    s.unrealized += p.unrealizedPL;
+    s.count += 1;
+  }
+  for (const t of openTrades) unrealizedByStrategy.csp.premiumCollected += t.premiumCollected;
+  for (const c of openCalls) unrealizedByStrategy.cc.premiumCollected += c.premiumCollected;
+  for (const t of openDirectional) unrealizedByStrategy.directional.cost += t.costAtOpen;
+  for (const s of openSpreads) unrealizedByStrategy.spread.netDebit += s.netDebit;
 
   // Recent activity — all trade types
   const recentActivity = [
@@ -366,6 +391,12 @@ export default function Dashboard() {
       {/* ── Expiration Alert ── */}
       <ExpirationAlertBanner positions={allOpenPositions} />
 
+      {/* ── Smart Alerts + Earnings Watch ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <SmartAlertsBadge />
+        <EarningsWatchCard />
+      </div>
+
       {/* ── Hero Banner ── */}
       <div className="glass-card p-6">
         <div className="flex flex-col lg:flex-row lg:items-center gap-6">
@@ -422,7 +453,7 @@ export default function Dashboard() {
           {hasUnrealizedData && (
             <>
               <div className="hidden lg:block w-px h-16 bg-border/30" />
-              <div>
+              <div className="relative group/unreal">
                 <div className="stat-label mb-1">Unrealized</div>
                 <div className={cn('text-2xl font-bold', totalUnrealizedPL >= 0 ? 'text-profit' : 'text-loss')}>
                   {totalUnrealizedPL >= 0 ? '+' : ''}{formatCurrency(totalUnrealizedPL)}
@@ -434,6 +465,59 @@ export default function Dashboard() {
                       · {new Date(greeksFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                     </span>
                   )}
+                </div>
+                {/* Breakdown tooltip */}
+                <div className="absolute bottom-full left-0 mb-2 w-64 glass-card p-3 rounded-xl border border-border/40 opacity-0 pointer-events-none group-hover/unreal:opacity-100 group-hover/unreal:pointer-events-auto transition-opacity z-[100] shadow-xl">
+                  <div className="text-xs font-semibold text-foreground mb-2">Unrealized Breakdown</div>
+                  <div className="space-y-1.5 text-xs">
+                    {unrealizedByStrategy.csp.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted">CSP ({unrealizedByStrategy.csp.count})</span>
+                        <div className="text-right">
+                          <span className={cn('font-semibold', unrealizedByStrategy.csp.unrealized >= 0 ? 'text-profit' : 'text-loss')}>
+                            {unrealizedByStrategy.csp.unrealized >= 0 ? '+' : ''}{rawFormatCurrency(unrealizedByStrategy.csp.unrealized)}
+                          </span>
+                          <span className="text-muted ml-1">/ {rawFormatCurrency(unrealizedByStrategy.csp.premiumCollected)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {unrealizedByStrategy.cc.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted">CC ({unrealizedByStrategy.cc.count})</span>
+                        <div className="text-right">
+                          <span className={cn('font-semibold', unrealizedByStrategy.cc.unrealized >= 0 ? 'text-profit' : 'text-loss')}>
+                            {unrealizedByStrategy.cc.unrealized >= 0 ? '+' : ''}{rawFormatCurrency(unrealizedByStrategy.cc.unrealized)}
+                          </span>
+                          <span className="text-muted ml-1">/ {rawFormatCurrency(unrealizedByStrategy.cc.premiumCollected)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {unrealizedByStrategy.directional.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted">Directional ({unrealizedByStrategy.directional.count})</span>
+                        <div className="text-right">
+                          <span className={cn('font-semibold', unrealizedByStrategy.directional.unrealized >= 0 ? 'text-profit' : 'text-loss')}>
+                            {unrealizedByStrategy.directional.unrealized >= 0 ? '+' : ''}{rawFormatCurrency(unrealizedByStrategy.directional.unrealized)}
+                          </span>
+                          <span className="text-muted ml-1">/ {rawFormatCurrency(unrealizedByStrategy.directional.cost)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {unrealizedByStrategy.spread.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted">Spreads ({unrealizedByStrategy.spread.count})</span>
+                        <div className="text-right">
+                          <span className={cn('font-semibold', unrealizedByStrategy.spread.unrealized >= 0 ? 'text-profit' : 'text-loss')}>
+                            {unrealizedByStrategy.spread.unrealized >= 0 ? '+' : ''}{rawFormatCurrency(unrealizedByStrategy.spread.unrealized)}
+                          </span>
+                          <span className="text-muted ml-1">/ {rawFormatCurrency(Math.abs(unrealizedByStrategy.spread.netDebit))}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="border-t border-border/30 mt-2 pt-2 text-[10px] text-muted">
+                    Unrealized / max premium or cost at risk
+                  </div>
                 </div>
               </div>
             </>
@@ -513,6 +597,11 @@ export default function Dashboard() {
         <ThetaDashboardCard positions={allOpenPositions} fetchedAt={greeksFetchedAt} />
       )}
 
+      {/* ── Scenario Simulator ── */}
+      {hasUnrealizedData && (
+        <ScenarioSimulator positions={allOpenPositions} />
+      )}
+
       {/* ── Positions Under Pressure ── */}
       <PressureCard openPositions={allOpenPositions} />
 
@@ -531,7 +620,6 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-foreground">Open Positions</h2>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowSizer(true)} className="btn-secondary text-sm">Position Sizer</button>
             <button onClick={() => setShowImport(true)} className="btn-secondary text-sm">Import</button>
             <Link href="/log" className="btn-primary text-sm">+ New Trade</Link>
           </div>
@@ -641,15 +729,6 @@ export default function Dashboard() {
         isOpen={quickAddType === 'spread'}
         onClose={() => setQuickAddType(null)}
         onSubmit={(spread) => { addSpread(spread); setQuickAddType(null); }}
-      />
-
-      {/* Position Sizer */}
-      <PositionSizerModal
-        isOpen={showSizer}
-        onClose={() => setShowSizer(false)}
-        accountValue={accountSettings.accountValue}
-        maxHeatPercent={accountSettings.maxHeatPercent}
-        totalCollateral={totalCollateral}
       />
 
       {/* CSV Import */}

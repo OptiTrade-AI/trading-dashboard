@@ -126,10 +126,11 @@ export function useOptionQuotes() {
   // Build positions map keyed by position ID
   const positions = useMemo(() => {
     const map = new Map<string, PositionQuoteData>();
-    if (!data?.quotes) return map;
+    // Wait for API to respond before computing (avoids false fallback during loading)
+    if (!data) return map;
 
     const quoteMap = new Map<string, OptionQuote>();
-    for (const q of data.quotes) {
+    for (const q of (data.quotes || [])) {
       quoteMap.set(q.symbol, q);
     }
 
@@ -137,9 +138,8 @@ export function useOptionQuotes() {
     symbolMap.forEach((mapping, sym) => {
       if (mapping.leg) return; // spreads handled separately
       const q = quoteMap.get(sym);
-      if (!q) return;
 
-      const mid = q.midpoint;
+      const mid = q?.midpoint ?? 0;
       let unrealizedPL: number;
 
       if (mapping.direction === 'sold') {
@@ -156,14 +156,14 @@ export function useOptionQuotes() {
 
       map.set(mapping.positionId, {
         unrealizedPL,
-        delta: q.delta != null ? q.delta * sign : null,
-        gamma: q.gamma != null ? q.gamma * sign : null,
-        theta: q.theta != null ? q.theta * sign : null,
-        vega: q.vega != null ? q.vega * sign : null,
-        iv: q.iv,
+        delta: q?.delta != null ? q.delta * sign : null,
+        gamma: q?.gamma != null ? q.gamma * sign : null,
+        theta: q?.theta != null ? q.theta * sign : null,
+        vega: q?.vega != null ? q.vega * sign : null,
+        iv: q?.iv ?? null,
         midpoint: mid,
-        bid: q.bid,
-        ask: q.ask,
+        bid: q?.bid ?? 0,
+        ask: q?.ask ?? 0,
       });
     });
 
@@ -171,7 +171,6 @@ export function useOptionQuotes() {
     spreadPairs.forEach((pair, posId) => {
       const longQ = quoteMap.get(pair.longSymbol);
       const shortQ = quoteMap.get(pair.shortSymbol);
-      if (!longQ && !shortQ) return;
 
       const longMid = longQ?.midpoint ?? 0;
       const shortMid = shortQ?.midpoint ?? 0;
