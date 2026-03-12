@@ -21,7 +21,7 @@ export function CCTable({ calls, onClose, onEdit, onDelete, onViewRollChain }: C
   const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed' | 'called'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed' | 'called'>('open');
   const [filterTicker, setFilterTicker] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -170,10 +170,10 @@ export function CCTable({ calls, onClose, onEdit, onDelete, onViewRollChain }: C
           className="input-field w-auto"
         />
 
-        {(filterStatus !== 'all' || filterTicker || dateFrom || dateTo) && (
+        {(filterStatus !== 'open' || filterTicker || dateFrom || dateTo) && (
           <button
             onClick={() => {
-              setFilterStatus('all');
+              setFilterStatus('open');
               setFilterTicker('');
               setDateFrom('');
               setDateTo('');

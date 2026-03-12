@@ -27,7 +27,7 @@ export function TradeTable({ trades, onClose, onEdit, onDelete, onViewRollChain 
   const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
   const [filterTicker, setFilterTicker] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -175,10 +175,10 @@ export function TradeTable({ trades, onClose, onEdit, onDelete, onViewRollChain 
           className="input-field w-auto"
         />
 
-        {(filterStatus !== 'all' || filterTicker || dateFrom || dateTo) && (
+        {(filterStatus !== 'open' || filterTicker || dateFrom || dateTo) && (
           <button
             onClick={() => {
-              setFilterStatus('all');
+              setFilterStatus('open');
               setFilterTicker('');
               setDateFrom('');
               setDateTo('');

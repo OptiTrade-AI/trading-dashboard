@@ -177,18 +177,18 @@ export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: Portf
   const monthlyTheta = dailyTheta * 30;
   const risk = computeRiskLevel(netDelta, netGamma, avgIV, dailyTheta);
 
-  // Delta by ticker — total delta exposure (per-share × contracts)
-  const deltaByTicker = new Map<string, number>();
+  // Theta by ticker — daily theta income per ticker ($)
+  const thetaByTicker = new Map<string, number>();
   positionsWithData.forEach((p) => {
-    if (p.delta != null) {
-      deltaByTicker.set(p.ticker, (deltaByTicker.get(p.ticker) || 0) + p.delta * p.contracts);
+    if (p.theta != null) {
+      thetaByTicker.set(p.ticker, (thetaByTicker.get(p.ticker) || 0) + p.theta * 100 * p.contracts);
     }
   });
-  const deltaExposure = Array.from(deltaByTicker.entries())
-    .map(([ticker, delta]) => ({ ticker, delta: +delta.toFixed(2) }))
-    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+  const thetaExposure = Array.from(thetaByTicker.entries())
+    .map(([ticker, theta]) => ({ ticker, theta: +theta.toFixed(2) }))
+    .sort((a, b) => Math.abs(b.theta) - Math.abs(a.theta))
     .slice(0, 6);
-  const showChart = deltaExposure.length >= 2 && !privacyMode;
+  const showChart = thetaExposure.length >= 2 && !privacyMode;
 
   // Secondary Greeks config
   const gammaLabel =
@@ -341,15 +341,15 @@ export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: Portf
           </div>
         </div>
 
-        {/* Delta Exposure Chart */}
+        {/* Theta Income Chart */}
         {showChart && (
           <>
             <div className="relative my-4">
               <div className="h-px bg-gradient-to-r from-transparent via-border/20 to-transparent" />
             </div>
-            <div className="text-[11px] text-muted font-medium mb-2">Delta Exposure by Ticker</div>
-            <ResponsiveContainer width="100%" height={deltaExposure.length * 28 + 12}>
-              <BarChart layout="vertical" data={deltaExposure} margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
+            <div className="text-[11px] text-muted font-medium mb-2">Theta Income by Ticker</div>
+            <ResponsiveContainer width="100%" height={thetaExposure.length * 28 + 12}>
+              <BarChart layout="vertical" data={thetaExposure} margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="barGradPos" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor="#10b981" stopOpacity={0.6} />
@@ -370,11 +370,11 @@ export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: Portf
                   tickLine={false}
                 />
                 <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
-                <Bar dataKey="delta" radius={[0, 4, 4, 0]} barSize={14}>
-                  {deltaExposure.map((entry, i) => (
+                <Bar dataKey="theta" radius={[0, 4, 4, 0]} barSize={14}>
+                  {thetaExposure.map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.delta >= 0 ? 'url(#barGradPos)' : 'url(#barGradNeg)'}
+                      fill={entry.theta >= 0 ? 'url(#barGradPos)' : 'url(#barGradNeg)'}
                     />
                   ))}
                 </Bar>
