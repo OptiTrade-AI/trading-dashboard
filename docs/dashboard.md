@@ -78,6 +78,9 @@ Three-tab modal opened by clicking any position in the Timeline or Pressure Card
 - **Breakeven & Probability** — Calculated breakeven price and estimated probability of profit
 - **Risk Metrics** — Additional risk context per position
 
+### Uncovered Holdings Card
+Shows stock holdings that don't have active covered calls written against them. Suggests income opportunities by highlighting shares available for call writing.
+
 ### Capital Allocation Card
 Segmented bar showing deployed capital across strategies (CSP collateral, CC shares, Directional cost, Spreads at-risk) with total utilization percentage relative to account value.
 

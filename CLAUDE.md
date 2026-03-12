@@ -26,6 +26,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |-------|-------------|
 | `/review` | Security and quality code review of all pending changes. Checks for secrets, injection, XSS, type errors, and code quality. Outputs a verdict: SAFE TO PUSH / NEEDS FIXES / DO NOT PUSH |
 | `/pr` | Creates a feature branch, commits staged files, pushes to origin, and opens a GitHub PR with summary and test plan. Never commits secrets or force pushes |
+| `/security` | Deep scan for leaked secrets, credentials, and confidential data. Checks secret patterns, gitignore rules, staged files, env var access, and git history. Verdict: CLEAN / WARNINGS / SECRETS DETECTED — DO NOT PUSH |
+| `/docs` | Auto-updates documentation (docs/, README.md, CLAUDE.md) to stay in sync with code changes. Maps changed files to affected docs and applies targeted updates |
 
 ## Architecture
 
@@ -33,7 +35,7 @@ Options trading dashboard built with **Next.js 16 (App Router)** + **MongoDB** +
 
 ### Data Flow
 
-Client hooks (`src/hooks/`) fetch from Next.js API routes (`src/app/api/`), which read/write to MongoDB via `src/lib/collections.ts`. The API pattern is simple: GET returns all documents, POST replaces the entire collection (delete-all + insert-many). There is no auth layer.
+Client hooks (`src/hooks/`) fetch from Next.js API routes (`src/app/api/`), which read/write to MongoDB via `src/lib/collections.ts`. All trade routes use `createTradeHandlers` for individual CRUD: GET returns all documents, POST inserts one, PATCH updates by `id`, DELETE removes by `id`. There is no auth layer.
 
 Market data flows from Polygon.io API → Next.js API routes (server-side) → SWR hooks (client-side). Option quotes refresh every 60s during market hours, 5 min when closed.
 
@@ -72,6 +74,9 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `useMarketStatus` | Market open/closed/extended-hours status from Polygon |
 | `useTickerDetails` | Company name lookup for tickers |
 | `useStockAggregates` | OHLC chart data for position detail modal and SPY benchmark |
+| `useStockPrices` | Live stock prices with change/changePercent for tickers (60s/5min refresh) |
+| `useIntradayData` | 5-min candle data for single ticker intraday charts |
+| `useOptionAggregates` | Multi-ticker option aggregate data |
 | `useAnnotations` | CRUD for P/L chart annotations stored in MongoDB |
 
 ### Dashboard Components
@@ -96,6 +101,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | AIRollAdvisor | `src/components/AIRollAdvisor.tsx` | Roll suggestions with live options chain in all close modals |
 | BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | AI pattern recognition with evolution tracking on Analytics page |
 | AICostIndicator | `src/components/AICostIndicator.tsx` | AI usage and cost display in navigation bar |
+| UncoveredHoldingsCard | `src/components/dashboard/UncoveredHoldingsCard.tsx` | Shows holdings not covered by calls, with suggestion to write covered calls |
 | DiscussChatLink | `src/components/DiscussChatLink.tsx` | "Discuss in Chat" button linking AI outputs to conversational coach |
 
 ### Key Files
@@ -112,6 +118,23 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/lib/ai.ts` — Shared Anthropic client, `aiCall()`, `aiStream()`, automatic usage tracking
 - `src/lib/ai-data.ts` — Server-side portfolio data gathering for all AI features
 - `src/lib/polygon.ts` — Polygon options chain fetcher with 5-min in-memory cache
+- `src/lib/createTradeRoute.ts` — Generic API route factory for trade CRUD (GET, POST, PATCH, DELETE)
+- `src/lib/fetcher.ts` — SWR fetch wrapper for GET requests
+- `src/lib/starterPrompts.ts` — Context-aware starter prompt generation for AI chat
+- `src/lib/chatContext.ts` — Portfolio context helpers for AI chat
+
+### API Routes — Trade Data
+
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/api/trades` | GET, POST, PATCH, DELETE | Cash-secured puts CRUD |
+| `/api/covered-calls` | GET, POST, PATCH, DELETE | Covered calls CRUD |
+| `/api/directional-trades` | GET, POST, PATCH, DELETE | Directional trades CRUD |
+| `/api/spreads` | GET, POST, PATCH, DELETE | Vertical spreads CRUD |
+| `/api/holdings` | GET, POST, PATCH, DELETE | Stock holdings CRUD |
+| `/api/stock-events` | GET, POST, PATCH, DELETE | Realized stock P/L and TLH ledger |
+| `/api/annotations` | GET, POST, PATCH, DELETE | P/L chart annotations CRUD |
+| `/api/settings` | GET, POST | Account settings (account value, max heat %) |
 
 ### API Routes — Market Data (Polygon.io)
 
@@ -122,7 +145,6 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/stock-aggregates` | OHLC bar data for charts (5-min in-memory cache) |
 | `/api/ticker-details` | Company name metadata |
 | `/api/market-status` | Market open/closed/extended-hours |
-| `/api/annotations` | CRUD for P/L chart annotations |
 
 ### API Routes — AI Features (Anthropic Claude)
 
@@ -136,7 +158,8 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/ai/events-check` | GET | Earnings/events detection |
 | `/api/ai/daily-summary` | GET | Cached daily portfolio summary |
 | `/api/ai/usage` | GET | AI usage stats and costs |
-| `/api/chat` | POST | Multi-turn conversational AI |
+| `/api/analysis` | GET, POST, DELETE | Trade analysis debrief with streaming and history |
+| `/api/chat` | GET, POST, PATCH, DELETE | Multi-turn conversational AI with history management |
 | `/api/chat/context` | POST | Create conversation with pre-loaded context |
 
 ### UI Conventions

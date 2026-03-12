@@ -1,20 +1,20 @@
 # API Routes
 
-All trade routes support `GET` (fetch all) and `POST` (replace collection). Holdings and stock events also support `PATCH` and `DELETE` for individual records.
+All trade routes use `createTradeHandlers` for individual CRUD: GET returns all documents, POST inserts one, PATCH updates by `id`, DELETE removes by `id`.
 
 ## Trade Endpoints
 
 | Endpoint | Collection | Methods |
 |----------|-----------|---------|
-| `/api/trades` | Cash-secured puts | GET, POST |
-| `/api/covered-calls` | Covered calls | GET, POST |
-| `/api/directional-trades` | Directional trades | GET, POST |
-| `/api/spreads` | Vertical spreads | GET, POST |
+| `/api/trades` | Cash-secured puts | GET, POST, PATCH, DELETE |
+| `/api/covered-calls` | Covered calls | GET, POST, PATCH, DELETE |
+| `/api/directional-trades` | Directional trades | GET, POST, PATCH, DELETE |
+| `/api/spreads` | Vertical spreads | GET, POST, PATCH, DELETE |
 | `/api/holdings` | Stock holdings | GET, POST, PATCH, DELETE |
 | `/api/stock-events` | Stock events | GET, POST, PATCH, DELETE |
+| `/api/annotations` | P/L chart annotations | GET, POST, PATCH, DELETE |
 | `/api/settings` | Account settings | GET, POST |
 | `/api/analysis` | AI trade analyses | GET, POST, DELETE |
-| `/api/annotations` | P/L chart annotations | GET, POST |
 
 ## AI Features (Anthropic Claude)
 
@@ -30,7 +30,7 @@ Requires the `ANTHROPIC_API_KEY` environment variable.
 | `/api/ai/events-check` | GET | Haiku 4.5 | Earnings/events detection for open position tickers |
 | `/api/ai/daily-summary` | GET | Haiku 4.5 | 1-2 sentence portfolio summary (24h cache) |
 | `/api/ai/usage` | GET | N/A | AI usage stats and cost tracking |
-| `/api/chat` | POST | Sonnet 4.6 | Multi-turn conversational AI with portfolio context |
+| `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | Conversational AI: GET lists conversations, POST sends message (streaming), PATCH renames, DELETE removes |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
 
 ## Market Data (Polygon.io)

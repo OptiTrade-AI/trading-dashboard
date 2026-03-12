@@ -98,7 +98,7 @@ Single-line AI summary in the dashboard hero:
 | `/api/ai/events-check` | GET | Haiku 4.5 | Earnings/events detection |
 | `/api/ai/daily-summary` | GET | Haiku 4.5 | Cached daily summary |
 | `/api/ai/usage` | GET | N/A | Usage stats and costs |
-| `/api/chat` | POST | Sonnet 4.6 | Conversational chat |
+| `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | GET: list conversations; POST: send message (streaming); PATCH: rename; DELETE: remove |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
 
 ---
