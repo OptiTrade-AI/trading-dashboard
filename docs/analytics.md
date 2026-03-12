@@ -1,6 +1,6 @@
 # Analytics Suite
 
-The analytics page (`/analytics`) provides 10+ interactive charts powered by Recharts.
+The analytics page (`/analytics`) provides 10+ interactive charts powered by Recharts. All analytics data is computed by the `useAnalyticsData` hook, which accepts a time range filter (1M/3M/6M/YTD/ALL) and returns 40+ metrics across all trade types.
 
 ## Charts
 

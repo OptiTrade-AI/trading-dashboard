@@ -19,8 +19,8 @@ Close X of Y contracts independently. The remaining contracts stay open as the o
 
 ## Sorting & Filtering
 
-All trade tables support:
-- Sort by any column (click header)
+All trade tables use the shared `useTableSortFilter` hook for consistent behavior:
+- Sort by any column (click header) with custom sort extractors
 - Filter by status (open/closed)
 - Filter by ticker or date range
 

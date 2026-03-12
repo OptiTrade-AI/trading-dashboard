@@ -79,6 +79,15 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `useOptionAggregates` | Multi-ticker option aggregate data |
 | `useAnnotations` | CRUD for P/L chart annotations stored in MongoDB |
 
+### Utility Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `usePortfolioPositions` | Master dashboard hook aggregating all trade hooks + market data into unified open positions, recent activity, capital allocation, strategy pulse, and unrealized P/L by strategy |
+| `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets) with time range filter (1M/3M/6M/YTD/ALL) |
+| `useTableSortFilter` | Generic table sort/filter state: sorting by any key with custom extractors, filtering by status/ticker/date range. Used by all trade log tables |
+| `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
+
 ### Dashboard Components
 
 | Component | File | Description |
@@ -103,6 +112,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | AICostIndicator | `src/components/AICostIndicator.tsx` | AI usage and cost display in navigation bar |
 | UncoveredHoldingsCard | `src/components/dashboard/UncoveredHoldingsCard.tsx` | Shows holdings not covered by calls, with suggestion to write covered calls |
 | DiscussChatLink | `src/components/DiscussChatLink.tsx` | "Discuss in Chat" button linking AI outputs to conversational coach |
+| TickerAutocomplete | `src/components/shared/TickerAutocomplete.tsx` | Reusable ticker search input with autocomplete dropdown, used in all trade add/edit modals |
 
 ### Key Files
 
@@ -120,6 +130,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/lib/polygon.ts` — Polygon options chain fetcher with 5-min in-memory cache
 - `src/lib/createTradeRoute.ts` — Generic API route factory for trade CRUD (GET, POST, PATCH, DELETE)
 - `src/lib/fetcher.ts` — SWR fetch wrapper for GET requests
+- `src/lib/strategy-colors.ts` — Canonical strategy color palette (text/bg/border classes + hex for Recharts) per strategy type
 - `src/lib/starterPrompts.ts` — Context-aware starter prompt generation for AI chat
 - `src/lib/chatContext.ts` — Portfolio context helpers for AI chat
 
