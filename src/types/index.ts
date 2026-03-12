@@ -307,11 +307,36 @@ export interface ExitCoachVerdict {
   rollTarget?: string;
 }
 
+export interface TradeCheckMetrics {
+  stockPrice: number | null;
+  distanceToStrike: number | null;
+  dte: number;
+  newHeatPercent: number;
+  // CSP
+  roc?: number;
+  annualizedROC?: number;
+  // CC
+  ros?: number;
+  annualizedROS?: number;
+  costBasisPerShare?: number;
+  strikeVsCostBasis?: number;
+  calledAwayPL?: number;
+  // Greeks
+  delta?: number | null;
+  theta?: number | null;
+  iv?: number | null;
+}
+
+export interface TradeCheckInsight {
+  label: string;
+  text: string;
+}
+
 export interface TradeCheckResult {
   recommendation: 'proceed' | 'caution' | 'reconsider';
-  sizingNote: string;
-  historyNote: string;
-  portfolioNote: string;
+  headline: string;
+  insights: TradeCheckInsight[];
+  metrics: TradeCheckMetrics;
 }
 
 export interface SmartAlert {

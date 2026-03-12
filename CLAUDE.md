@@ -106,7 +106,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | EarningsWatchCard | `src/components/dashboard/EarningsWatchCard.tsx` | Upcoming earnings/events for open position tickers |
 | DailySummaryLine | `src/components/dashboard/DailySummaryLine.tsx` | AI daily portfolio summary in hero banner (24h cache) |
 | ImportModal | `src/components/ImportModal.tsx` | CSV import with file upload, drag-and-drop, paste, row validation |
-| AITradeCheck | `src/components/AITradeCheck.tsx` | Pre-trade risk check in all add-trade modals |
+| AITradeCheck | `src/components/AITradeCheck.tsx` | Pre-trade risk check with live market data, strategy-specific metrics (ROC/ROS/Greeks), and AI insights in all add-trade modals |
 | AIRollAdvisor | `src/components/AIRollAdvisor.tsx` | Roll suggestions with live options chain in all close modals |
 | BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | AI pattern recognition with evolution tracking on Analytics page |
 | AICostIndicator | `src/components/AICostIndicator.tsx` | AI usage and cost display in navigation bar |
