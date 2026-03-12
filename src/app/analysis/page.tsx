@@ -1,500 +1,337 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { cn } from '@/lib/utils';
-import { useTradeAnalysis } from '@/hooks/useTradeAnalysis';
+import { useState, useMemo, useCallback } from 'react';
+import { cn, calculatePL, calculateDTE, calculateDirectionalPL, calculateSpreadPL } from '@/lib/utils';
+import { useChat } from '@/hooks/useChat';
+import { useTrades } from '@/hooks/useTrades';
+import { useCoveredCalls } from '@/hooks/useCoveredCalls';
+import { useDirectionalTrades } from '@/hooks/useDirectionalTrades';
+import { useSpreads } from '@/hooks/useSpreads';
+import { useHoldings } from '@/hooks/useHoldings';
+import { useStockEvents } from '@/hooks/useStockEvents';
+import { useOptionQuotes } from '@/hooks/useOptionQuotes';
+import { usePressure } from '@/hooks/usePressure';
+import { useMarketStatus } from '@/hooks/useMarketStatus';
+import { useStockPrices } from '@/hooks/useStockPrices';
 import { usePrivacy } from '@/contexts/PrivacyContext';
-import { TradeAnalysis } from '@/types';
-
-type TimeRange = '1W' | '1M' | '3M' | '6M' | 'YTD' | 'ALL' | 'CUSTOM';
-
-const TIME_RANGES: { value: TimeRange; label: string }[] = [
-  { value: '1W', label: '1W' },
-  { value: '1M', label: '1M' },
-  { value: '3M', label: '3M' },
-  { value: '6M', label: '6M' },
-  { value: 'YTD', label: 'YTD' },
-  { value: 'ALL', label: 'ALL' },
-  { value: 'CUSTOM', label: 'Custom' },
-];
-
-interface Section {
-  id: string;
-  title: string;
-  content: string;
-}
-
-function parseSections(text: string): Section[] {
-  const sections: Section[] = [];
-  // Split on ### headers
-  const parts = text.split(/^### /m);
-
-  for (const part of parts) {
-    if (!part.trim()) continue;
-    const newlineIdx = part.indexOf('\n');
-    if (newlineIdx === -1) {
-      // Header with no content yet (still streaming)
-      const title = part.trim();
-      sections.push({ id: slugify(title), title, content: '' });
-    } else {
-      const title = part.slice(0, newlineIdx).trim();
-      const content = part.slice(newlineIdx + 1).trim();
-      sections.push({ id: slugify(title), title, content });
-    }
-  }
-
-  return sections;
-}
-
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
-
-function renderInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="text-foreground font-semibold">{part.slice(2, -2)}</strong>;
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
-
-function renderLines(content: string): React.ReactNode[] {
-  const blocks = content.split('\n\n');
-  return blocks.map((block, i) => {
-    const lines = block.split('\n');
-    return (
-      <div key={i} className="mb-3 last:mb-0">
-        {lines.map((line, j) => {
-          if (!line.trim()) return null;
-          if (line.startsWith('- ') || line.startsWith('* ')) {
-            return (
-              <div key={j} className="text-sm text-muted leading-relaxed ml-1 mb-1">
-                <span className="text-muted/40 mr-2">—</span>
-                {renderInline(line.slice(2))}
-              </div>
-            );
-          }
-          return (
-            <p key={j} className="text-sm text-muted leading-relaxed">
-              {renderInline(line)}
-            </p>
-          );
-        })}
-      </div>
-    );
-  });
-}
-
-// Scorecard: parse strategy lines and verdict
-function ScorecardCard({ content }: { content: string }) {
-  const lines = content.split('\n').filter(l => l.trim());
-  // Strategy lines contain "—" with stats, verdict is usually the last bold line
-  const strategyLines: string[] = [];
-  const otherLines: string[] = [];
-
-  for (const line of lines) {
-    // Strategy line pattern: **Name** — X trades...
-    if (/^\*\*.*\*\*\s*[—–-]/.test(line)) {
-      strategyLines.push(line);
-    } else {
-      otherLines.push(line);
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      {strategyLines.length > 0 && (
-        <div className="space-y-2">
-          {strategyLines.map((line, i) => {
-            const match = line.match(/^\*\*(.+?)\*\*\s*[—–-]\s*(.+)$/);
-            if (!match) return <div key={i} className="text-sm text-muted">{renderInline(line)}</div>;
-            const [, name, stats] = match;
-            // Try to extract P/L value for color coding
-            const plMatch = stats.match(/[+-]?\$[\d,]+/);
-            const isNegative = plMatch && plMatch[0].startsWith('-');
-            const isPositive = plMatch && (plMatch[0].startsWith('+') || (!plMatch[0].startsWith('-') && !plMatch[0].startsWith('$0')));
-            return (
-              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-lg bg-card-solid/30 border border-border/50">
-                <span className="text-sm font-medium text-foreground">{name}</span>
-                <span className={cn(
-                  'text-sm',
-                  isNegative ? 'text-loss' : isPositive ? 'text-profit' : 'text-muted'
-                )}>
-                  {renderInline(stats)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {otherLines.length > 0 && (
-        <div className="pt-2 border-t border-border/50">
-          {otherLines.map((line, i) => (
-            <p key={i} className="text-sm text-foreground font-medium leading-relaxed">
-              {renderInline(line)}
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Findings: each paragraph as a mini-card with accent border
-function FindingsCard({ content }: { content: string }) {
-  const findings = content.split('\n\n').filter(b => b.trim());
-  const colors = [
-    'border-accent',
-    'border-profit',
-    'border-caution',
-    'border-loss',
-    'border-accent',
-  ];
-
-  return (
-    <div className="space-y-3">
-      {findings.map((finding, i) => (
-        <div
-          key={i}
-          className={cn(
-            'pl-4 border-l-2 py-2',
-            colors[i % colors.length]
-          )}
-        >
-          {finding.split('\n').map((line, j) => (
-            <p key={j} className="text-sm text-muted leading-relaxed">
-              {renderInline(line)}
-            </p>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Action items: numbered with icons
-function ActionItemsCard({ content }: { content: string }) {
-  const lines = content.split('\n').filter(l => l.trim());
-
-  return (
-    <div className="space-y-3">
-      {lines.map((line, i) => {
-        const cleaned = line.replace(/^\d+\.\s*/, '');
-        return (
-          <div key={i} className="flex gap-3 items-start py-2 px-3 rounded-lg bg-card-solid/30 border border-border/50">
-            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center mt-0.5">
-              <span className="text-accent text-xs font-bold">{i + 1}</span>
-            </div>
-            <p className="text-sm text-muted leading-relaxed flex-1">
-              {renderInline(cleaned)}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const SECTION_CONFIG: Record<string, { icon: string; renderer: 'scorecard' | 'findings' | 'actions' | 'default' }> = {
-  'scorecard': { icon: '◈', renderer: 'scorecard' },
-  'top-findings': { icon: '◉', renderer: 'findings' },
-  'action-items': { icon: '◎', renderer: 'actions' },
-};
-
-function SectionCard({ section, isStreaming }: { section: Section; isStreaming: boolean }) {
-  const config = SECTION_CONFIG[section.id] || { icon: '◇', renderer: 'default' as const };
-
-  return (
-    <div className="glass-card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-accent opacity-60">{config.icon}</span>
-        <h3 className="text-base font-semibold text-foreground">{section.title}</h3>
-        {isStreaming && !section.content && (
-          <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse ml-1" />
-        )}
-      </div>
-      {section.content && (
-        <div>
-          {config.renderer === 'scorecard' && <ScorecardCard content={section.content} />}
-          {config.renderer === 'findings' && <FindingsCard content={section.content} />}
-          {config.renderer === 'actions' && <ActionItemsCard content={section.content} />}
-          {config.renderer === 'default' && renderLines(section.content)}
-        </div>
-      )}
-      {isStreaming && section.content && (
-        <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse mt-2" />
-      )}
-    </div>
-  );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
-
-function getPreview(content: string): string {
-  // Extract first meaningful line (skip headers)
-  const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-  const first = lines[0] || '';
-  // Strip markdown bold
-  const clean = first.replace(/\*\*/g, '');
-  return clean.length > 60 ? clean.slice(0, 60) + '...' : clean;
-}
-
-function HistoryPanel({
-  history,
-  selectedAnalysis,
-  onSelect,
-  onDelete,
-  onNewAnalysis,
-  isAnalyzing,
-  privacyMode,
-}: {
-  history: TradeAnalysis[];
-  selectedAnalysis: TradeAnalysis | null;
-  onSelect: (a: TradeAnalysis | null) => void;
-  onDelete: (id: string) => void;
-  onNewAnalysis: () => void;
-  isAnalyzing: boolean;
-  privacyMode: boolean;
-}) {
-  const [showHistory, setShowHistory] = useState(true);
-
-  if (history.length === 0) return null;
-
-  return (
-    <div className="glass-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={() => setShowHistory(!showHistory)}
-          className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-accent transition-colors"
-        >
-          <span className="text-accent opacity-60">◈</span>
-          Past Analyses ({history.length})
-          <span className="text-muted text-xs">{showHistory ? '▾' : '▸'}</span>
-        </button>
-        {selectedAnalysis && (
-          <button
-            onClick={onNewAnalysis}
-            disabled={isAnalyzing}
-            className="text-xs text-accent hover:underline"
-          >
-            New Analysis
-          </button>
-        )}
-      </div>
-
-      {showHistory && (
-        <div className={cn('space-y-1 max-h-64 overflow-y-auto', privacyMode && 'blur-md select-none')}>
-          {history.map((item) => (
-            <div
-              key={item.id}
-              className={cn(
-                'flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-all duration-150 group',
-                selectedAnalysis?.id === item.id
-                  ? 'bg-accent/10 border border-accent/30'
-                  : 'hover:bg-card-solid/50 border border-transparent'
-              )}
-              onClick={() => onSelect(selectedAnalysis?.id === item.id ? null : item)}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted">{formatDate(item.createdAt)}</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
-                    {item.timeRange}
-                  </span>
-                </div>
-                <p className="text-xs text-muted/70 truncate mt-0.5">{getPreview(item.content)}</p>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-                className="opacity-0 group-hover:opacity-100 text-muted hover:text-loss transition-all p-1 text-xs"
-                title="Delete analysis"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import { generateStarterPrompts } from '@/lib/starterPrompts';
+import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
+import { ChatMessageList } from '@/components/chat/ChatMessageList';
+import { ChatInput } from '@/components/chat/ChatInput';
+import { StarterCards } from '@/components/chat/StarterCards';
 
 export default function AnalysisPage() {
-  const [timeRange, setTimeRange] = useState<TimeRange>('1M');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const {
-    analysis, isAnalyzing, isAvailable, isCheckingAvailability, error,
-    generateAnalysis, clearAnalysis,
-    history, selectedAnalysis, selectAnalysis, deleteAnalysis,
-  } = useTradeAnalysis();
   const { privacyMode } = usePrivacy();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const sections = useMemo(() => parseSections(analysis), [analysis]);
+  // Chat state
+  const {
+    conversations, activeConversation, streamingContent, isStreaming,
+    isAvailable, isLoading: isChatLoading, error,
+    sendMessage, startNewConversation, selectConversation, deleteConversation,
+  } = useChat();
 
-  const handleAnalyze = () => {
-    if (timeRange === 'CUSTOM') {
-      generateAnalysis(timeRange, startDate, endDate);
-    } else {
-      generateAnalysis(timeRange);
+  // All data hooks for portfolio context
+  const { openTrades, closedTrades, accountSettings, heat, totalCollateral } = useTrades();
+  const { openCalls, closedCalls } = useCoveredCalls();
+  const { openTrades: openDirectional, closedTrades: closedDirectional } = useDirectionalTrades();
+  const { openSpreads, closedSpreads } = useSpreads();
+  const { holdings } = useHoldings();
+  const { stockEvents } = useStockEvents();
+  const { positions: optionQuotes } = useOptionQuotes();
+  const { pressurePositions, stockPrices } = usePressure();
+  const { label: marketLabel } = useMarketStatus();
+
+  // Stock prices for holdings
+  const holdingTickers = useMemo(() => [...new Set(holdings.map(h => h.ticker))], [holdings]);
+  const { prices: holdingPrices } = useStockPrices(holdingTickers);
+
+  // Build portfolio context for AI
+  const portfolioContext = useMemo(() => {
+    // Open positions with live Greeks
+    const openPositions: Record<string, unknown>[] = [];
+
+    for (const t of openTrades) {
+      const quote = optionQuotes.get(t.id);
+      const sp = stockPrices.find(s => s.ticker === t.ticker);
+      openPositions.push({
+        id: t.id, ticker: t.ticker, strategy: 'CSP', label: `$${t.strike}P`,
+        contracts: t.contracts, dte: calculateDTE(t.expiration), expiration: t.expiration,
+        entryDate: t.entryDate, capitalAtRisk: t.collateral,
+        unrealizedPL: quote?.unrealizedPL, delta: quote?.delta, gamma: quote?.gamma,
+        theta: quote?.theta, vega: quote?.vega, iv: quote?.iv,
+        midpoint: quote?.midpoint, bid: quote?.bid, ask: quote?.ask,
+        currentStockPrice: sp?.price,
+      });
     }
-  };
+    for (const c of openCalls) {
+      const quote = optionQuotes.get(c.id);
+      const sp = stockPrices.find(s => s.ticker === c.ticker);
+      openPositions.push({
+        id: c.id, ticker: c.ticker, strategy: 'CC', label: `$${c.strike}C`,
+        contracts: c.contracts, dte: calculateDTE(c.expiration), expiration: c.expiration,
+        entryDate: c.entryDate, capitalAtRisk: c.costBasis,
+        unrealizedPL: quote?.unrealizedPL, delta: quote?.delta, gamma: quote?.gamma,
+        theta: quote?.theta, vega: quote?.vega, iv: quote?.iv,
+        midpoint: quote?.midpoint, bid: quote?.bid, ask: quote?.ask,
+        currentStockPrice: sp?.price,
+      });
+    }
+    for (const t of openDirectional) {
+      const quote = optionQuotes.get(t.id);
+      const sp = stockPrices.find(s => s.ticker === t.ticker);
+      openPositions.push({
+        id: t.id, ticker: t.ticker, strategy: 'Directional',
+        label: `$${t.strike}${t.optionType === 'call' ? 'C' : 'P'}`,
+        contracts: t.contracts, dte: calculateDTE(t.expiration), expiration: t.expiration,
+        entryDate: t.entryDate, capitalAtRisk: t.costAtOpen,
+        unrealizedPL: quote?.unrealizedPL, delta: quote?.delta, gamma: quote?.gamma,
+        theta: quote?.theta, vega: quote?.vega, iv: quote?.iv,
+        midpoint: quote?.midpoint, bid: quote?.bid, ask: quote?.ask,
+        currentStockPrice: sp?.price,
+      });
+    }
+    for (const s of openSpreads) {
+      const quote = optionQuotes.get(s.id);
+      const sp = stockPrices.find(p => p.ticker === s.ticker);
+      openPositions.push({
+        id: s.id, ticker: s.ticker, strategy: 'Spread',
+        label: `${s.longStrike}/${s.shortStrike}`,
+        contracts: s.contracts, dte: calculateDTE(s.expiration), expiration: s.expiration,
+        entryDate: s.entryDate, capitalAtRisk: s.maxLoss,
+        unrealizedPL: quote?.unrealizedPL, delta: quote?.delta, gamma: quote?.gamma,
+        theta: quote?.theta, vega: quote?.vega, iv: quote?.iv,
+        midpoint: quote?.midpoint, bid: quote?.bid, ask: quote?.ask,
+        currentStockPrice: sp?.price,
+      });
+    }
 
-  if (isCheckingAvailability) {
+    // Ticker concentration
+    const tickerConcentration: Record<string, number> = {};
+    for (const p of openPositions) {
+      const t = p.ticker as string;
+      tickerConcentration[t] = (tickerConcentration[t] || 0) + 1;
+    }
+
+    // Closed stats (last 3 months)
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const recentClosedCSPs = closedTrades.filter(t => t.exitDate && new Date(t.exitDate) >= threeMonthsAgo);
+    const recentClosedCCs = closedCalls.filter(t => t.exitDate && new Date(t.exitDate) >= threeMonthsAgo);
+    const recentClosedDir = closedDirectional.filter(t => t.exitDate && new Date(t.exitDate) >= threeMonthsAgo);
+    const recentClosedSpreads = closedSpreads.filter(t => t.exitDate && new Date(t.exitDate) >= threeMonthsAgo);
+
+    const makeStats = <T extends { ticker: string; dteAtEntry: number; entryDate: string; exitDate?: string }>(
+      trades: T[], plFn: (t: T) => number, exitReasonFn: (t: T) => string | undefined
+    ) => {
+      if (trades.length === 0) return { totalTrades: 0, wins: 0, losses: 0, winRate: 0, totalPL: 0, avgPL: 0, avgDaysHeld: 0, avgDTEAtEntry: 0, exitReasons: {}, topTickers: [] as { ticker: string; count: number; pl: number }[] };
+      const pls = trades.map(t => ({ ticker: t.ticker, pl: plFn(t) }));
+      const wins = pls.filter(p => p.pl > 0).length;
+      const totalPL = pls.reduce((s, p) => s + p.pl, 0);
+      const exitReasons: Record<string, number> = {};
+      for (const t of trades) { const r = exitReasonFn(t) || 'unknown'; exitReasons[r] = (exitReasons[r] || 0) + 1; }
+      const tickerMap = new Map<string, { count: number; pl: number }>();
+      for (const p of pls) { const e = tickerMap.get(p.ticker) || { count: 0, pl: 0 }; e.count++; e.pl += p.pl; tickerMap.set(p.ticker, e); }
+      const topTickers = Array.from(tickerMap.entries()).map(([ticker, s]) => ({ ticker, ...s })).sort((a, b) => b.count - a.count).slice(0, 10);
+      const daysHeld = trades.map(t => { const d = t.exitDate ? Math.max(1, Math.round((new Date(t.exitDate).getTime() - new Date(t.entryDate).getTime()) / 86400000)) : 1; return d; });
+      return {
+        totalTrades: trades.length, wins, losses: trades.length - wins,
+        winRate: (wins / trades.length) * 100, totalPL, avgPL: totalPL / trades.length,
+        avgDaysHeld: daysHeld.reduce((s, d) => s + d, 0) / daysHeld.length,
+        avgDTEAtEntry: trades.reduce((s, t) => s + t.dteAtEntry, 0) / trades.length,
+        exitReasons, topTickers,
+      };
+    };
+
+    const cspStats = makeStats(recentClosedCSPs, calculatePL, t => t.exitReason);
+    const ccStats = makeStats(recentClosedCCs, (c) => c.premiumCollected - (c.exitPrice ?? 0), t => t.exitReason);
+    const dirStats = makeStats(recentClosedDir, calculateDirectionalPL, t => t.exitReason);
+    const spreadStats = makeStats(recentClosedSpreads, calculateSpreadPL, t => t.exitReason);
+
+    // Holdings with prices
+    const holdingsData = holdings.map(h => {
+      const price = holdingPrices.get(h.ticker);
+      const currentPrice = price?.price;
+      const unrealizedPL = currentPrice ? (currentPrice - h.costBasisPerShare) * h.shares : undefined;
+      return { ticker: h.ticker, shares: h.shares, costBasisPerShare: h.costBasisPerShare, currentPrice, unrealizedPL };
+    });
+
+    const totalCapitalAtRisk = openPositions.reduce((s, p) => s + Number(p.capitalAtRisk || 0), 0);
+
+    return {
+      accountValue: accountSettings.accountValue,
+      maxHeatPercent: accountSettings.maxHeatPercent,
+      heat,
+      totalCollateral,
+      totalCapitalAtRisk,
+      marketStatus: marketLabel,
+      openPositions,
+      pressurePositions: pressurePositions.map(p => ({
+        ticker: p.ticker, severity: p.severity, dte: p.dte, label: p.label,
+        currentPrice: p.currentPrice, priceToStrikePercent: p.priceToStrikePercent,
+      })),
+      holdings: holdingsData,
+      tickerConcentration,
+      closedStats: {
+        csp: cspStats, cc: ccStats, directional: dirStats, spreads: spreadStats,
+        totalPL: cspStats.totalPL + ccStats.totalPL + dirStats.totalPL + spreadStats.totalPL,
+        totalTrades: cspStats.totalTrades + ccStats.totalTrades + dirStats.totalTrades + spreadStats.totalTrades,
+      },
+      stockEvents: stockEvents.slice(0, 10).map(e => ({
+        ticker: e.ticker, shares: e.shares, realizedPL: e.realizedPL,
+        saleDate: e.saleDate, isTaxLossHarvest: e.isTaxLossHarvest,
+      })),
+    };
+  }, [
+    openTrades, openCalls, openDirectional, openSpreads, closedTrades, closedCalls,
+    closedDirectional, closedSpreads, optionQuotes, pressurePositions, holdings,
+    holdingPrices, stockEvents, stockPrices, accountSettings, heat, totalCollateral, marketLabel,
+  ]);
+
+  // Smart starter prompts
+  const starterPrompts = useMemo(() => {
+    const allRecentClosed = [
+      ...closedTrades.map(t => ({ pl: calculatePL(t), exitDate: t.exitDate || '' })),
+      ...closedCalls.map(c => ({ pl: c.premiumCollected - (c.exitPrice ?? 0), exitDate: c.exitDate || '' })),
+      ...closedDirectional.map(t => ({ pl: calculateDirectionalPL(t), exitDate: t.exitDate || '' })),
+      ...closedSpreads.map(t => ({ pl: calculateSpreadPL(t), exitDate: t.exitDate || '' })),
+    ].filter(t => t.exitDate);
+
+    return generateStarterPrompts({
+      openPositions: (portfolioContext.openPositions as { ticker: string; dte: number; strategy: string; unrealizedPL?: number; contracts: number; capitalAtRisk: number }[]) || [],
+      heat,
+      maxHeatPercent: accountSettings.maxHeatPercent,
+      pressurePositions: pressurePositions.map(p => ({ ticker: p.ticker, severity: p.severity, dte: p.dte, label: p.label })),
+      holdings: holdings.map(h => ({ ticker: h.ticker, shares: h.shares })),
+      coveredCallTickers: openCalls.map(c => c.ticker),
+      recentClosedTrades: allRecentClosed,
+      tickerConcentration: (portfolioContext.tickerConcentration as Record<string, number>) || {},
+      accountValue: accountSettings.accountValue,
+    });
+  }, [
+    portfolioContext, heat, accountSettings, pressurePositions, holdings,
+    openCalls, closedTrades, closedCalls, closedDirectional, closedSpreads,
+  ]);
+
+  // Send message handler
+  const handleSend = useCallback((message: string) => {
+    sendMessage(message, portfolioContext);
+  }, [sendMessage, portfolioContext]);
+
+  // Follow-up handler
+  const handleFollowup = useCallback((question: string) => {
+    sendMessage(question, portfolioContext);
+  }, [sendMessage, portfolioContext]);
+
+  if (isChatLoading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <div className="text-center text-muted">Loading...</div>
+      <div className="h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="text-muted text-sm">Loading...</div>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Strategy Analyzer</h1>
-        <p className="text-muted text-sm mt-1">AI-powered review of your trading patterns</p>
-      </div>
-
-      {/* Unavailable state */}
-      {!isAvailable && (
-        <div className="glass-card p-6 text-center">
-          <p className="text-muted text-sm">
+  // No API key state
+  if (!isAvailable) {
+    return (
+      <div className="h-[calc(100vh-4rem)] flex items-center justify-center p-6">
+        <div className="glass-card p-8 text-center max-w-md">
+          <div className="text-4xl opacity-20 mb-4">◎</div>
+          <h2 className="text-lg font-semibold text-foreground mb-2">AI Trading Coach</h2>
+          <p className="text-muted text-sm mb-4">
             AI analysis requires an <code className="text-accent">ANTHROPIC_API_KEY</code> environment variable.
           </p>
-          <p className="text-muted text-xs mt-2">
+          <p className="text-muted text-xs">
             Add it to your <code>.env</code> file and restart the dev server.
           </p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Controls */}
-      {isAvailable && (
-        <div className="glass-card p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-1 p-1 bg-card-solid/50 rounded-xl border border-border">
-              {TIME_RANGES.map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => setTimeRange(value)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                    timeRange === value
-                      ? 'text-accent bg-accent/10'
-                      : 'text-muted hover:text-foreground'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+  const hasActiveChat = !!activeConversation;
+  const messages = activeConversation?.messages || [];
 
-            {timeRange === 'CUSTOM' && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="bg-card-solid border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
-                />
-                <span className="text-muted text-sm">to</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="bg-card-solid border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
-                />
-              </div>
-            )}
+  return (
+    <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
+      {/* Sidebar */}
+      <ConversationSidebar
+        conversations={conversations}
+        activeId={activeConversation?.id || null}
+        onSelect={selectConversation}
+        onNew={startNewConversation}
+        onDelete={deleteConversation}
+        privacyMode={privacyMode}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(false)}
+      />
 
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || (timeRange === 'CUSTOM' && (!startDate || !endDate))}
-              className={cn(
-                'btn-primary ml-auto',
-                isAnalyzing && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              {isAnalyzing ? 'Analyzing...' : analysis ? 'Re-analyze' : 'Analyze'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* History panel */}
-      {isAvailable && (
-        <HistoryPanel
-          history={history}
-          selectedAnalysis={selectedAnalysis}
-          onSelect={selectAnalysis}
-          onDelete={deleteAnalysis}
-          onNewAnalysis={clearAnalysis}
-          isAnalyzing={isAnalyzing}
-          privacyMode={privacyMode}
-        />
-      )}
-
-      {/* Error state */}
-      {error && (
-        <div className="glass-card p-4 border-loss/30">
-          <p className="text-loss text-sm">{error}</p>
-          <button onClick={handleAnalyze} className="text-accent text-sm mt-2 hover:underline">
-            Retry
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card-solid/10">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden text-muted hover:text-foreground p-1"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
           </button>
-        </div>
-      )}
-
-      {/* Viewing saved analysis label */}
-      {selectedAnalysis && !isAnalyzing && (
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent/50" />
-          Viewing saved analysis from {formatDate(selectedAnalysis.createdAt)}
-          <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
-            {selectedAnalysis.timeRange}
-          </span>
-        </div>
-      )}
-
-      {/* Section cards */}
-      {sections.length > 0 && (
-        <div className={cn('space-y-4 relative', privacyMode && 'blur-md select-none')}>
-          {sections.map((section, i) => (
-            <SectionCard
-              key={section.id}
-              section={section}
-              isStreaming={isAnalyzing && i === sections.length - 1}
-            />
-          ))}
-          {privacyMode && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl">
-              <span className="text-muted text-sm backdrop-blur-none">Hidden — disable privacy mode to view</span>
-            </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-semibold text-foreground truncate">
+              {hasActiveChat ? activeConversation.title : 'AI Trading Coach'}
+            </h1>
+            {hasActiveChat && (
+              <p className="text-[10px] text-muted/50">
+                {messages.length} messages
+              </p>
+            )}
+          </div>
+          {hasActiveChat && (
+            <button
+              onClick={startNewConversation}
+              className="text-xs px-3 py-1.5 rounded-lg text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+            >
+              + New Chat
+            </button>
           )}
         </div>
-      )}
 
-      {/* Streaming with no sections yet */}
-      {isAnalyzing && sections.length === 0 && (
-        <div className="glass-card p-6">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            <span className="text-accent text-xs font-medium">Analyzing trades...</span>
+        {/* Error */}
+        {error && (
+          <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-loss/10 border border-loss/20 text-loss text-sm">
+            {error}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Empty state */}
-      {isAvailable && !analysis && !isAnalyzing && !error && (
-        <div className="glass-card p-12 text-center">
-          <div className="text-4xl mb-4 opacity-20">◎</div>
-          <p className="text-muted text-sm">Select a time range and click Analyze to review your trades.</p>
-        </div>
-      )}
+        {/* Chat or Starters */}
+        {hasActiveChat || isStreaming ? (
+          <>
+            <ChatMessageList
+              messages={messages}
+              streamingContent={streamingContent}
+              isStreaming={isStreaming}
+              onFollowup={handleFollowup}
+              privacyMode={privacyMode}
+            />
+            <ChatInput
+              onSend={handleSend}
+              disabled={isStreaming}
+              placeholder={isStreaming ? 'AI is responding...' : 'Ask a follow-up question...'}
+            />
+          </>
+        ) : (
+          <>
+            <StarterCards prompts={starterPrompts} onSelect={handleSend} />
+            <ChatInput
+              onSend={handleSend}
+              disabled={isStreaming}
+              placeholder="Ask anything about your portfolio..."
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }

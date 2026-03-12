@@ -247,3 +247,27 @@ export interface AggBar {
   c: number;  // close
   v: number;  // volume
 }
+
+// AI Chat Conversations
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;       // ISO date
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: string;       // ISO date
+  updatedAt: string;       // ISO date
+}
+
+export interface StarterPrompt {
+  label: string;
+  description: string;
+  prompt: string;
+  icon: string;
+  category: 'risk' | 'review' | 'strategy' | 'position';
+}
