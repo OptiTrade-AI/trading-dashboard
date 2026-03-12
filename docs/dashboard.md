@@ -99,13 +99,23 @@ Global search overlay for fast navigation:
 - Page shortcuts (Dashboard, Analytics, etc.) also searchable
 - ESC to close
 
-### Position Sizer
-Pre-trade risk calculator accessible from the "Position Sizer" button:
-- Toggle between CSP and Spread modes
-- Enter strike price (CSP) or max loss per spread
-- Shows collateral needed and max contracts within heat limit
-- Preview of CompactHeat gauge showing projected portfolio heat after trade
-- Warning when trade would exceed heat limit
+### Smart Alerts Badge
+AI-powered proactive alerts for positions needing attention:
+- Three severity levels: info, warning, critical
+- Live Greeks enrichment from option quotes
+- Browser notification support for critical alerts (opt-in)
+- Configurable DTE and heat thresholds via Account Settings
+
+### Earnings Watch Card
+Upcoming earnings and events for open position tickers:
+- Urgency levels based on days until event
+- AI-generated recommendations per affected position
+
+### Daily Summary Line
+AI-generated 1-2 sentence portfolio summary in the hero banner:
+- Cached for 24 hours in MongoDB
+- Highlights the most notable portfolio item
+- Respects privacy mode
 
 ### CSV Import
 Bulk trade import accessible from the "Import" button:
