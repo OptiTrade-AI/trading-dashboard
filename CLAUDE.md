@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Options trading dashboard built with **Next.js 14 (App Router)** + **MongoDB** + **Tailwind CSS** + **Recharts** + **Polygon.io**.
+Options trading dashboard built with **Next.js 16 (App Router)** + **MongoDB** + **Tailwind CSS** + **Recharts** + **Polygon.io**.
 
 ### Data Flow
 
@@ -41,7 +41,7 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 
 | Page | Route | Description |
 |------|-------|-------------|
-| Dashboard | `/` | Aggregated overview: hero banner, expiration alerts, strategy pulse, Greeks card, theta income, scenario simulator, pressure card, positions timeline, capital allocation, recent activity, quick-add FAB, command palette, CSV import |
+| Dashboard | `/` | Aggregated overview: hero banner, AI daily summary, smart alerts, earnings watch, expiration alerts, strategy pulse, Greeks card, theta income, pressure card, positions timeline, capital allocation, recent activity, quick-add FAB, command palette, CSV import |
 | CSP Log | `/log` | Cash-secured puts table with add/edit/close/roll modals |
 | Covered Calls | `/cc` | Covered calls table with add/edit/close modals |
 | Directional | `/directional` | Long calls/puts table with add/close modals |
@@ -49,7 +49,7 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap |
 | Stock Events | `/stock` | Realized stock P/L and tax loss harvest ledger |
 | Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations |
-| AI Analyzer | `/analysis` | Claude-powered strategy review with streaming output and saved history |
+| AI Chat | `/analysis` | Conversational AI trading coach with saved history and "Discuss in Chat" integration |
 
 ### Trade Types
 
@@ -83,13 +83,20 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | ThetaDashboardCard | `src/components/dashboard/ThetaDashboardCard.tsx` | Daily/weekly/monthly theta income, decay acceleration by DTE, top contributors |
 | PressureCard | `src/components/PressureCard.tsx` | Real-time pressure monitoring with configurable thresholds and severity levels |
 | PositionsTimeline | `src/components/dashboard/PositionsTimeline.tsx` | Positions grouped by DTE urgency zones with Greeks badges and profit target progress bars (pulse at 50%, gold at 75%) |
-| PositionDetailModal | `src/components/dashboard/PositionDetailModal.tsx` | 3-tab chart modal (intraday, since entry, 1Y) with metrics and risk analysis |
+| PositionDetailModal | `src/components/dashboard/PositionDetailModal.tsx` | 3-tab chart modal (intraday, since entry, 1Y) with metrics, risk analysis, and AI Exit Coach tab |
 | CapitalAllocationCard | `src/components/dashboard/CapitalAllocationCard.tsx` | Segmented bar showing capital deployment across strategies |
 | CompactHeat | `src/components/dashboard/CompactHeat.tsx` | Portfolio heat gauge with safe/caution/over-limit zones |
 | QuickAddFAB | `src/components/QuickAddFAB.tsx` | Floating action button for adding trades from dashboard (keyboard shortcut: N) |
 | CommandPalette | `src/components/CommandPalette.tsx` | Global search across all trades/pages (keyboard shortcut: Ctrl+K) |
-| ScenarioSimulator | `src/components/dashboard/ScenarioSimulator.tsx` | Slider-based scenario tool: projected P/L using delta+gamma math with live stock prices |
+| SmartAlertsBadge | `src/components/dashboard/SmartAlertsBadge.tsx` | AI-powered position alerts with Greeks enrichment and browser notifications |
+| EarningsWatchCard | `src/components/dashboard/EarningsWatchCard.tsx` | Upcoming earnings/events for open position tickers |
+| DailySummaryLine | `src/components/dashboard/DailySummaryLine.tsx` | AI daily portfolio summary in hero banner (24h cache) |
 | ImportModal | `src/components/ImportModal.tsx` | CSV import with file upload, drag-and-drop, paste, row validation |
+| AITradeCheck | `src/components/AITradeCheck.tsx` | Pre-trade risk check in all add-trade modals |
+| AIRollAdvisor | `src/components/AIRollAdvisor.tsx` | Roll suggestions with live options chain in all close modals |
+| BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | AI pattern recognition with evolution tracking on Analytics page |
+| AICostIndicator | `src/components/AICostIndicator.tsx` | AI usage and cost display in navigation bar |
+| DiscussChatLink | `src/components/DiscussChatLink.tsx` | "Discuss in Chat" button linking AI outputs to conversational coach |
 
 ### Key Files
 
@@ -101,7 +108,10 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/contexts/PrivacyContext.tsx` — Privacy mode toggle with keyboard shortcut
 - `src/app/page.tsx` — Dashboard aggregating stats across all trade types
 - `src/app/analytics/page.tsx` — Charts, analytics, SPY benchmark, and P/L annotations
-- `src/app/analysis/page.tsx` — AI Strategy Analyzer with saved history
+- `src/app/analysis/page.tsx` — Conversational AI trading coach with saved history
+- `src/lib/ai.ts` — Shared Anthropic client, `aiCall()`, `aiStream()`, automatic usage tracking
+- `src/lib/ai-data.ts` — Server-side portfolio data gathering for all AI features
+- `src/lib/polygon.ts` — Polygon options chain fetcher with 5-min in-memory cache
 
 ### API Routes — Market Data (Polygon.io)
 
@@ -113,6 +123,21 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/ticker-details` | Company name metadata |
 | `/api/market-status` | Market open/closed/extended-hours |
 | `/api/annotations` | CRUD for P/L chart annotations |
+
+### API Routes — AI Features (Anthropic Claude)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/ai/exit-coach` | POST | Streaming HOLD/CLOSE/ROLL verdict |
+| `/api/ai/smart-alerts` | GET, POST | Position alerts (POST accepts Greeks for enrichment) |
+| `/api/ai/trade-check` | POST | Pre-trade risk evaluation |
+| `/api/ai/patterns` | GET, POST | Behavioral pattern analysis with history |
+| `/api/ai/roll-advisor` | POST | Roll recommendations with live options chain |
+| `/api/ai/events-check` | GET | Earnings/events detection |
+| `/api/ai/daily-summary` | GET | Cached daily portfolio summary |
+| `/api/ai/usage` | GET | AI usage stats and costs |
+| `/api/chat` | POST | Multi-turn conversational AI |
+| `/api/chat/context` | POST | Create conversation with pre-loaded context |
 
 ### UI Conventions
 
@@ -128,18 +153,18 @@ Five independent trade types, each with its own type definition (`src/types/inde
 
 - `MONGODB_URI` — MongoDB connection string
 - `MONGODB_DB` — Database name (defaults to `csp-tracker`)
-- `ANTHROPIC_API_KEY` — Anthropic API key for AI Strategy Analyzer (server-side only)
+- `ANTHROPIC_API_KEY` — Anthropic API key for 9 AI features (server-side only)
 - `POLYGON_API_KEY` — Polygon.io API key for real-time stock/option prices (server-side only)
 
 ### Dependencies
 
-- **Next.js 14** — App Router with Turbopack
+- **Next.js 16** — App Router with Turbopack
 - **MongoDB** — via `mongodb` driver with typed collections
 - **SWR** — Client-side data fetching with caching and revalidation
 - **Recharts** — All charts and visualizations
 - **Tailwind CSS** — Styling with custom dark theme tokens
 - **date-fns** — Date formatting and calculations
-- **Anthropic SDK** — AI Strategy Analyzer (server-side)
+- **Anthropic SDK** — 9 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker (server-side)
 
 ### GitHub
 
