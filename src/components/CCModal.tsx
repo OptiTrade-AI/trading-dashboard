@@ -212,6 +212,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
               contracts: numContracts,
               expiration,
               premium: totalPremium || undefined,
+              costBasisPerShare: totalCostBasis > 0 ? totalCostBasis / (numContracts * 100) : undefined,
             }}
             disabled={!ticker || !strike || !expiration || !premium}
           />

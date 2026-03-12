@@ -5,7 +5,7 @@ OptiTrade embeds AI intelligence at every decision point — from trade entry to
 ## Requirements
 
 - `ANTHROPIC_API_KEY` environment variable (server-side only)
-- Optional: `POLYGON_API_KEY` for live options chain data in Roll Advisor
+- Optional: `POLYGON_API_KEY` for live options chain data in Roll Advisor and Trade Entry Advisor
 
 All AI features degrade gracefully when the API key is not configured — UI elements hide automatically.
 
@@ -45,11 +45,17 @@ Proactive dashboard alerts with three severity levels (info, warning, critical):
 - Polls every 5 minutes during market hours, pauses when closed
 
 ### Trade Entry Advisor
-Shown in all four add-trade modals (CSP, CC, Directional, Spreads). Evaluates:
-- Position sizing relative to account and existing exposure
-- Ticker history (past win rate, P/L on this ticker)
-- Portfolio concentration risk
-- Returns: `proceed` / `caution` / `reconsider` with specific notes
+Shown in all four add-trade modals (CSP, CC, Directional, Spreads). Fetches live market data in parallel (stock price from Polygon, options chain for Greeks) and computes strategy-specific metrics server-side.
+
+**CSP analysis includes:** ROC, annualized ROC, distance to strike, delta/IV from options chain, premium quality assessment, assignment risk
+**CC analysis includes:** ROS, annualized ROS, strike vs cost basis, called-away P/L, upside cap assessment, premium quality
+**Directional/Spreads:** Stock price, distance to strike, risk/reward, sizing
+
+Display shows:
+- Recommendation badge (`proceed` / `caution` / `reconsider`) with headline
+- Color-coded metrics bar (stock price, ROC/ROS, delta, IV, distance to strike, etc.)
+- 3-5 strategy-specific insights from AI
+- "Discuss in Chat" link with full context
 
 ### Behavioral Patterns
 Deep analysis using Sonnet 4.6 on your full trading history:

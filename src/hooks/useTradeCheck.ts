@@ -18,6 +18,7 @@ interface TradeCheckRequest {
   shortStrike?: number;
   netDebit?: number;
   maxLoss?: number;
+  costBasisPerShare?: number;
 }
 
 export function useTradeCheck() {
