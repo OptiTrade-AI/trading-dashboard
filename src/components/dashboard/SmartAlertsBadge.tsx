@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useSmartAlerts } from '@/hooks/useSmartAlerts';
+import { useOptionQuotes } from '@/hooks/useOptionQuotes';
+import { useNotificationPermission } from '@/hooks/useNotificationPermission';
 import { cn } from '@/lib/utils';
 
 const urgencyStyles = {
@@ -11,7 +13,27 @@ const urgencyStyles = {
 };
 
 export function SmartAlertsBadge() {
-  const { alerts, available, isLoading } = useSmartAlerts();
+  const { positions } = useOptionQuotes();
+  const { isSupported, isGranted, requestPermission } = useNotificationPermission();
+
+  // Build greeksMap from option quotes
+  const greeksMap = useMemo(() => {
+    const map: Record<string, { delta?: number; theta?: number; iv?: number }> = {};
+    positions.forEach((quote, posId) => {
+      map[posId] = {
+        delta: quote.delta ?? undefined,
+        theta: quote.theta ?? undefined,
+        iv: quote.iv ?? undefined,
+      };
+    });
+    return map;
+  }, [positions]);
+
+  const { alerts, available, isLoading } = useSmartAlerts({
+    greeksMap: Object.keys(greeksMap).length > 0 ? greeksMap : undefined,
+    notificationsEnabled: isGranted,
+  });
+
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -43,6 +65,31 @@ export function SmartAlertsBadge() {
           )}>
             {activeAlerts.length}
           </span>
+          {/* Notification toggle */}
+          {isSupported && !isGranted && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                requestPermission();
+              }}
+              className="text-muted hover:text-foreground transition-colors ml-1"
+              title="Enable browser notifications"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </button>
+          )}
+          {isGranted && (
+            <span className="text-[10px] text-profit/60" title="Browser notifications enabled">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </span>
+          )}
         </div>
         <svg
           width="12" height="12" viewBox="0 0 12 12" fill="none"

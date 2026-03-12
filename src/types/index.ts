@@ -38,6 +38,9 @@ export interface CoveredCall extends BaseTrade {
 export interface AccountSettings {
   accountValue: number;
   maxHeatPercent: number; // default 30
+  alertDTEWarning?: number;    // DTE threshold for warning alerts (default 7)
+  alertDTECritical?: number;   // DTE threshold for critical alerts (default 2)
+  alertHeatThreshold?: number; // Heat % threshold for alerts (default 30)
 }
 
 // Base exit reasons shared across strategies
@@ -273,7 +276,7 @@ export interface StarterPrompt {
 }
 
 // AI Features
-export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario';
+export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario' | 'daily-summary';
 
 export interface AIUsageRecord {
   timestamp: string; // ISO date
@@ -340,6 +343,26 @@ export interface EarningsEvent {
   urgency: 'low' | 'medium' | 'high';
   recommendation: string;
   positions: string[];
+}
+
+export interface DailySummary {
+  id: string;
+  summary: string;
+  generatedAt: string; // ISO date
+}
+
+export interface OptionsContract {
+  symbol: string;
+  strike: number;
+  expiration: string;
+  bid: number;
+  ask: number;
+  midpoint: number;
+  delta: number | null;
+  theta: number | null;
+  iv: number | null;
+  openInterest: number;
+  volume: number;
 }
 
 export interface PatternAnalysisRecord {

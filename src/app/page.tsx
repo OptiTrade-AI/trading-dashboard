@@ -23,6 +23,7 @@ import { ExpirationAlertBanner } from '@/components/dashboard/ExpirationAlertBan
 import { SmartAlertsBadge } from '@/components/dashboard/SmartAlertsBadge';
 import { EarningsWatchCard } from '@/components/dashboard/EarningsWatchCard';
 import { ThetaDashboardCard } from '@/components/dashboard/ThetaDashboardCard';
+import { DailySummaryLine } from '@/components/dashboard/DailySummaryLine';
 import { QuickAddFAB } from '@/components/QuickAddFAB';
 import { AddTradeModal } from '@/components/TradeModal';
 import { AddCCModal } from '@/components/CCModal';
@@ -446,6 +447,7 @@ export default function Dashboard() {
                 </span>
               )}
             </div>
+            <DailySummaryLine />
           </div>
 
           {/* Unrealized P/L — own column */}

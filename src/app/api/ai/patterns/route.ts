@@ -156,9 +156,25 @@ ${Object.entries(tickerPerf).sort((a, b) => b[1].trades - a[1].trades).slice(0, 
 Monthly P/L:
 ${Object.entries(monthlyPL).sort((a, b) => a[0].localeCompare(b[0])).map(([k, v]) => `  ${k}: $${v.toFixed(0)}`).join('\n')}`;
 
+  // Fetch previous analysis for evolution tracking
+  const col2 = await getPatternAnalysesCollection();
+  const previousAnalysis = await col2.find({}).sort({ timestamp: -1 }).limit(1).toArray();
+  let evolutionBlock = '';
+  if (previousAnalysis.length > 0) {
+    const prev = previousAnalysis[0];
+    const prevDate = new Date(prev.timestamp).toLocaleDateString();
+    const prevPatternTitles = prev.patterns.map((p: { title: string }) => p.title).join(', ');
+    evolutionBlock = `
+PREVIOUS ANALYSIS (from ${prevDate}):
+Trade count: ${prev.tradeCount}, Win rate: ${prev.winRate}%, P/L: $${prev.totalPL.toFixed(0)}
+Patterns identified: ${prevPatternTitles}
+
+Compare with previous and note improvements or deterioration. Reference prior results when relevant.`;
+  }
+
   const systemPrompt = `You are a behavioral trading analyst. Analyze this trader's complete history and identify 3-5 non-obvious behavioral PATTERNS — not surface-level stats.
 
-${statsBlock}
+${statsBlock}${evolutionBlock}
 
 Return ONLY a JSON array (no markdown, no code blocks):
 [

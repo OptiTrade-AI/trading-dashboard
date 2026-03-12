@@ -2,6 +2,7 @@
 
 import { useTradeCheck } from '@/hooks/useTradeCheck';
 import { cn } from '@/lib/utils';
+import { DiscussChatLink } from './DiscussChatLink';
 
 interface AITradeCheckProps {
   trade: {
@@ -91,6 +92,11 @@ export function AITradeCheck({ trade, disabled }: AITradeCheckProps) {
             <p>{result.historyNote}</p>
             <p>{result.portfolioNote}</p>
           </div>
+          <DiscussChatLink
+            context={`I'm considering a ${trade.strategy} trade on ${trade.ticker} (strike $${trade.strike}, ${trade.contracts} contracts, exp ${trade.expiration}). The AI trade check said: ${result.recommendation.toUpperCase()}. Sizing: ${result.sizingNote}. History: ${result.historyNote}. Portfolio: ${result.portfolioNote}`}
+            sourceFeature="Trade Check"
+            className="mt-1"
+          />
         </div>
       )}
     </div>
