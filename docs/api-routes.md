@@ -16,6 +16,23 @@ All trade routes support `GET` (fetch all) and `POST` (replace collection). Hold
 | `/api/analysis` | AI trade analyses | GET, POST, DELETE |
 | `/api/annotations` | P/L chart annotations | GET, POST |
 
+## AI Features (Anthropic Claude)
+
+Requires the `ANTHROPIC_API_KEY` environment variable.
+
+| Endpoint | Methods | Model | Description |
+|----------|---------|-------|-------------|
+| `/api/ai/exit-coach` | POST | Haiku 4.5 | Streaming HOLD/CLOSE/ROLL verdict for a position |
+| `/api/ai/smart-alerts` | GET, POST | Haiku 4.5 | Position alerts. POST accepts `{ greeks }` for enrichment |
+| `/api/ai/trade-check` | POST | Haiku 4.5 | Pre-trade risk evaluation against portfolio |
+| `/api/ai/patterns` | GET, POST | Sonnet 4.6 | GET: fetch analysis history. POST: run new pattern analysis |
+| `/api/ai/roll-advisor` | POST | Haiku 4.5 | Roll recommendations with live options chain data |
+| `/api/ai/events-check` | GET | Haiku 4.5 | Earnings/events detection for open position tickers |
+| `/api/ai/daily-summary` | GET | Haiku 4.5 | 1-2 sentence portfolio summary (24h cache) |
+| `/api/ai/usage` | GET | N/A | AI usage stats and cost tracking |
+| `/api/chat` | POST | Sonnet 4.6 | Multi-turn conversational AI with portfolio context |
+| `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
+
 ## Market Data (Polygon.io)
 
 Requires the `POLYGON_API_KEY` environment variable.

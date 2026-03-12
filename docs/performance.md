@@ -18,6 +18,17 @@ All data fetching uses [SWR](https://swr.vercel.app/) for a fast, responsive UI.
 | Market status | 60s | 60s |
 | Ticker details | 3600s (1 hr) dedup | 3600s (1 hr) dedup |
 
+## AI Feature Refresh Intervals
+
+| Feature | Refresh | Notes |
+|---------|---------|-------|
+| Smart Alerts | 5 min (market open only) | Pauses when market closed |
+| Earnings Watch | 4 hr | Static data, infrequent updates |
+| Daily Summary | 1 hr client / 24 hr server cache | MongoDB TTL |
+| AI Usage | 1 min | Lightweight stats query |
+
 ## Server-Side Caching
 
 - **Stock aggregates API** — 5-minute in-memory TTL cache to reduce Polygon API calls for chart data
+- **Options chain API** — 5-minute in-memory TTL cache for roll advisor options chain data
+- **Daily summary** — 24-hour TTL in MongoDB, only regenerated on cache miss

@@ -27,16 +27,6 @@ Global search overlay for fast navigation:
 - Page shortcuts (Dashboard, Analytics, etc.) also searchable
 - ESC to close
 
-## Position Sizer
-
-Pre-trade risk calculator accessible from the "Position Sizer" button on the dashboard:
-
-- Toggle between CSP and Spread modes
-- Enter strike price (CSP) or max loss per spread
-- Shows collateral needed and max contracts within heat limit
-- Preview of CompactHeat gauge showing projected portfolio heat after trade
-- Warning when trade would exceed heat limit
-
 ## CSV Import
 
 Bulk trade import accessible from the "Import" button on the dashboard:

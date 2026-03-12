@@ -21,12 +21,12 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 | **Trade Management** | Rolls, partial closes, sorting, CSV export/import | [docs/trade-management.md](docs/trade-management.md) |
 | **Holdings Auto-Sync** | CSP assignment adds shares, CC called away removes | [docs/holdings-sync.md](docs/holdings-sync.md) |
 | **Privacy Mode** | One-click mask for all financial data | [docs/privacy-mode.md](docs/privacy-mode.md) |
-| **AI Analyzer** | Claude-powered strategy review with saved history | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
+| **AI Features** | 9 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
+| **Architecture** | System diagrams, data flow, component hierarchy | [docs/architecture.md](docs/architecture.md) |
 | **Performance** | SWR caching, optimistic mutations, deduplication | [docs/performance.md](docs/performance.md) |
-| **API Routes** | REST endpoints for all trade types and market data | [docs/api-routes.md](docs/api-routes.md) |
+| **API Routes** | REST endpoints for all trade types, market data, and AI | [docs/api-routes.md](docs/api-routes.md) |
 | **Toast Notifications** | Success/error/info feedback for all mutations | [docs/ux-enhancements.md](docs/ux-enhancements.md) |
 | **Quick-Add & Search** | FAB button (N key), Command Palette (Ctrl+K) | [docs/ux-enhancements.md](docs/ux-enhancements.md) |
-| **Position Sizing** | Max contracts calculator with projected heat | [docs/ux-enhancements.md](docs/ux-enhancements.md) |
 
 ### UI / UX
 
@@ -51,7 +51,7 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 | Styling | Tailwind CSS 3.4 |
 | Charts | Recharts 3.6 |
 | Caching | SWR 2.x |
-| AI | Anthropic Claude API |
+| AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.6) |
 | Dates | date-fns 4.x |
 | IDs | uuid 13.x |
 
@@ -79,7 +79,7 @@ Create a `.env` file in the project root:
 ```env
 MONGODB_URI=mongodb+srv://your-connection-string
 MONGODB_DB=your-database-name
-ANTHROPIC_API_KEY=sk-ant-...    # Optional: enables AI Strategy Analyzer
+ANTHROPIC_API_KEY=sk-ant-...    # Optional: enables 9 AI features (exit coach, alerts, patterns, etc.)
 POLYGON_API_KEY=...             # Optional: enables real-time stock prices
 ```
 
