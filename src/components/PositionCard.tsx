@@ -1,7 +1,8 @@
 'use client';
 
 import { Trade } from '@/types';
-import { calculateDTE, formatCurrency, formatDateShort, calculateReturnOnCollateral } from '@/lib/utils';
+import { calculateDTE, formatDateShort, calculateReturnOnCollateral } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 interface PositionCardProps {
   trade: Trade;
@@ -9,6 +10,7 @@ interface PositionCardProps {
 }
 
 export function PositionCard({ trade, onClose }: PositionCardProps) {
+  const { formatCurrency } = useFormatters();
   const dte = calculateDTE(trade.expiration);
   const returnOnCollateral = calculateReturnOnCollateral(trade);
   const dteWarning = dte <= 7;

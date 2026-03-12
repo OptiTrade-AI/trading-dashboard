@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useTrades } from '@/hooks/useTrades';
+import { useTradeStats } from '@/hooks/useTradeStats';
 import { TradeTable } from '@/components/TradeTable';
 import { AddTradeModal, EditTradeModal, CloseTradeModal } from '@/components/TradeModal';
 import { RollHistoryModal } from '@/components/RollHistoryModal';
@@ -23,15 +24,13 @@ export default function TradeLog() {
   const [deleteConfirmTrade, setDeleteConfirmTrade] = useState<Trade | null>(null);
   const [rollChainId, setRollChainId] = useState<string | null>(null);
 
+  const coreStats = useTradeStats(openTrades, closedTrades, calculatePL);
+
   const stats = useMemo(() => {
-    const totalPL = closedTrades.reduce((sum, t) => sum + calculatePL(t), 0);
     const totalPremium = trades.reduce((sum, t) => sum + t.premiumCollected, 0);
     const totalCollateral = openTrades.reduce((sum, t) => sum + t.collateral, 0);
-    const winningTrades = closedTrades.filter((t) => calculatePL(t) > 0).length;
-    const winRate = closedTrades.length > 0 ? (winningTrades / closedTrades.length) * 100 : 0;
-
-    return { totalPL, totalPremium, totalCollateral, winRate, winningTrades };
-  }, [trades, openTrades, closedTrades]);
+    return { totalPremium, totalCollateral };
+  }, [trades, openTrades]);
 
   const handleAddTrade = (trade: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status'>) => {
     addTrade(trade);
@@ -127,9 +126,9 @@ export default function TradeLog() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             label="Total P/L"
-            value={formatCurrency(stats.totalPL)}
-            variant={stats.totalPL >= 0 ? 'profit' : 'loss'}
-            subValue={`${closedTrades.length} closed`}
+            value={formatCurrency(coreStats.totalPL)}
+            variant={coreStats.totalPL >= 0 ? 'profit' : 'loss'}
+            subValue={`${coreStats.closedCount} closed`}
           />
           <StatCard
             label="Total Premium"
@@ -144,9 +143,9 @@ export default function TradeLog() {
           />
           <StatCard
             label="Win Rate"
-            value={closedTrades.length > 0 ? `${stats.winRate.toFixed(0)}%` : '-'}
+            value={coreStats.closedCount > 0 ? `${coreStats.winRate.toFixed(0)}%` : '-'}
             variant="accent"
-            subValue={closedTrades.length > 0 ? `${stats.winningTrades}/${closedTrades.length}` : 'No closed yet'}
+            subValue={coreStats.closedCount > 0 ? `${coreStats.wins}/${coreStats.closedCount}` : 'No closed yet'}
           />
           <StatCard
             label="Total Trades"

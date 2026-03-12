@@ -7,16 +7,12 @@ import {
   getStockEventsCollection,
   getHoldingsCollection,
 } from './collections';
-import { calculatePL, calculateDirectionalPL, calculateSpreadPL, calculateDTE } from './utils';
+import { calculatePL, calculateDirectionalPL, calculateSpreadPL, calculateCCPL, calculateDTE } from './utils';
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade } from '@/types';
 import { differenceInDays, parseISO, subMonths } from 'date-fns';
 
-function calculateCCPL(call: CoveredCall): number {
-  if (call.status === 'open') return 0;
-  return call.premiumCollected - (call.exitPrice ?? 0);
-}
-
-interface TradeStats {
+export interface TradeStats {
+  strategy?: string;
   totalTrades: number;
   wins: number;
   losses: number;
@@ -27,15 +23,18 @@ interface TradeStats {
   avgDTEAtEntry: number;
   exitReasons: Record<string, number>;
   topTickers: { ticker: string; count: number; pl: number }[];
+  bestTrade: { ticker: string; pl: number } | null;
+  worstTrade: { ticker: string; pl: number } | null;
 }
 
-function computeClosedStats<T extends { ticker: string; dteAtEntry: number; entryDate: string; exitDate?: string }>(
+export function computeClosedStats<T extends { ticker: string; dteAtEntry: number; entryDate: string; exitDate?: string }>(
   trades: T[],
   plFn: (t: T) => number,
   exitReasonFn: (t: T) => string | undefined,
+  strategy?: string,
 ): TradeStats {
   if (trades.length === 0) {
-    return { totalTrades: 0, wins: 0, losses: 0, winRate: 0, totalPL: 0, avgPL: 0, avgDaysHeld: 0, avgDTEAtEntry: 0, exitReasons: {}, topTickers: [] };
+    return { strategy, totalTrades: 0, wins: 0, losses: 0, winRate: 0, totalPL: 0, avgPL: 0, avgDaysHeld: 0, avgDTEAtEntry: 0, exitReasons: {}, topTickers: [], bestTrade: null, worstTrade: null };
   }
   const pls = trades.map(t => ({ ticker: t.ticker, pl: plFn(t) }));
   const wins = pls.filter(p => p.pl > 0).length;
@@ -57,7 +56,9 @@ function computeClosedStats<T extends { ticker: string; dteAtEntry: number; entr
     const exit = t.exitDate ? parseISO(t.exitDate) : new Date();
     return Math.max(1, differenceInDays(exit, entry));
   });
+  const sorted = [...pls].sort((a, b) => b.pl - a.pl);
   return {
+    strategy,
     totalTrades: trades.length,
     wins,
     losses: trades.length - wins,
@@ -68,6 +69,8 @@ function computeClosedStats<T extends { ticker: string; dteAtEntry: number; entr
     avgDTEAtEntry: trades.reduce((s, t) => s + t.dteAtEntry, 0) / trades.length,
     exitReasons,
     topTickers,
+    bestTrade: sorted[0] ? { ticker: sorted[0].ticker, pl: sorted[0].pl } : null,
+    worstTrade: sorted[sorted.length - 1] ? { ticker: sorted[sorted.length - 1].ticker, pl: sorted[sorted.length - 1].pl } : null,
   };
 }
 

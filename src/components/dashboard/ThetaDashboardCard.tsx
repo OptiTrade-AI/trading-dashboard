@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { cn, formatCurrency as rawFormatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
 import type { OpenPosition } from './PositionsTimeline';
 
@@ -11,7 +11,7 @@ interface ThetaDashboardCardProps {
 }
 
 export function ThetaDashboardCard({ positions, fetchedAt }: ThetaDashboardCardProps) {
-  const { privacyMode } = useFormatters();
+  const { formatCurrency, privacyMode } = useFormatters();
 
   const thetaData = useMemo(() => {
     const withTheta = positions
@@ -77,19 +77,19 @@ export function ThetaDashboardCard({ positions, fetchedAt }: ThetaDashboardCardP
         <div className="bg-profit/5 rounded-xl p-3 border border-profit/10">
           <div className="text-[11px] text-muted uppercase tracking-wider mb-1">Daily</div>
           <div className="text-xl font-bold text-profit">
-            {privacyMode ? '$***' : `+${rawFormatCurrency(thetaData.totalDaily)}`}
+            {privacyMode ? '$***' : `+${formatCurrency(thetaData.totalDaily)}`}
           </div>
         </div>
         <div className="bg-profit/5 rounded-xl p-3 border border-profit/10">
           <div className="text-[11px] text-muted uppercase tracking-wider mb-1">Weekly</div>
           <div className="text-xl font-bold text-profit">
-            {privacyMode ? '$***' : `+${rawFormatCurrency(thetaData.weekly)}`}
+            {privacyMode ? '$***' : `+${formatCurrency(thetaData.weekly)}`}
           </div>
         </div>
         <div className="bg-profit/5 rounded-xl p-3 border border-profit/10">
           <div className="text-[11px] text-muted uppercase tracking-wider mb-1">Monthly</div>
           <div className="text-xl font-bold text-profit">
-            {privacyMode ? '$***' : `+${rawFormatCurrency(thetaData.monthly)}`}
+            {privacyMode ? '$***' : `+${formatCurrency(thetaData.monthly)}`}
           </div>
         </div>
       </div>
@@ -111,7 +111,7 @@ export function ThetaDashboardCard({ positions, fetchedAt }: ThetaDashboardCardP
                   />
                 </div>
                 <span className="text-xs font-bold text-foreground w-16 text-right flex-shrink-0">
-                  {privacyMode ? '$***' : rawFormatCurrency(bucket.theta)}
+                  {privacyMode ? '$***' : formatCurrency(bucket.theta)}
                 </span>
               </div>
             ))}
@@ -134,7 +134,7 @@ export function ThetaDashboardCard({ positions, fetchedAt }: ThetaDashboardCardP
                   {pos.dte}d
                 </span>
                 <span className="text-xs font-bold text-profit w-14 text-right">
-                  {privacyMode ? '$**' : `+${rawFormatCurrency(pos.dailyTheta)}`}
+                  {privacyMode ? '$**' : `+${formatCurrency(pos.dailyTheta)}`}
                 </span>
               </div>
             ))}

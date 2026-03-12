@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DirectionalTrade, ALL_TICKERS, DIRECTIONAL_EXIT_REASONS, DirectionalExitReason, OptionType } from '@/types';
-import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
+import { DirectionalTrade, DIRECTIONAL_EXIT_REASONS, DirectionalExitReason, OptionType } from '@/types';
+import { calculateDTEFromEntry } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { format } from 'date-fns';
 import { AITradeCheck } from './AITradeCheck';
 import { AIRollAdvisor } from './AIRollAdvisor';
+import { TickerAutocomplete } from './shared/TickerAutocomplete';
 import type { RollRecommendation } from '@/types';
 
 interface AddDirectionalModalProps {
@@ -15,6 +17,7 @@ interface AddDirectionalModalProps {
 }
 
 export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectionalModalProps) {
+  const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [optionType, setOptionType] = useState<OptionType>('call');
   const [strike, setStrike] = useState('');
@@ -23,19 +26,6 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
   const [expiration, setExpiration] = useState('');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
-  const [showTickerList, setShowTickerList] = useState(false);
-  const [filteredTickers, setFilteredTickers] = useState(ALL_TICKERS);
-
-  useEffect(() => {
-    if (ticker) {
-      setFilteredTickers(
-        ALL_TICKERS.filter(t => t.toLowerCase().includes(ticker.toLowerCase()))
-      );
-    } else {
-      setFilteredTickers(ALL_TICKERS);
-    }
-  }, [ticker]);
-
   const numContracts = parseInt(contracts) || 1;
   const price = parseFloat(entryPrice) || 0;
   const totalCost = price * 100 * numContracts;
@@ -86,39 +76,12 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
-          <div className="relative">
-            <label className="stat-label mb-2 block">Ticker</label>
-            <input
-              type="text"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value)}
-              onFocus={() => setShowTickerList(true)}
-              onBlur={() => setTimeout(() => setShowTickerList(false), 200)}
-              className="input-field"
-              placeholder="AAPL"
-              required
-            />
-            {showTickerList && filteredTickers.length > 0 && (
-              <div className="absolute top-full left-0 right-0 glass-card mt-2 overflow-hidden z-10 max-h-48 overflow-y-auto">
-                {filteredTickers.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      setTicker(t);
-                      setShowTickerList(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-foreground hover:bg-accent/10 transition-colors flex items-center gap-3"
-                  >
-                    <span className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 text-xs font-bold">
-                      {t.slice(0, 2)}
-                    </span>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <TickerAutocomplete
+            value={ticker}
+            onChange={setTicker}
+            iconBgClass="bg-amber-500/10"
+            iconTextClass="text-amber-400"
+          />
 
           {/* Option Type Toggle */}
           <div>
@@ -257,6 +220,216 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
   );
 }
 
+interface EditDirectionalModalProps {
+  isOpen: boolean;
+  trade: DirectionalTrade | null;
+  onClose: () => void;
+  onSubmit: (id: string, updates: Partial<DirectionalTrade>) => void;
+}
+
+export function EditDirectionalModal({ isOpen, trade, onClose, onSubmit }: EditDirectionalModalProps) {
+  const { formatCurrency } = useFormatters();
+  const [ticker, setTicker] = useState('');
+  const [optionType, setOptionType] = useState<OptionType>('call');
+  const [strike, setStrike] = useState('');
+  const [contracts, setContracts] = useState('');
+  const [entryPrice, setEntryPrice] = useState('');
+  const [expiration, setExpiration] = useState('');
+  const [entryDate, setEntryDate] = useState('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (trade) {
+      setTicker(trade.ticker);
+      setOptionType(trade.optionType);
+      setStrike(trade.strike.toString());
+      setContracts(trade.contracts.toString());
+      setEntryPrice(trade.entryPrice.toString());
+      setExpiration(trade.expiration);
+      setEntryDate(trade.entryDate);
+      setNotes(trade.notes || '');
+    }
+  }, [trade]);
+
+  const numContracts = parseInt(contracts) || 1;
+  const price = parseFloat(entryPrice) || 0;
+  const totalCost = price * 100 * numContracts;
+  const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trade || !ticker || !strike || !expiration || !entryPrice || !contracts) return;
+
+    onSubmit(trade.id, {
+      ticker: ticker.toUpperCase(),
+      optionType,
+      strike: parseFloat(strike),
+      contracts: numContracts,
+      entryPrice: price,
+      expiration,
+      entryDate,
+      dteAtEntry: dte,
+      costAtOpen: price * 100 * numContracts,
+      notes: notes || undefined,
+    });
+    onClose();
+  };
+
+  if (!isOpen || !trade) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="glass-card w-full max-w-md overflow-hidden">
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+              <span className="text-amber-400 font-bold text-sm">{trade.ticker.slice(0, 2)}</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Edit Directional Trade</h2>
+              <p className="text-muted text-sm">{trade.ticker} ${trade.strike}{trade.optionType === 'call' ? 'C' : 'P'}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-background/50 flex items-center justify-center text-muted hover:text-foreground hover:bg-background transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          <TickerAutocomplete
+            value={ticker}
+            onChange={setTicker}
+            iconBgClass="bg-amber-500/10"
+            iconTextClass="text-amber-400"
+          />
+
+          {/* Option Type Toggle */}
+          <div>
+            <label className="stat-label mb-2 block">Option Type</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOptionType('call')}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  optionType === 'call'
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-background/30 text-muted border border-border hover:text-foreground'
+                }`}
+              >
+                Call
+              </button>
+              <button
+                type="button"
+                onClick={() => setOptionType('put')}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  optionType === 'put'
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    : 'bg-background/30 text-muted border border-border hover:text-foreground'
+                }`}
+              >
+                Put
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Strike Price</label>
+              <input
+                type="number"
+                step="0.01"
+                value={strike}
+                onChange={(e) => setStrike(e.target.value)}
+                className="input-field"
+                placeholder="30.00"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Contracts</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={contracts}
+                onChange={(e) => setContracts(e.target.value)}
+                className="input-field"
+                placeholder="1"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Entry Price</label>
+              <input
+                type="number"
+                step="0.01"
+                value={entryPrice}
+                onChange={(e) => setEntryPrice(e.target.value)}
+                className="input-field"
+                placeholder="2.50"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="stat-label mb-2 block">Entry Date</label>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="stat-label mb-2 block">Expiration</label>
+              <input
+                type="date"
+                value={expiration}
+                onChange={(e) => setExpiration(e.target.value)}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="stat-label mb-2 block">Notes (optional)</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="input-field"
+              placeholder="Hedge against..."
+            />
+          </div>
+
+          {/* Calculated values */}
+          <div className="bg-background/30 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Total Cost</span>
+              <span className="text-foreground font-semibold">{formatCurrency(totalCost)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted">Days to Expiration</span>
+              <span className="text-foreground font-semibold">{dte} days</span>
+            </div>
+          </div>
+
+          <button type="submit" className="btn-primary w-full py-3">
+            Save Changes
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 interface CloseDirectionalModalProps {
   isOpen: boolean;
   trade: DirectionalTrade | null;
@@ -267,6 +440,7 @@ interface CloseDirectionalModalProps {
 }
 
 export function CloseDirectionalModal({ isOpen, trade, onClose, onSubmit, onPartialClose, onRoll }: CloseDirectionalModalProps) {
+  const { formatCurrency } = useFormatters();
   const [exitPrice, setExitPrice] = useState('');
   const [exitDate, setExitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [exitReason, setExitReason] = useState<DirectionalExitReason>('profit target');

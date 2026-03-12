@@ -73,6 +73,10 @@ export function useDirectionalTrades() {
     return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason);
   }, [base]);
 
+  const editTrade = useCallback((id: string, updates: Partial<DirectionalTrade>) => {
+    base.editItem(id, updates);
+  }, [base]);
+
   return {
     trades: base.items,
     openTrades: base.openItems,
@@ -81,6 +85,7 @@ export function useDirectionalTrades() {
     error: base.error,
     retry: base.retry,
     addTrade,
+    editTrade,
     closeTrade,
     deleteTrade,
     rollTrade,

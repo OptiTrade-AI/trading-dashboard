@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { getCspTradesCollection, getCoveredCallsCollection, getDirectionalTradesCollection, getSpreadsCollection, getAccountSettingsCollection, getAnalysesCollection } from '@/lib/collections';
-import { calculatePL, calculateDirectionalPL, calculateSpreadPL, calculateDTE } from '@/lib/utils';
+import { calculatePL, calculateCCPL, calculateDirectionalPL, calculateSpreadPL, calculateDTE } from '@/lib/utils';
+import { computeClosedStats, TradeStats } from '@/lib/ai-data';
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade } from '@/types';
-import { subDays, subMonths, startOfYear, isAfter, parseISO, differenceInDays } from 'date-fns';
-
-function calculateCCPL(call: CoveredCall): number {
-  if (call.status === 'open') return 0;
-  return call.premiumCollected - (call.exitPrice ?? 0);
-}
+import { subDays, subMonths, startOfYear, isAfter, parseISO } from 'date-fns';
 
 function getDateCutoff(timeRange: string, startDate?: string, endDate?: string): { start: Date | null; end: Date | null } {
   const now = new Date();
@@ -56,80 +52,6 @@ function filterByDate<T extends { exitDate?: string; entryDate: string }>(
   }
 
   return { closed, open };
-}
-
-interface TradeStats {
-  strategy: string;
-  totalTrades: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  totalPL: number;
-  avgPL: number;
-  avgDaysHeld: number;
-  avgDTEAtEntry: number;
-  exitReasons: Record<string, number>;
-  tickerStats: { ticker: string; count: number; pl: number }[];
-  bestTrade: { ticker: string; pl: number } | null;
-  worstTrade: { ticker: string; pl: number } | null;
-}
-
-function computeStats<T extends { ticker: string; dteAtEntry: number; entryDate: string; exitDate?: string }>(
-  trades: T[],
-  plFn: (t: T) => number,
-  exitReasonFn: (t: T) => string | undefined,
-  strategy: string
-): TradeStats {
-  if (trades.length === 0) {
-    return { strategy, totalTrades: 0, wins: 0, losses: 0, winRate: 0, totalPL: 0, avgPL: 0, avgDaysHeld: 0, avgDTEAtEntry: 0, exitReasons: {}, tickerStats: [], bestTrade: null, worstTrade: null };
-  }
-
-  const pls = trades.map(t => ({ ticker: t.ticker, pl: plFn(t) }));
-  const wins = pls.filter(p => p.pl > 0).length;
-  const losses = pls.filter(p => p.pl <= 0).length;
-  const totalPL = pls.reduce((s, p) => s + p.pl, 0);
-
-  const exitReasons: Record<string, number> = {};
-  for (const t of trades) {
-    const reason = exitReasonFn(t) || 'unknown';
-    exitReasons[reason] = (exitReasons[reason] || 0) + 1;
-  }
-
-  const tickerMap = new Map<string, { count: number; pl: number }>();
-  for (const p of pls) {
-    const existing = tickerMap.get(p.ticker) || { count: 0, pl: 0 };
-    existing.count++;
-    existing.pl += p.pl;
-    tickerMap.set(p.ticker, existing);
-  }
-  const tickerStats = Array.from(tickerMap.entries())
-    .map(([ticker, stats]) => ({ ticker, ...stats }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
-
-  const daysHeldArr = trades.map(t => {
-    const entry = parseISO(t.entryDate);
-    const exit = t.exitDate ? parseISO(t.exitDate) : new Date();
-    return Math.max(1, differenceInDays(exit, entry));
-  });
-
-  const sorted = [...pls].sort((a, b) => b.pl - a.pl);
-
-  return {
-    strategy,
-    totalTrades: trades.length,
-    wins,
-    losses,
-    winRate: (wins / trades.length) * 100,
-    totalPL,
-    avgPL: totalPL / trades.length,
-    avgDaysHeld: daysHeldArr.reduce((s, d) => s + d, 0) / daysHeldArr.length,
-    avgDTEAtEntry: trades.reduce((s, t) => s + t.dteAtEntry, 0) / trades.length,
-    exitReasons,
-    tickerStats,
-    bestTrade: sorted[0] ? { ticker: sorted[0].ticker, pl: sorted[0].pl } : null,
-    worstTrade: sorted[sorted.length - 1] ? { ticker: sorted[sorted.length - 1].ticker, pl: sorted[sorted.length - 1].pl } : null,
-  };
 }
 
 interface OpenPositionSummary {
@@ -241,10 +163,10 @@ export async function POST(request: NextRequest) {
   const spreadFiltered = filterByDate(allSpreads, cutoff);
 
   // Compute stats for closed trades in period
-  const cspStats = computeStats(cspFiltered.closed, calculatePL, t => t.exitReason, 'Cash-Secured Puts');
-  const ccStats = computeStats(ccFiltered.closed, calculateCCPL, t => t.exitReason, 'Covered Calls');
-  const dirStats = computeStats(dirFiltered.closed, calculateDirectionalPL, t => t.exitReason, 'Directional');
-  const spreadStats = computeStats(spreadFiltered.closed, calculateSpreadPL, t => t.exitReason, 'Spreads');
+  const cspStats = computeClosedStats(cspFiltered.closed, calculatePL, t => t.exitReason, 'Cash-Secured Puts');
+  const ccStats = computeClosedStats(ccFiltered.closed, calculateCCPL, t => t.exitReason, 'Covered Calls');
+  const dirStats = computeClosedStats(dirFiltered.closed, calculateDirectionalPL, t => t.exitReason, 'Directional');
+  const spreadStats = computeClosedStats(spreadFiltered.closed, calculateSpreadPL, t => t.exitReason, 'Spreads');
 
   // Open positions
   const openCSPs = getOpenCSPSummary(cspFiltered.open);
@@ -277,7 +199,7 @@ export async function POST(request: NextRequest) {
   Total P/L: $${s.totalPL.toFixed(0)} | Avg P/L: $${s.avgPL.toFixed(0)}/trade
   Avg Days Held: ${s.avgDaysHeld.toFixed(1)} | Avg DTE at Entry: ${s.avgDTEAtEntry.toFixed(0)}
   Exit Reasons: ${Object.entries(s.exitReasons).map(([r, c]) => `${r}(${c})`).join(', ')}
-  Top Tickers: ${s.tickerStats.map(t => `${t.ticker}(${t.count} trades, $${t.pl.toFixed(0)})`).join(', ')}
+  Top Tickers: ${s.topTickers.map(t => `${t.ticker}(${t.count} trades, $${t.pl.toFixed(0)})`).join(', ')}
   Best: ${s.bestTrade ? `${s.bestTrade.ticker} +$${s.bestTrade.pl.toFixed(0)}` : 'N/A'}
   Worst: ${s.worstTrade ? `${s.worstTrade.ticker} $${s.worstTrade.pl.toFixed(0)}` : 'N/A'}
 `;

@@ -21,7 +21,6 @@ import { useFormatters } from '@/hooks/useFormatters';
 import { useExitCoach } from '@/hooks/useExitCoach';
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, AggBar } from '@/types';
 import {
-  formatCurrency as rawFormatCurrency,
   formatDateShort,
   calculateReturnOnCollateral,
   calculateDTE,
@@ -548,7 +547,7 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
             {position.unrealizedPL !== null && (
               <MetricCell
                 label="Unrealized P/L"
-                value={privacyMode ? '$***' : `${position.unrealizedPL >= 0 ? '+' : ''}${rawFormatCurrency(position.unrealizedPL)}`}
+                value={privacyMode ? '$***' : `${position.unrealizedPL >= 0 ? '+' : ''}${formatCurrency(position.unrealizedPL)}`}
                 colorClass={position.unrealizedPL >= 0 ? 'text-profit' : 'text-loss'}
               />
             )}
@@ -563,7 +562,7 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
             {position.theta !== null && (
               <MetricCell
                 label="Theta ($/day)"
-                value={privacyMode ? '$***' : rawFormatCurrency(Math.abs(position.theta * 100))}
+                value={privacyMode ? '$***' : formatCurrency(Math.abs(position.theta * 100))}
                 colorClass="text-profit"
               />
             )}
@@ -619,7 +618,7 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
                   {plPerContract !== null && (
                     <MetricCell
                       label="P/L per Contract"
-                      value={privacyMode ? '$***' : `${plPerContract >= 0 ? '+' : ''}${rawFormatCurrency(plPerContract)}`}
+                      value={privacyMode ? '$***' : `${plPerContract >= 0 ? '+' : ''}${formatCurrency(plPerContract)}`}
                       colorClass={plPerContract >= 0 ? 'text-profit' : 'text-loss'}
                     />
                   )}
@@ -894,7 +893,7 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
                 <span className="text-loss font-semibold">
                   {typeof maxLoss === 'string'
                     ? maxLoss
-                    : privacyMode ? '$***' : rawFormatCurrency(maxLoss)
+                    : privacyMode ? '$***' : formatCurrency(maxLoss)
                   }
                 </span>
               </div>

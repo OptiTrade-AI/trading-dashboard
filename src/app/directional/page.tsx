@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import { useDirectionalTrades } from '@/hooks/useDirectionalTrades';
+import { useTradeStats } from '@/hooks/useTradeStats';
 import { DirectionalTable } from '@/components/DirectionalTable';
-import { AddDirectionalModal, CloseDirectionalModal } from '@/components/DirectionalModal';
+import { AddDirectionalModal, EditDirectionalModal, CloseDirectionalModal } from '@/components/DirectionalModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { StatCard } from '@/components/StatCard';
@@ -14,20 +15,19 @@ import { useFormatters } from '@/hooks/useFormatters';
 
 export default function DirectionalPage() {
   const { formatCurrency } = useFormatters();
-  const { trades, openTrades, closedTrades, addTrade, closeTrade, deleteTrade, rollTrade, partialCloseTrade, getRollChain, isLoading, error, retry } = useDirectionalTrades();
+  const { trades, openTrades, closedTrades, addTrade, editTrade, closeTrade, deleteTrade, rollTrade, partialCloseTrade, getRollChain, isLoading, error, retry } = useDirectionalTrades();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editModalTrade, setEditModalTrade] = useState<DirectionalTrade | null>(null);
   const [closeModalTrade, setCloseModalTrade] = useState<DirectionalTrade | null>(null);
   const [deleteModalTrade, setDeleteModalTrade] = useState<DirectionalTrade | null>(null);
   const [rollChainId, setRollChainId] = useState<string | null>(null);
 
-  const stats = useMemo(() => {
-    const totalPL = closedTrades.reduce((sum, t) => sum + calculateDirectionalPL(t), 0);
-    const capitalDeployed = openTrades.reduce((sum, t) => sum + t.costAtOpen, 0);
-    const winningTrades = closedTrades.filter((t) => calculateDirectionalPL(t) > 0).length;
-    const winRate = closedTrades.length > 0 ? (winningTrades / closedTrades.length) * 100 : 0;
+  const coreStats = useTradeStats(openTrades, closedTrades, calculateDirectionalPL);
 
-    return { totalPL, capitalDeployed, winRate, winningTrades };
-  }, [openTrades, closedTrades]);
+  const stats = useMemo(() => {
+    const capitalDeployed = openTrades.reduce((sum, t) => sum + t.costAtOpen, 0);
+    return { capitalDeployed };
+  }, [openTrades]);
 
   const handleAddTrade = (trade: Omit<DirectionalTrade, 'id' | 'dteAtEntry' | 'costAtOpen' | 'status'>) => {
     addTrade(trade);
@@ -106,9 +106,9 @@ export default function DirectionalPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             label="Total P/L"
-            value={formatCurrency(stats.totalPL)}
-            variant={stats.totalPL >= 0 ? 'profit' : 'loss'}
-            subValue={`${closedTrades.length} closed`}
+            value={formatCurrency(coreStats.totalPL)}
+            variant={coreStats.totalPL >= 0 ? 'profit' : 'loss'}
+            subValue={`${coreStats.closedCount} closed`}
           />
           <StatCard
             label="Capital Deployed"
@@ -122,9 +122,9 @@ export default function DirectionalPage() {
           />
           <StatCard
             label="Win Rate"
-            value={closedTrades.length > 0 ? `${stats.winRate.toFixed(0)}%` : '-'}
+            value={coreStats.closedCount > 0 ? `${coreStats.winRate.toFixed(0)}%` : '-'}
             variant="accent"
-            subValue={closedTrades.length > 0 ? `${stats.winningTrades}/${closedTrades.length}` : 'No closed yet'}
+            subValue={coreStats.closedCount > 0 ? `${coreStats.wins}/${coreStats.closedCount}` : 'No closed yet'}
           />
           <StatCard
             label="Total Trades"
@@ -146,6 +146,7 @@ export default function DirectionalPage() {
           <DirectionalTable
             trades={trades}
             onClose={(trade) => setCloseModalTrade(trade)}
+            onEdit={(trade) => setEditModalTrade(trade)}
             onDelete={handleDeleteTrade}
             onViewRollChain={(chainId) => setRollChainId(chainId)}
           />
@@ -157,6 +158,12 @@ export default function DirectionalPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddTrade}
+      />
+      <EditDirectionalModal
+        isOpen={!!editModalTrade}
+        trade={editModalTrade}
+        onClose={() => setEditModalTrade(null)}
+        onSubmit={editTrade}
       />
       <CloseDirectionalModal
         isOpen={!!closeModalTrade}

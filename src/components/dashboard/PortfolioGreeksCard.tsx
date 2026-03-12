@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { formatCurrency as rawFormatCurrency, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { OpenPosition } from './PositionsTimeline';
 import {
   ResponsiveContainer,
@@ -161,6 +162,7 @@ function MagnitudeBar({ pct, color }: { pct: number; color: string }) {
 
 /* ── Main component ── */
 export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: PortfolioGreeksCardProps) {
+  const { formatCurrency } = useFormatters();
   const positionsWithData = positions.filter(
     (p) => p.delta !== null || p.theta !== null || p.iv !== null,
   );
@@ -262,7 +264,7 @@ export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: Portf
               >
                 {privacyMode
                   ? '$***'
-                  : `${dailyTheta >= 0 ? '+' : ''}${rawFormatCurrency(dailyTheta)}`}
+                  : `${dailyTheta >= 0 ? '+' : ''}${formatCurrency(dailyTheta)}`}
                 <span className="text-xs font-normal text-muted ml-1">/day</span>
               </div>
 
@@ -277,7 +279,7 @@ export function PortfolioGreeksCard({ positions, privacyMode, fetchedAt }: Portf
               <div className="text-[11px] text-muted mt-1.5">
                 {privacyMode
                   ? '~$***/mo'
-                  : `~${monthlyTheta >= 0 ? '+' : ''}${rawFormatCurrency(monthlyTheta)}/mo`}
+                  : `~${monthlyTheta >= 0 ? '+' : ''}${formatCurrency(monthlyTheta)}/mo`}
               </div>
             </div>
           </div>

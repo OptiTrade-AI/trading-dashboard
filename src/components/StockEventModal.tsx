@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { StockEvent, ALL_TICKERS } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { format } from 'date-fns';
 
 interface AddStockEventModalProps {
@@ -12,6 +12,7 @@ interface AddStockEventModalProps {
 }
 
 export function AddStockEventModal({ isOpen, onClose, onSubmit }: AddStockEventModalProps) {
+  const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [shares, setShares] = useState('');
   const [costBasis, setCostBasis] = useState('');

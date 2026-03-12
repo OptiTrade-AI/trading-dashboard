@@ -145,6 +145,19 @@ export function calculateSpreadPLPercent(trade: SpreadTrade): number {
   return (pl / normalized.netDebit) * 100;
 }
 
+// Calculate P/L for a covered call
+export function calculateCCPL(call: CoveredCall): number {
+  if (call.status === 'open') return 0;
+  return call.premiumCollected - (call.exitPrice ?? 0);
+}
+
+// Calculate P/L percent based on cost basis
+export function calculateCCPLPercent(call: CoveredCall): number {
+  const pl = calculateCCPL(call);
+  if (call.costBasis === 0) return 0;
+  return (pl / call.costBasis) * 100;
+}
+
 export function isMarketOpen(): boolean {
   const now = new Date();
   const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
