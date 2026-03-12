@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { CoveredCall, ALL_TICKERS, CC_EXIT_REASONS, CCExitReason } from '@/types';
 import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import { AITradeCheck } from './AITradeCheck';
+import { AIRollAdvisor } from './AIRollAdvisor';
+import type { RollRecommendation } from '@/types';
 
 interface AddCCModalProps {
   isOpen: boolean;
@@ -241,6 +244,18 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
               </div>
             )}
           </div>
+
+          <AITradeCheck
+            trade={{
+              ticker: ticker.toUpperCase(),
+              strategy: 'CC',
+              strike: parseFloat(strike) || undefined,
+              contracts: numContracts,
+              expiration,
+              premium: totalPremium || undefined,
+            }}
+            disabled={!ticker || !strike || !expiration || !premium}
+          />
 
           <button type="submit" className="btn-primary w-full py-3">
             Add Covered Call
@@ -661,6 +676,22 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
           {/* Roll: new position fields */}
           {mode === 'roll' && (
             <div className="space-y-4 pt-2 border-t border-border/30">
+              <AIRollAdvisor
+                position={{
+                  ticker: call.ticker,
+                  strategy: 'CC',
+                  strike: call.strike,
+                  contracts: call.contracts,
+                  expiration: call.expiration,
+                  entryDate: call.entryDate,
+                  premiumCollected: call.premiumCollected,
+                }}
+                onApply={(rec: RollRecommendation) => {
+                  setNewStrike(rec.targetStrike.toString());
+                  setNewExpiration(rec.targetExpiration);
+                  if (rec.expectedCredit > 0) setNewPremium(rec.expectedCredit.toString());
+                }}
+              />
               <h3 className="text-sm font-semibold text-accent">New Position</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>

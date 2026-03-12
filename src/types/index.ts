@@ -271,3 +271,82 @@ export interface StarterPrompt {
   icon: string;
   category: 'risk' | 'review' | 'strategy' | 'position';
 }
+
+// AI Features
+export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario';
+
+export interface AIUsageRecord {
+  timestamp: string; // ISO date
+  feature: AIFeature;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  ticker?: string;
+}
+
+export interface AIUsageStats {
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+  allTime: number;
+  byFeature: Record<string, { calls: number; cost: number; tokens: number }>;
+  byModel: Record<string, { calls: number; cost: number }>;
+  recentCalls: AIUsageRecord[];
+}
+
+export interface ExitCoachVerdict {
+  verdict: 'HOLD' | 'CLOSE' | 'ROLL';
+  reason: string;
+  rollTarget?: string;
+}
+
+export interface TradeCheckResult {
+  recommendation: 'proceed' | 'caution' | 'reconsider';
+  sizingNote: string;
+  historyNote: string;
+  portfolioNote: string;
+}
+
+export interface SmartAlert {
+  positionId: string;
+  ticker: string;
+  urgency: 'info' | 'warning' | 'critical';
+  action: string;
+  reason: string;
+}
+
+export interface BehavioralPattern {
+  id: string;
+  title: string;
+  description: string;
+  trend: 'improving' | 'worsening' | 'stable';
+  metric?: string;
+}
+
+export interface RollRecommendation {
+  action: string;
+  targetStrike: number;
+  targetExpiration: string;
+  expectedCredit: number;
+  reasoning: string;
+}
+
+export interface EarningsEvent {
+  ticker: string;
+  eventType: string;
+  eventDate: string;
+  daysUntil: number;
+  urgency: 'low' | 'medium' | 'high';
+  recommendation: string;
+  positions: string[];
+}
+
+export interface PatternAnalysisRecord {
+  id: string;
+  timestamp: string;
+  patterns: BehavioralPattern[];
+  tradeCount: number;
+  totalPL: number;
+  winRate: number;
+}

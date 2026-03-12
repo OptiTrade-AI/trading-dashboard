@@ -1,16 +1,27 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { SpreadTrade, SpreadExitReason } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { calculateDTEFromEntry } from '@/lib/utils';
+import { calculateDTEFromEntry, normalizeSpreadLegs } from '@/lib/utils';
 import { createTradeHook } from './useTradeData';
 
 function computeSpreadValues(trade: { longStrike: number; shortStrike: number; longPrice: number; shortPrice: number; contracts: number; spreadType: string }) {
-  const strikeDiff = Math.abs(trade.longStrike - trade.shortStrike);
-  const netDebit = (trade.longPrice - trade.shortPrice) * 100 * trade.contracts;
-  const netDebitPerContract = trade.longPrice - trade.shortPrice;
   const isDebit = trade.spreadType === 'call_debit' || trade.spreadType === 'put_debit';
+
+  // Normalize: if debit spread has negative netDebit (or credit spread has positive),
+  // the user entered long/short prices in the wrong order — swap them
+  let { longStrike, shortStrike, longPrice, shortPrice } = trade;
+  const rawNetDebit = (longPrice - shortPrice) * 100 * trade.contracts;
+
+  if ((isDebit && rawNetDebit < 0) || (!isDebit && rawNetDebit > 0)) {
+    [longStrike, shortStrike] = [shortStrike, longStrike];
+    [longPrice, shortPrice] = [shortPrice, longPrice];
+  }
+
+  const strikeDiff = Math.abs(longStrike - shortStrike);
+  const netDebitPerContract = longPrice - shortPrice;
+  const netDebit = netDebitPerContract * 100 * trade.contracts;
 
   const maxProfit = isDebit
     ? (strikeDiff - netDebitPerContract) * 100 * trade.contracts
@@ -19,15 +30,19 @@ function computeSpreadValues(trade: { longStrike: number; shortStrike: number; l
     ? netDebit
     : (strikeDiff - Math.abs(netDebitPerContract)) * 100 * trade.contracts;
 
-  return { netDebit, maxProfit, maxLoss };
+  return { netDebit, maxProfit, maxLoss, longStrike, shortStrike, longPrice, shortPrice };
 }
 
 const useSpreadBase = createTradeHook<SpreadTrade>({
   apiEndpoint: '/api/spreads',
   prepareNew: (input) => {
-    const { netDebit, maxProfit, maxLoss } = computeSpreadValues(input as unknown as Parameters<typeof computeSpreadValues>[0]);
+    const { netDebit, maxProfit, maxLoss, longStrike, shortStrike, longPrice, shortPrice } = computeSpreadValues(input as unknown as Parameters<typeof computeSpreadValues>[0]);
     return {
       ...input,
+      longStrike,
+      shortStrike,
+      longPrice,
+      shortPrice,
       id: uuidv4(),
       dteAtEntry: calculateDTEFromEntry(input.entryDate as string, input.expiration as string),
       netDebit,
@@ -42,7 +57,9 @@ const useSpreadBase = createTradeHook<SpreadTrade>({
     exitDate: exitDate as string,
     exitReason: exitReason as SpreadExitReason,
   }),
-  preparePartialClose: (item, contractsToClose, closeNetCredit, exitDate, exitReason) => {
+  preparePartialClose: (rawItem, contractsToClose, closeNetCredit, exitDate, exitReason) => {
+    // Normalize in case legs were entered in wrong order
+    const item = normalizeSpreadLegs(rawItem);
     const remaining = item.contracts - contractsToClose;
     const strikeDiff = Math.abs(item.longStrike - item.shortStrike);
     const netDebitPerContract = item.longPrice - item.shortPrice;
@@ -66,6 +83,10 @@ const useSpreadBase = createTradeHook<SpreadTrade>({
 
     return {
       closedPortion: {
+        longStrike: item.longStrike,
+        shortStrike: item.shortStrike,
+        longPrice: item.longPrice,
+        shortPrice: item.shortPrice,
         netDebit: closedNetDebit,
         maxProfit: closedMaxProfit,
         maxLoss: closedMaxLoss,
@@ -75,6 +96,10 @@ const useSpreadBase = createTradeHook<SpreadTrade>({
         exitReason: exitReason as SpreadExitReason,
       },
       remainingUpdates: {
+        longStrike: item.longStrike,
+        shortStrike: item.shortStrike,
+        longPrice: item.longPrice,
+        shortPrice: item.shortPrice,
         contracts: remaining,
         netDebit: remainingNetDebit,
         maxProfit: remainingMaxProfit,
@@ -87,6 +112,11 @@ const useSpreadBase = createTradeHook<SpreadTrade>({
 
 export function useSpreads() {
   const base = useSpreadBase();
+
+  // Normalize existing data from DB in case legs were entered in wrong order
+  const spreads = useMemo(() => base.items.map(normalizeSpreadLegs), [base.items]);
+  const openSpreads = useMemo(() => base.openItems.map(normalizeSpreadLegs), [base.openItems]);
+  const closedSpreads = useMemo(() => base.closedItems.map(normalizeSpreadLegs), [base.closedItems]);
 
   const addSpread = useCallback((trade: Omit<SpreadTrade, 'id' | 'dteAtEntry' | 'netDebit' | 'maxProfit' | 'maxLoss' | 'status'>) => {
     return base.addItem(trade);
@@ -116,9 +146,9 @@ export function useSpreads() {
   }, [base]);
 
   return {
-    spreads: base.items,
-    openSpreads: base.openItems,
-    closedSpreads: base.closedItems,
+    spreads,
+    openSpreads,
+    closedSpreads,
     isLoading: base.isLoading,
     error: base.error,
     retry: base.retry,

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { SpreadTrade, SpreadType, ALL_TICKERS, SPREAD_EXIT_REASONS, SpreadExitReason, SPREAD_TYPE_LABELS } from '@/types';
 import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import { AITradeCheck } from './AITradeCheck';
 
 interface AddSpreadModalProps {
   isOpen: boolean;
@@ -294,6 +295,21 @@ export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProp
               <span className="text-foreground font-semibold">{dte} days</span>
             </div>
           </div>
+
+          <AITradeCheck
+            trade={{
+              ticker: ticker.toUpperCase(),
+              strategy: 'Spread',
+              contracts: numContracts,
+              expiration,
+              spreadType,
+              longStrike: lStrike || undefined,
+              shortStrike: sStrike || undefined,
+              netDebit: netDebit || undefined,
+              maxLoss: maxLoss || undefined,
+            }}
+            disabled={!ticker || !longStrike || !shortStrike || !expiration}
+          />
 
           <button type="submit" className="btn-primary w-full py-3">
             Add Spread Trade

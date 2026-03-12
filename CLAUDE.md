@@ -41,7 +41,7 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 
 | Page | Route | Description |
 |------|-------|-------------|
-| Dashboard | `/` | Aggregated overview: hero banner, expiration alerts, strategy pulse, Greeks card, theta income, pressure card, positions timeline, capital allocation, recent activity, quick-add FAB, command palette, position sizer, CSV import |
+| Dashboard | `/` | Aggregated overview: hero banner, expiration alerts, strategy pulse, Greeks card, theta income, scenario simulator, pressure card, positions timeline, capital allocation, recent activity, quick-add FAB, command palette, CSV import |
 | CSP Log | `/log` | Cash-secured puts table with add/edit/close/roll modals |
 | Covered Calls | `/cc` | Covered calls table with add/edit/close modals |
 | Directional | `/directional` | Long calls/puts table with add/close modals |
@@ -88,7 +88,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | CompactHeat | `src/components/dashboard/CompactHeat.tsx` | Portfolio heat gauge with safe/caution/over-limit zones |
 | QuickAddFAB | `src/components/QuickAddFAB.tsx` | Floating action button for adding trades from dashboard (keyboard shortcut: N) |
 | CommandPalette | `src/components/CommandPalette.tsx` | Global search across all trades/pages (keyboard shortcut: Ctrl+K) |
-| PositionSizerModal | `src/components/PositionSizerModal.tsx` | Max contracts calculator with projected heat gauge |
+| ScenarioSimulator | `src/components/dashboard/ScenarioSimulator.tsx` | Slider-based scenario tool: projected P/L using delta+gamma math with live stock prices |
 | ImportModal | `src/components/ImportModal.tsx` | CSV import with file upload, drag-and-drop, paste, row validation |
 
 ### Key Files

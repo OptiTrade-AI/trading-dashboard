@@ -18,6 +18,7 @@ import { useStockPrices } from '@/hooks/useStockPrices';
 import { useStockAggregates } from '@/hooks/useStockAggregates';
 import { useOptionAggregates } from '@/hooks/useOptionAggregates';
 import { useFormatters } from '@/hooks/useFormatters';
+import { useExitCoach } from '@/hooks/useExitCoach';
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, AggBar } from '@/types';
 import {
   formatCurrency as rawFormatCurrency,
@@ -322,11 +323,12 @@ function StockPriceChart({
   );
 }
 
-type ChartTab = 'today' | 'sinceEntry' | 'stock1y';
+type ChartTab = 'today' | 'sinceEntry' | 'stock1y' | 'aiCoach';
 
 export function PositionDetailModal({ position, isOpen, onClose }: PositionDetailModalProps) {
   const [chartTab, setChartTab] = useState<ChartTab>('today');
   const { formatCurrency, privacyMode } = useFormatters();
+  const exitCoach = useExitCoach();
 
   const tickers = useMemo(
     () => (position ? [position.ticker] : []),
@@ -657,16 +659,55 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
         {/* Price Chart */}
         <div className="p-5 border-b border-border/30">
           <div className="flex items-center gap-2 mb-3">
-            {(['today', 'sinceEntry', 'stock1y'] as const).map((tab) => (
+            {(['today', 'sinceEntry', 'stock1y', 'aiCoach'] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setChartTab(tab)}
+                onClick={() => {
+                  setChartTab(tab);
+                  if (tab === 'aiCoach' && !exitCoach.response && !exitCoach.isLoading && position && raw) {
+                    const posData: Record<string, unknown> = {
+                      id: position.id,
+                      ticker: position.ticker,
+                      strategy: position.type === 'csp' ? 'CSP' : position.type === 'cc' ? 'CC' : position.type === 'directional' ? 'Directional' : 'Spread',
+                      strike: 'strike' in raw ? (raw as Trade).strike : undefined,
+                      contracts: raw.contracts,
+                      expiration: raw.expiration,
+                      entryDate: raw.entryDate,
+                    };
+                    if (position.type === 'csp') {
+                      const t = raw as Trade;
+                      Object.assign(posData, { premiumCollected: t.premiumCollected, collateral: t.collateral });
+                    } else if (position.type === 'cc') {
+                      const c = raw as CoveredCall;
+                      Object.assign(posData, { premiumCollected: c.premiumCollected, costBasis: c.costBasis });
+                    } else if (position.type === 'directional') {
+                      const t = raw as DirectionalTrade;
+                      Object.assign(posData, { entryPrice: t.entryPrice, costAtOpen: t.costAtOpen });
+                    } else if (position.type === 'spread') {
+                      const s = raw as SpreadTrade;
+                      Object.assign(posData, {
+                        spreadType: s.spreadType, longStrike: s.longStrike, shortStrike: s.shortStrike,
+                        netDebit: s.netDebit, maxProfit: s.maxProfit, maxLoss: s.maxLoss,
+                      });
+                    }
+                    exitCoach.getAdvice({
+                      position: posData as Parameters<typeof exitCoach.getAdvice>[0]['position'],
+                      greeks: {
+                        delta: position.delta, gamma: position.gamma, theta: position.theta,
+                        vega: position.vega, iv: position.iv, unrealizedPL: position.unrealizedPL,
+                      },
+                      stockPrice: stockPrice?.price ?? null,
+                    });
+                  }
+                }}
                 className={cn(
                   'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors',
-                  chartTab === tab ? 'bg-accent/15 text-accent' : 'text-muted hover:text-foreground'
+                  chartTab === tab
+                    ? tab === 'aiCoach' ? 'bg-purple-500/15 text-purple-400' : 'bg-accent/15 text-accent'
+                    : 'text-muted hover:text-foreground'
                 )}
               >
-                {tab === 'today' ? 'Today' : tab === 'sinceEntry' ? 'Since Entry' : 'Stock 1Y'}
+                {tab === 'today' ? 'Today' : tab === 'sinceEntry' ? 'Since Entry' : tab === 'stock1y' ? 'Stock 1Y' : 'AI Coach'}
               </button>
             ))}
           </div>
@@ -714,8 +755,61 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
                 privacyMode={privacyMode}
               />
             )
-          ) : (
+          ) : chartTab === 'stock1y' ? (
             <YearlyChart ticker={position.ticker} strike={strike} />
+          ) : (
+            /* AI Coach Tab */
+            <div className="min-h-[200px] flex flex-col">
+              {exitCoach.isLoading && !exitCoach.response ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-muted">
+                    <div className="w-4 h-4 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                    <span className="text-sm">Analyzing position...</span>
+                  </div>
+                </div>
+              ) : exitCoach.error ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-loss text-sm">{exitCoach.error}</p>
+                    <button
+                      onClick={() => exitCoach.reset()}
+                      className="text-xs text-accent hover:underline mt-2"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              ) : exitCoach.response ? (
+                <div className="space-y-3">
+                  <div className="prose prose-sm prose-invert max-w-none text-sm leading-relaxed">
+                    {exitCoach.response.split('\n').map((line, i) => {
+                      if (line.includes('**HOLD**')) return <p key={i} className="text-accent font-semibold">{line.replace(/\*\*/g, '')}</p>;
+                      if (line.includes('**CLOSE**')) return <p key={i} className="text-profit font-semibold">{line.replace(/\*\*/g, '')}</p>;
+                      if (line.includes('**ROLL**')) return <p key={i} className="text-caution font-semibold">{line.replace(/\*\*/g, '')}</p>;
+                      return line.trim() ? <p key={i} className="text-foreground/80">{line.replace(/\*\*/g, '')}</p> : null;
+                    })}
+                  </div>
+                  {exitCoach.isLoading && (
+                    <div className="w-2 h-4 bg-purple-400/50 animate-pulse inline-block" />
+                  )}
+                  {!exitCoach.isLoading && (
+                    <button
+                      onClick={() => {
+                        exitCoach.reset();
+                        setChartTab('aiCoach');
+                      }}
+                      className="text-xs text-muted hover:text-foreground transition-colors"
+                    >
+                      Refresh analysis
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-muted text-sm">
+                  Loading AI Coach...
+                </div>
+              )}
+            </div>
           )}
         </div>
 

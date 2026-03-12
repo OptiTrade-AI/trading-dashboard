@@ -1,8 +1,8 @@
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, StockEvent, SPREAD_TYPE_LABELS } from '@/types';
-import { differenceInDays, parseISO, format } from 'date-fns';
+import { differenceInDays, parseISO, format, startOfDay } from 'date-fns';
 
 export function calculateDTE(expirationDate: string): number {
-  const today = new Date();
+  const today = startOfDay(new Date());
   const expiry = parseISO(expirationDate);
   return Math.max(0, differenceInDays(expiry, today));
 }
@@ -87,21 +87,62 @@ export function calculateDirectionalPLPercent(trade: DirectionalTrade): number {
   return (pl / trade.costAtOpen) * 100;
 }
 
+/**
+ * Normalize spread legs so debit spreads always have positive netDebit
+ * and credit spreads always have negative netDebit. If the user entered
+ * long/short prices in the wrong order, this swaps them and recalculates
+ * derived fields.
+ */
+export function normalizeSpreadLegs(trade: SpreadTrade): SpreadTrade {
+  const isDebit = trade.spreadType === 'call_debit' || trade.spreadType === 'put_debit';
+  const needsSwap = (isDebit && trade.netDebit < 0) || (!isDebit && trade.netDebit > 0);
+
+  if (!needsSwap) return trade;
+
+  const longStrike = trade.shortStrike;
+  const shortStrike = trade.longStrike;
+  const longPrice = trade.shortPrice;
+  const shortPrice = trade.longPrice;
+  const strikeDiff = Math.abs(longStrike - shortStrike);
+  const netDebitPerContract = longPrice - shortPrice;
+  const netDebit = netDebitPerContract * 100 * trade.contracts;
+
+  const maxProfit = isDebit
+    ? (strikeDiff - netDebitPerContract) * 100 * trade.contracts
+    : Math.abs(netDebit);
+  const maxLoss = isDebit
+    ? netDebit
+    : (strikeDiff - Math.abs(netDebitPerContract)) * 100 * trade.contracts;
+
+  return {
+    ...trade,
+    longStrike,
+    shortStrike,
+    longPrice,
+    shortPrice,
+    netDebit,
+    maxProfit,
+    maxLoss,
+  };
+}
+
 export function calculateSpreadPL(trade: SpreadTrade): number {
   if (trade.status === 'open') return 0;
-  return (trade.closeNetCredit ?? 0) - trade.netDebit;
+  const normalized = normalizeSpreadLegs(trade);
+  return (normalized.closeNetCredit ?? 0) - normalized.netDebit;
 }
 
 export function calculateSpreadPLPercent(trade: SpreadTrade): number {
-  const pl = calculateSpreadPL(trade);
+  const normalized = normalizeSpreadLegs(trade);
+  const pl = calculateSpreadPL(normalized);
   // For credit spreads (negative netDebit), use maxLoss as denominator
-  if (trade.netDebit < 0) {
-    if (trade.maxLoss === 0) return 0;
-    return (pl / trade.maxLoss) * 100;
+  if (normalized.netDebit < 0) {
+    if (normalized.maxLoss === 0) return 0;
+    return (pl / normalized.maxLoss) * 100;
   }
   // For debit spreads, use netDebit (cost basis)
-  if (trade.netDebit === 0) return 0;
-  return (pl / trade.netDebit) * 100;
+  if (normalized.netDebit === 0) return 0;
+  return (pl / normalized.netDebit) * 100;
 }
 
 export function isMarketOpen(): boolean {
