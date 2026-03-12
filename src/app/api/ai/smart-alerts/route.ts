@@ -1,28 +1,47 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { aiCall } from '@/lib/ai';
 import { gatherPortfolioData } from '@/lib/ai-data';
+import { getAccountSettingsCollection } from '@/lib/collections';
 import type { SmartAlert } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+async function generateAlerts(greeksMap?: Record<string, { delta?: number; theta?: number; iv?: number }>) {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ alerts: [], available: false });
+    return { alerts: [], available: false };
   }
 
   const data = await gatherPortfolioData();
 
   if (data.openPositions.length === 0) {
-    return NextResponse.json({ alerts: [], available: true });
+    return { alerts: [], available: true };
   }
+
+  // Read configurable thresholds from account settings
+  const settingsCol = await getAccountSettingsCollection();
+  const settings = await settingsCol.findOne({});
+  const dteWarning = settings?.alertDTEWarning ?? 7;
+  const dteCritical = settings?.alertDTECritical ?? 2;
+  const heatThreshold = settings?.alertHeatThreshold ?? 30;
 
   const now = new Date().toISOString().slice(0, 10);
   const heat = data.accountValue > 0 ? (data.totalCapitalAtRisk / data.accountValue * 100) : 0;
 
-  // Build compact position summary
+  // Build compact position summary with optional Greeks
   let positionsSummary = '';
   for (const p of data.openPositions) {
-    positionsSummary += `\n${p.id}: ${p.strategy} ${p.ticker} ${p.label} | ${p.contracts} contracts | DTE ${p.dte} | Capital $${Number(p.capitalAtRisk || 0).toFixed(0)}`;
+    let line = `\n${p.id}: ${p.strategy} ${p.ticker} ${p.label} | ${p.contracts} contracts | DTE ${p.dte} | Capital $${Number(p.capitalAtRisk || 0).toFixed(0)}`;
+    // Enrich with Greeks if available
+    const posId = p.id as string;
+    if (greeksMap && greeksMap[posId]) {
+      const g = greeksMap[posId];
+      const parts: string[] = [];
+      if (g.delta != null) parts.push(`Delta ${g.delta.toFixed(3)}`);
+      if (g.theta != null) parts.push(`Theta $${g.theta.toFixed(2)}/day`);
+      if (g.iv != null) parts.push(`IV ${(g.iv * 100).toFixed(1)}%`);
+      if (parts.length > 0) line += ` | ${parts.join(', ')}`;
+    }
+    positionsSummary += line;
   }
 
   const systemPrompt = `You are a trading alert system. Analyze these open options positions and identify ONLY those that need immediate attention.
@@ -35,11 +54,13 @@ Return ONLY a JSON array of alerts for positions that need action. Each alert:
 {"positionId":"<id>","ticker":"<TICKER>","urgency":"info|warning|critical","action":"<short action>","reason":"<one sentence>"}
 
 Alert triggers:
-- DTE <= 2: critical (expiring soon)
-- DTE <= 7: warning (approaching expiration)
-- Heat > 30%: warning (portfolio overexposed)
+- DTE <= ${dteCritical}: critical (expiring soon)
+- DTE <= ${dteWarning}: warning (approaching expiration)
+- Heat > ${heatThreshold}%: warning (portfolio overexposed)
 - Multiple positions on same ticker: info (concentration risk)
 - DTE < 14 for sold premium: info (consider closing if profitable)
+- High IV (>50%) on position: info (elevated implied volatility)
+- Delta > 0.4 on sold positions: warning (position moving against you)
 
 If no positions need attention, return an empty array: []
 Return ONLY valid JSON, no markdown, no explanation.`;
@@ -53,18 +74,29 @@ Return ONLY valid JSON, no markdown, no explanation.`;
   });
 
   if (!result) {
-    return NextResponse.json({ alerts: [], available: false });
+    return { alerts: [], available: false };
   }
 
   try {
-    // Parse JSON from response (handle markdown code blocks)
     let jsonStr = result.text.trim();
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
     }
     const alerts: SmartAlert[] = JSON.parse(jsonStr);
-    return NextResponse.json({ alerts, available: true });
+    return { alerts, available: true };
   } catch {
-    return NextResponse.json({ alerts: [], available: false });
+    return { alerts: [], available: false };
   }
+}
+
+export async function GET() {
+  const result = await generateAlerts();
+  return NextResponse.json(result);
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  const greeksMap = body.greeks as Record<string, { delta?: number; theta?: number; iv?: number }> | undefined;
+  const result = await generateAlerts(greeksMap);
+  return NextResponse.json(result);
 }

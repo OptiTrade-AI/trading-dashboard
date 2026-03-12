@@ -5,6 +5,8 @@ import { DirectionalTrade, ALL_TICKERS, DIRECTIONAL_EXIT_REASONS, DirectionalExi
 import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AITradeCheck } from './AITradeCheck';
+import { AIRollAdvisor } from './AIRollAdvisor';
+import type { RollRecommendation } from '@/types';
 
 interface AddDirectionalModalProps {
   isOpen: boolean;
@@ -473,6 +475,23 @@ export function CloseDirectionalModal({ isOpen, trade, onClose, onSubmit, onPart
           {/* Roll fields */}
           {isRolling && (
             <>
+              <AIRollAdvisor
+                position={{
+                  ticker: trade.ticker,
+                  strategy: 'Directional',
+                  strike: trade.strike,
+                  contracts: trade.contracts,
+                  expiration: trade.expiration,
+                  entryDate: trade.entryDate,
+                  costAtOpen: trade.costAtOpen,
+                  entryPrice: trade.entryPrice,
+                }}
+                onApply={(rec: RollRecommendation) => {
+                  setNewStrike(rec.targetStrike.toString());
+                  setNewExpiration(rec.targetExpiration);
+                  if (rec.expectedCredit > 0) setNewEntryPrice(rec.expectedCredit.toString());
+                }}
+              />
               <div className="border-t border-border/30 pt-4">
                 <h3 className="text-sm font-semibold text-amber-400 mb-3">New Position</h3>
                 <div className="grid grid-cols-3 gap-4">

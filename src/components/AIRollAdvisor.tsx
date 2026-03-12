@@ -35,7 +35,7 @@ interface AIRollAdvisorProps {
 }
 
 export function AIRollAdvisor({ position, greeks, stockPrice, onApply }: AIRollAdvisorProps) {
-  const [recommendation, setRecommendation] = useState<RollRecommendation | null>(null);
+  const [recommendation, setRecommendation] = useState<RollRecommendation & { hasChainData?: boolean } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +54,7 @@ export function AIRollAdvisor({ position, greeks, stockPrice, onApply }: AIRollA
         throw new Error('Failed to get recommendation');
       }
 
-      const data: RollRecommendation = await res.json();
+      const data = await res.json();
       setRecommendation(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -122,6 +122,12 @@ export function AIRollAdvisor({ position, greeks, stockPrice, onApply }: AIRollA
             )}
           </div>
           <p className="text-[11px] text-foreground/70">{recommendation.reasoning}</p>
+          {recommendation.hasChainData && (
+            <div className="flex items-center gap-1 text-[10px] text-profit/60">
+              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+              Based on live market data
+            </div>
+          )}
           {onApply && (
             <button
               type="button"

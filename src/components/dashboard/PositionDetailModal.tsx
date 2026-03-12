@@ -28,6 +28,7 @@ import {
   buildOptionSymbol,
   cn,
 } from '@/lib/utils';
+import { DiscussChatLink } from '@/components/DiscussChatLink';
 
 const COLORS = {
   profit: '#10b981',
@@ -793,15 +794,21 @@ export function PositionDetailModal({ position, isOpen, onClose }: PositionDetai
                     <div className="w-2 h-4 bg-purple-400/50 animate-pulse inline-block" />
                   )}
                   {!exitCoach.isLoading && (
-                    <button
-                      onClick={() => {
-                        exitCoach.reset();
-                        setChartTab('aiCoach');
-                      }}
-                      className="text-xs text-muted hover:text-foreground transition-colors"
-                    >
-                      Refresh analysis
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          exitCoach.reset();
+                          setChartTab('aiCoach');
+                        }}
+                        className="text-xs text-muted hover:text-foreground transition-colors"
+                      >
+                        Refresh analysis
+                      </button>
+                      <DiscussChatLink
+                        context={`I'd like to discuss my ${position.ticker} ${position.label} position. Here's what the AI Exit Coach said:\n\n${exitCoach.response}`}
+                        sourceFeature="Exit Coach"
+                      />
+                    </div>
                   )}
                 </div>
               ) : (

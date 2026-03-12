@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import type { BehavioralPattern, PatternAnalysisRecord } from '@/types';
+import { DiscussChatLink } from './DiscussChatLink';
 
 const trendIcons = {
   improving: { icon: '↗', color: 'text-profit', bg: 'bg-profit/10' },
@@ -129,15 +130,81 @@ export function BehavioralPatterns() {
 
       {/* Snapshot stats for selected analysis */}
       {history.length > 0 && history[selectedIndex] && (
-        <div className="flex items-center gap-4 mb-3 text-[11px] text-muted">
+        <div className="flex items-center gap-4 mb-3 text-[11px] text-muted flex-wrap">
           <span>{history[selectedIndex].tradeCount} trades analyzed</span>
-          <span>{history[selectedIndex].winRate}% win rate</span>
-          <span className={history[selectedIndex].totalPL >= 0 ? 'text-profit' : 'text-loss'}>
+          <span className="flex items-center gap-1">
+            {history[selectedIndex].winRate}% win rate
+            {history.length >= 2 && selectedIndex < history.length - 1 && (() => {
+              const prev = history[selectedIndex + 1];
+              const delta = history[selectedIndex].winRate - prev.winRate;
+              if (Math.abs(delta) < 0.1) return null;
+              return (
+                <span className={cn('font-bold', delta > 0 ? 'text-profit' : 'text-loss')}>
+                  {delta > 0 ? '↑' : '↓'}{Math.abs(delta).toFixed(1)}%
+                </span>
+              );
+            })()}
+          </span>
+          <span className={cn('flex items-center gap-1', history[selectedIndex].totalPL >= 0 ? 'text-profit' : 'text-loss')}>
             ${Math.abs(history[selectedIndex].totalPL).toLocaleString()} {history[selectedIndex].totalPL >= 0 ? 'profit' : 'loss'}
+            {history.length >= 2 && selectedIndex < history.length - 1 && (() => {
+              const prev = history[selectedIndex + 1];
+              const delta = history[selectedIndex].totalPL - prev.totalPL;
+              if (Math.abs(delta) < 1) return null;
+              return (
+                <span className={cn('font-bold', delta > 0 ? 'text-profit' : 'text-loss')}>
+                  {delta > 0 ? '↑' : '↓'}${Math.abs(delta).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              );
+            })()}
           </span>
           {!isViewingLatest && (
             <span className="text-purple-400/60">viewing past analysis</span>
           )}
+        </div>
+      )}
+
+      {/* Sparklines for win rate and P/L across history */}
+      {history.length >= 3 && isViewingLatest && (
+        <div className="flex items-center gap-6 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted uppercase tracking-wider">Win Rate</span>
+            <svg width="60" height="20" viewBox={`0 0 60 20`} className="overflow-visible">
+              <polyline
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="1.5"
+                points={history.slice(0, 10).reverse().map((h, i, arr) => {
+                  const x = (i / (arr.length - 1)) * 56 + 2;
+                  const rates = arr.map(a => a.winRate);
+                  const min = Math.min(...rates);
+                  const max = Math.max(...rates);
+                  const range = max - min || 1;
+                  const y = 18 - ((h.winRate - min) / range) * 16;
+                  return `${x},${y}`;
+                }).join(' ')}
+              />
+            </svg>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted uppercase tracking-wider">P/L</span>
+            <svg width="60" height="20" viewBox={`0 0 60 20`} className="overflow-visible">
+              <polyline
+                fill="none"
+                stroke="#a855f7"
+                strokeWidth="1.5"
+                points={history.slice(0, 10).reverse().map((h, i, arr) => {
+                  const x = (i / (arr.length - 1)) * 56 + 2;
+                  const pls = arr.map(a => a.totalPL);
+                  const min = Math.min(...pls);
+                  const max = Math.max(...pls);
+                  const range = max - min || 1;
+                  const y = 18 - ((h.totalPL - min) / range) * 16;
+                  return `${x},${y}`;
+                }).join(' ')}
+              />
+            </svg>
+          </div>
         </div>
       )}
 
@@ -184,6 +251,10 @@ export function BehavioralPatterns() {
                 {pattern.metric && (
                   <div className="text-xs font-medium text-accent">{pattern.metric}</div>
                 )}
+                <DiscussChatLink
+                  context={`I'd like to discuss this behavioral pattern from my trading: "${pattern.title}" — ${pattern.description}${pattern.metric ? ` Key metric: ${pattern.metric}` : ''}`}
+                  sourceFeature="Behavioral Patterns"
+                />
               </div>
             );
           })}

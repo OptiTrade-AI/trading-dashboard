@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { cn, calculatePL, calculateDTE, calculateDirectionalPL, calculateSpreadPL } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useTrades } from '@/hooks/useTrades';
@@ -20,9 +21,22 @@ import { ChatMessageList } from '@/components/chat/ChatMessageList';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { StarterCards } from '@/components/chat/StarterCards';
 
-export default function AnalysisPage() {
+export default function AnalysisPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="text-muted text-sm">Loading...</div>
+      </div>
+    }>
+      <AnalysisPage />
+    </Suspense>
+  );
+}
+
+function AnalysisPage() {
   const { privacyMode } = usePrivacy();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const searchParams = useSearchParams();
 
   // Chat state
   const {
@@ -30,6 +44,14 @@ export default function AnalysisPage() {
     isAvailable, isLoading: isChatLoading, error,
     sendMessage, startNewConversation, selectConversation, deleteConversation,
   } = useChat();
+
+  // Select conversation from URL query param (used by "Discuss in Chat" links)
+  useEffect(() => {
+    const convId = searchParams.get('conversation');
+    if (convId && conversations.length > 0 && !isChatLoading) {
+      selectConversation(convId);
+    }
+  }, [searchParams, conversations, isChatLoading, selectConversation]);
 
   // All data hooks for portfolio context
   const { openTrades, closedTrades, accountSettings, heat, totalCollateral } = useTrades();

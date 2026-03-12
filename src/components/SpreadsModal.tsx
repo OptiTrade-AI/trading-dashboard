@@ -5,6 +5,8 @@ import { SpreadTrade, SpreadType, ALL_TICKERS, SPREAD_EXIT_REASONS, SpreadExitRe
 import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AITradeCheck } from './AITradeCheck';
+import { AIRollAdvisor } from './AIRollAdvisor';
+import type { RollRecommendation } from '@/types';
 
 interface AddSpreadModalProps {
   isOpen: boolean;
@@ -548,6 +550,27 @@ export function CloseSpreadModal({ isOpen, trade, onClose, onSubmit, onPartialCl
           {/* Roll fields */}
           {isRolling && (
             <>
+              <AIRollAdvisor
+                position={{
+                  ticker: trade.ticker,
+                  strategy: 'Spread',
+                  strike: trade.shortStrike,
+                  contracts: trade.contracts,
+                  expiration: trade.expiration,
+                  entryDate: trade.entryDate,
+                  spreadType: trade.spreadType,
+                  longStrike: trade.longStrike,
+                  shortStrike: trade.shortStrike,
+                }}
+                onApply={(rec: RollRecommendation) => {
+                  setNewShortStrike(rec.targetStrike.toString());
+                  const width = Math.abs(trade.longStrike - trade.shortStrike);
+                  const isCredit = trade.spreadType === 'call_credit' || trade.spreadType === 'put_credit';
+                  const newLong = isCredit ? rec.targetStrike + width : rec.targetStrike - width;
+                  setNewLongStrike(newLong.toString());
+                  setNewExpiration(rec.targetExpiration);
+                }}
+              />
               <div className="border-t border-border/30 pt-4">
                 <h3 className="text-sm font-semibold text-purple-400 mb-3">New Position</h3>
                 <div className="grid grid-cols-2 gap-4 mb-4">
