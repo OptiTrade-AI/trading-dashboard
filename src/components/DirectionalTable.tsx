@@ -11,15 +11,16 @@ type SortDirection = 'asc' | 'desc';
 interface DirectionalTableProps {
   trades: DirectionalTrade[];
   onClose?: (trade: DirectionalTrade) => void;
+  onEdit?: (trade: DirectionalTrade) => void;
   onDelete?: (trade: DirectionalTrade) => void;
   onViewRollChain?: (rollChainId: string) => void;
 }
 
-export function DirectionalTable({ trades, onClose, onDelete, onViewRollChain }: DirectionalTableProps) {
+export function DirectionalTable({ trades, onClose, onEdit, onDelete, onViewRollChain }: DirectionalTableProps) {
   const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
   const [filterTicker, setFilterTicker] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'call' | 'put'>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -321,6 +322,14 @@ export function DirectionalTable({ trades, onClose, onDelete, onViewRollChain }:
                   </td>
                   <td className="px-4 py-3 text-sm text-right">
                     <div className="flex items-center justify-end gap-3">
+                      {trade.status === 'open' && onEdit && (
+                        <button
+                          onClick={() => onEdit(trade)}
+                          className="text-muted hover:text-foreground text-xs font-medium transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
                       {trade.status === 'open' && onClose && (
                         <button
                           onClick={() => onClose(trade)}

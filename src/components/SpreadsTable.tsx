@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { SpreadTrade, SPREAD_TYPE_LABELS } from '@/types';
-import { formatCurrency as rawFormatCurrency, formatDateShort, calculateSpreadPL, calculateSpreadPLPercent, calculateDTE, cn } from '@/lib/utils';
+import { formatDateShort, calculateSpreadPL, calculateSpreadPLPercent, calculateDTE, cn } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
 
 type SortKey = keyof SpreadTrade | 'pl' | 'plPercent' | 'currentDTE';
@@ -11,15 +11,16 @@ type SortDirection = 'asc' | 'desc';
 interface SpreadsTableProps {
   trades: SpreadTrade[];
   onClose?: (trade: SpreadTrade) => void;
+  onEdit?: (trade: SpreadTrade) => void;
   onDelete?: (trade: SpreadTrade) => void;
   onViewRollChain?: (rollChainId: string) => void;
 }
 
-export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: SpreadsTableProps) {
+export function SpreadsTable({ trades, onClose, onEdit, onDelete, onViewRollChain }: SpreadsTableProps) {
   const { formatCurrency, formatPercent, privacyMode } = useFormatters();
   const [sortKey, setSortKey] = useState<SortKey>('entryDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
   const [filterTicker, setFilterTicker] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -274,7 +275,7 @@ export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: Spr
                     {trade.status === 'open' ? `${currentDTE}d` : `${trade.dteAtEntry}d`}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
-                    {privacyMode ? '$***' : (trade.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(trade.netDebit))}` : rawFormatCurrency(trade.netDebit))}
+                    {privacyMode ? '$***' : (trade.netDebit < 0 ? `CR ${formatCurrency(Math.abs(trade.netDebit))}` : formatCurrency(trade.netDebit))}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <div className="text-profit text-xs">{privacyMode ? '$***' : `+${formatCurrency(trade.maxProfit)}`}</div>
@@ -333,6 +334,14 @@ export function SpreadsTable({ trades, onClose, onDelete, onViewRollChain }: Spr
                   </td>
                   <td className="px-4 py-3 text-sm text-right">
                     <div className="flex items-center justify-end gap-3">
+                      {trade.status === 'open' && onEdit && (
+                        <button
+                          onClick={() => onEdit(trade)}
+                          className="text-muted hover:text-foreground text-xs font-medium transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
                       {trade.status === 'open' && onClose && (
                         <button
                           onClick={() => onClose(trade)}

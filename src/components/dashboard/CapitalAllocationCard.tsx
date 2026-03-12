@@ -1,6 +1,7 @@
 'use client';
 
-import { formatCurrency as rawFormatCurrency, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 
 interface CapitalAllocationCardProps {
   data: { name: string; value: number; color: string }[];
@@ -9,6 +10,7 @@ interface CapitalAllocationCardProps {
 }
 
 export function CapitalAllocationCard({ data, accountValue, privacyMode }: CapitalAllocationCardProps) {
+  const { formatCurrency } = useFormatters();
   const totalDeployed = data.reduce((sum, d) => sum + d.value, 0);
   const utilization = accountValue > 0 ? (totalDeployed / accountValue) * 100 : 0;
 
@@ -18,7 +20,7 @@ export function CapitalAllocationCard({ data, accountValue, privacyMode }: Capit
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-lg font-semibold text-foreground">Capital Deployed</h3>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-foreground">{privacyMode ? '$***' : rawFormatCurrency(totalDeployed)}</span>
+          <span className="text-sm font-bold text-foreground">{privacyMode ? '$***' : formatCurrency(totalDeployed)}</span>
           <span className={cn('text-xs font-medium px-2 py-1 rounded-lg',
             utilization < 50 ? 'bg-profit/10 text-profit' :
             utilization < 75 ? 'bg-caution/10 text-caution' : 'bg-loss/10 text-loss'
@@ -66,7 +68,7 @@ export function CapitalAllocationCard({ data, accountValue, privacyMode }: Capit
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-muted">{d.name}</div>
                 <div className="flex items-baseline gap-2.5">
-                  <span className="text-xl font-bold text-foreground">{privacyMode ? '$***' : rawFormatCurrency(d.value)}</span>
+                  <span className="text-xl font-bold text-foreground">{privacyMode ? '$***' : formatCurrency(d.value)}</span>
                   <span className="text-sm text-muted">{privacyMode ? '**%' : `${pctOfAccount.toFixed(0)}%`}</span>
                 </div>
               </div>

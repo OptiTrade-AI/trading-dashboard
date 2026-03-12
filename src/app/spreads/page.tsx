@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import { useSpreads } from '@/hooks/useSpreads';
+import { useTradeStats } from '@/hooks/useTradeStats';
 import { SpreadsTable } from '@/components/SpreadsTable';
-import { AddSpreadModal, CloseSpreadModal } from '@/components/SpreadsModal';
+import { AddSpreadModal, EditSpreadModal, CloseSpreadModal } from '@/components/SpreadsModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { RollHistoryModal } from '@/components/RollHistoryModal';
 import { StatCard } from '@/components/StatCard';
@@ -14,20 +15,19 @@ import { useFormatters } from '@/hooks/useFormatters';
 
 export default function SpreadsPage() {
   const { formatCurrency } = useFormatters();
-  const { spreads, openSpreads, closedSpreads, addSpread, closeSpread, deleteSpread, rollSpread, partialCloseSpread, getRollChain, isLoading, error, retry } = useSpreads();
+  const { spreads, openSpreads, closedSpreads, addSpread, editSpread, closeSpread, deleteSpread, rollSpread, partialCloseSpread, getRollChain, isLoading, error, retry } = useSpreads();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editModalTrade, setEditModalTrade] = useState<SpreadTrade | null>(null);
   const [closeModalTrade, setCloseModalTrade] = useState<SpreadTrade | null>(null);
   const [deleteModalTrade, setDeleteModalTrade] = useState<SpreadTrade | null>(null);
   const [rollChainId, setRollChainId] = useState<string | null>(null);
 
-  const stats = useMemo(() => {
-    const totalPL = closedSpreads.reduce((sum, t) => sum + calculateSpreadPL(t), 0);
-    const capitalAtRisk = openSpreads.reduce((sum, t) => sum + t.maxLoss, 0);
-    const winningTrades = closedSpreads.filter((t) => calculateSpreadPL(t) > 0).length;
-    const winRate = closedSpreads.length > 0 ? (winningTrades / closedSpreads.length) * 100 : 0;
+  const coreStats = useTradeStats(openSpreads, closedSpreads, calculateSpreadPL);
 
-    return { totalPL, capitalAtRisk, winRate, winningTrades };
-  }, [openSpreads, closedSpreads]);
+  const stats = useMemo(() => {
+    const capitalAtRisk = openSpreads.reduce((sum, t) => sum + t.maxLoss, 0);
+    return { capitalAtRisk };
+  }, [openSpreads]);
 
   const handleAddSpread = (trade: Omit<SpreadTrade, 'id' | 'dteAtEntry' | 'netDebit' | 'maxProfit' | 'maxLoss' | 'status'>) => {
     addSpread(trade);
@@ -106,9 +106,9 @@ export default function SpreadsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             label="Total P/L"
-            value={formatCurrency(stats.totalPL)}
-            variant={stats.totalPL >= 0 ? 'profit' : 'loss'}
-            subValue={`${closedSpreads.length} closed`}
+            value={formatCurrency(coreStats.totalPL)}
+            variant={coreStats.totalPL >= 0 ? 'profit' : 'loss'}
+            subValue={`${coreStats.closedCount} closed`}
           />
           <StatCard
             label="Capital at Risk"
@@ -122,9 +122,9 @@ export default function SpreadsPage() {
           />
           <StatCard
             label="Win Rate"
-            value={closedSpreads.length > 0 ? `${stats.winRate.toFixed(0)}%` : '-'}
+            value={coreStats.closedCount > 0 ? `${coreStats.winRate.toFixed(0)}%` : '-'}
             variant="accent"
-            subValue={closedSpreads.length > 0 ? `${stats.winningTrades}/${closedSpreads.length}` : 'No closed yet'}
+            subValue={coreStats.closedCount > 0 ? `${coreStats.wins}/${coreStats.closedCount}` : 'No closed yet'}
           />
           <StatCard
             label="Total Trades"
@@ -146,6 +146,7 @@ export default function SpreadsPage() {
           <SpreadsTable
             trades={spreads}
             onClose={(trade) => setCloseModalTrade(trade)}
+            onEdit={(trade) => setEditModalTrade(trade)}
             onDelete={handleDeleteSpread}
             onViewRollChain={(chainId) => setRollChainId(chainId)}
           />
@@ -157,6 +158,12 @@ export default function SpreadsPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddSpread}
+      />
+      <EditSpreadModal
+        isOpen={!!editModalTrade}
+        trade={editModalTrade}
+        onClose={() => setEditModalTrade(null)}
+        onSubmit={editSpread}
       />
       <CloseSpreadModal
         isOpen={!!closeModalTrade}

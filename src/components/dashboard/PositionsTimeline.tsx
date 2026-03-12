@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade } from '@/types';
-import { formatDateShort, formatCurrency as rawFormatCurrency, cn } from '@/lib/utils';
+import { formatDateShort, cn } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
 import { PositionDetailModal } from './PositionDetailModal';
 
@@ -56,7 +56,7 @@ export type OpenPosition = {
 };
 
 export function PositionsTimeline({ positions, onCloseTrade }: { positions: OpenPosition[]; onCloseTrade: (trade: Trade) => void }) {
-  const { privacyMode } = useFormatters();
+  const { formatCurrency, privacyMode } = useFormatters();
   const [selectedPosition, setSelectedPosition] = useState<OpenPosition | null>(null);
   const sorted = [...positions].sort((a, b) => a.dte - b.dte);
 
@@ -158,7 +158,7 @@ export function PositionsTimeline({ positions, onCloseTrade }: { positions: Open
                           ? 'bg-profit/10 text-profit'
                           : 'bg-loss/10 text-loss'
                       )}>
-                        {privacyMode ? '$***' : `${pos.unrealizedPL >= 0 ? '+' : ''}${rawFormatCurrency(pos.unrealizedPL)}`}
+                        {privacyMode ? '$***' : `${pos.unrealizedPL >= 0 ? '+' : ''}${formatCurrency(pos.unrealizedPL)}`}
                       </div>
                     ) : (
                       <div className="text-sm text-muted">{pos.value}</div>
@@ -221,7 +221,7 @@ export function PositionsTimeline({ positions, onCloseTrade }: { positions: Open
                     )}
                     {pos.theta !== null && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-profit/10 text-profit">
-                        {privacyMode ? 'Θ $**' : `Θ${rawFormatCurrency(Math.abs(pos.theta * 100))}`}
+                        {privacyMode ? 'Θ $**' : `Θ${formatCurrency(Math.abs(pos.theta * 100))}`}
                       </span>
                     )}
                     {pos.iv !== null && (

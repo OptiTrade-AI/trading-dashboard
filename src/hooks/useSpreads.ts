@@ -145,6 +145,10 @@ export function useSpreads() {
     return base.partialCloseItem(id, contractsToClose, closeNetCredit, exitDate, exitReason);
   }, [base]);
 
+  const editSpread = useCallback((id: string, updates: Partial<SpreadTrade>) => {
+    base.editItem(id, updates);
+  }, [base]);
+
   return {
     spreads,
     openSpreads,
@@ -153,6 +157,7 @@ export function useSpreads() {
     error: base.error,
     retry: base.retry,
     addSpread,
+    editSpread,
     closeSpread,
     deleteSpread,
     rollSpread,

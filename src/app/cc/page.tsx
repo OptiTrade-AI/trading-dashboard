@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useCoveredCalls, calculateCCPL } from '@/hooks/useCoveredCalls';
+import { useCoveredCalls } from '@/hooks/useCoveredCalls';
+import { useTradeStats } from '@/hooks/useTradeStats';
+import { calculateCCPL } from '@/lib/utils';
 import { CCTable } from '@/components/CCTable';
 import { AddCCModal, EditCCModal, CloseCCModal } from '@/components/CCModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -25,14 +27,12 @@ export default function CoveredCallsPage() {
   const [deleteModalCall, setDeleteModalCall] = useState<CoveredCall | null>(null);
   const [rollChainId, setRollChainId] = useState<string | null>(null);
 
-  const stats = useMemo(() => {
-    const totalPL = closedCalls.reduce((sum, c) => sum + calculateCCPL(c), 0);
-    const totalPremium = calls.reduce((sum, c) => sum + c.premiumCollected, 0);
-    const winningCalls = closedCalls.filter((c) => calculateCCPL(c) > 0).length;
-    const winRate = closedCalls.length > 0 ? (winningCalls / closedCalls.length) * 100 : 0;
-    const calledAway = closedCalls.filter((c) => c.status === 'called').length;
+  const coreStats = useTradeStats(openCalls, closedCalls, calculateCCPL);
 
-    return { totalPL, totalPremium, winRate, winningCalls, calledAway };
+  const stats = useMemo(() => {
+    const totalPremium = calls.reduce((sum, c) => sum + c.premiumCollected, 0);
+    const calledAway = closedCalls.filter((c) => c.status === 'called').length;
+    return { totalPremium, calledAway };
   }, [calls, closedCalls]);
 
   const handleAddCall = (call: Omit<CoveredCall, 'id' | 'dteAtEntry' | 'sharesHeld' | 'status'>) => {
@@ -140,9 +140,9 @@ export default function CoveredCallsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             label="Total P/L"
-            value={formatCurrency(stats.totalPL)}
-            variant={stats.totalPL >= 0 ? 'profit' : 'loss'}
-            subValue={`${closedCalls.length} closed`}
+            value={formatCurrency(coreStats.totalPL)}
+            variant={coreStats.totalPL >= 0 ? 'profit' : 'loss'}
+            subValue={`${coreStats.closedCount} closed`}
           />
           <StatCard
             label="Total Premium"
@@ -157,9 +157,9 @@ export default function CoveredCallsPage() {
           />
           <StatCard
             label="Win Rate"
-            value={closedCalls.length > 0 ? `${stats.winRate.toFixed(0)}%` : '-'}
+            value={coreStats.closedCount > 0 ? `${coreStats.winRate.toFixed(0)}%` : '-'}
             variant="accent"
-            subValue={closedCalls.length > 0 ? `${stats.winningCalls}/${closedCalls.length}` : 'No closed yet'}
+            subValue={coreStats.closedCount > 0 ? `${coreStats.wins}/${coreStats.closedCount}` : 'No closed yet'}
           />
           <StatCard
             label="Called Away"

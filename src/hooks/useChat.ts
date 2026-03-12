@@ -45,6 +45,102 @@ export function useChat() {
     abortControllerRef.current = null;
   }, []);
 
+  // Send a message that's already in the conversation (e.g. from "Discuss in Chat")
+  // without re-adding it as a user message
+  const triggerResponse = useCallback(async (portfolioContext: Record<string, unknown>) => {
+    if (!activeConversation) return;
+    const lastUserMsg = [...activeConversation.messages].reverse().find(m => m.role === 'user');
+    if (!lastUserMsg) return;
+
+    setIsStreaming(true);
+    setError(null);
+    setStreamingContent('');
+    streamingContentRef.current = '';
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: activeConversation.id,
+          message: lastUserMsg.content,
+          portfolioContext,
+          skipUserMessage: true,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Chat failed' }));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+
+        const metaIdx = accumulated.indexOf(METADATA_DELIMITER);
+        const visible = metaIdx !== -1 ? accumulated.slice(0, metaIdx) : accumulated;
+        setStreamingContent(visible);
+        streamingContentRef.current = visible;
+      }
+
+      const metaIdx = accumulated.indexOf(METADATA_DELIMITER);
+      const finalContent = metaIdx !== -1 ? accumulated.slice(0, metaIdx) : accumulated;
+
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: finalContent,
+        createdAt: new Date().toISOString(),
+      };
+
+      setActiveConversation(prev => prev ? {
+        ...prev,
+        messages: [...prev.messages, assistantMsg],
+        updatedAt: new Date().toISOString(),
+      } : prev);
+
+      setStreamingContent('');
+      streamingContentRef.current = '';
+      await fetchConversations();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        const partialContent = streamingContentRef.current;
+        if (partialContent) {
+          const assistantMsg: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: partialContent,
+            createdAt: new Date().toISOString(),
+          };
+          setActiveConversation(prev => prev ? {
+            ...prev,
+            messages: [...prev.messages, assistantMsg],
+            updatedAt: new Date().toISOString(),
+          } : prev);
+        }
+        setStreamingContent('');
+        streamingContentRef.current = '';
+      } else {
+        setError(err instanceof Error ? err.message : 'Chat failed');
+      }
+    } finally {
+      setIsStreaming(false);
+      abortControllerRef.current = null;
+    }
+  }, [activeConversation, fetchConversations]);
+
   const sendMessage = useCallback(async (message: string, portfolioContext: Record<string, unknown>) => {
     setIsStreaming(true);
     setError(null);
@@ -240,6 +336,7 @@ export function useChat() {
     isLoading,
     error,
     sendMessage,
+    triggerResponse,
     stopStreaming,
     startNewConversation,
     selectConversation,

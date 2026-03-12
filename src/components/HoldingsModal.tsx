@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { StockHolding, ALL_TICKERS } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { format } from 'date-fns';
 
 interface HoldingsModalProps {
@@ -14,6 +14,7 @@ interface HoldingsModalProps {
 }
 
 export function HoldingsModal({ isOpen, onClose, onSubmit, editHolding, onUpdate }: HoldingsModalProps) {
+  const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [shares, setShares] = useState('');
   const [costBasisPerShare, setCostBasisPerShare] = useState('');

@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { getConversationsCollection, getCspTradesCollection, getCoveredCallsCollection, getDirectionalTradesCollection, getSpreadsCollection, getAccountSettingsCollection, getStockEventsCollection, getHoldingsCollection } from '@/lib/collections';
-import { calculatePL, calculateDirectionalPL, calculateSpreadPL, calculateDTE } from '@/lib/utils';
-import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, ChatMessage } from '@/types';
-import { differenceInDays, parseISO, subMonths } from 'date-fns';
+import { calculatePL, calculateCCPL, calculateDirectionalPL, calculateSpreadPL, calculateDTE } from '@/lib/utils';
+import { computeClosedStats } from '@/lib/ai-data';
+import { ChatMessage } from '@/types';
+import { parseISO, subMonths } from 'date-fns';
 import { trackAICall } from '@/lib/ai';
-
-function calculateCCPL(call: CoveredCall): number {
-  if (call.status === 'open') return 0;
-  return call.premiumCollected - (call.exitPrice ?? 0);
-}
 
 // Build portfolio context from server-side data + client-provided live data
 function buildSystemPrompt(portfolioContext: Record<string, unknown>): string {
@@ -129,62 +125,6 @@ Total Capital at Risk: $${Number(ctx.totalCapitalAtRisk || 0).toLocaleString()}`
   return prompt;
 }
 
-// Compute closed trade stats for context (reused from analysis route)
-interface TradeStats {
-  totalTrades: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  totalPL: number;
-  avgPL: number;
-  avgDaysHeld: number;
-  avgDTEAtEntry: number;
-  exitReasons: Record<string, number>;
-  topTickers: { ticker: string; count: number; pl: number }[];
-}
-
-function computeClosedStats<T extends { ticker: string; dteAtEntry: number; entryDate: string; exitDate?: string }>(
-  trades: T[],
-  plFn: (t: T) => number,
-  exitReasonFn: (t: T) => string | undefined,
-): TradeStats {
-  if (trades.length === 0) {
-    return { totalTrades: 0, wins: 0, losses: 0, winRate: 0, totalPL: 0, avgPL: 0, avgDaysHeld: 0, avgDTEAtEntry: 0, exitReasons: {}, topTickers: [] };
-  }
-  const pls = trades.map(t => ({ ticker: t.ticker, pl: plFn(t) }));
-  const wins = pls.filter(p => p.pl > 0).length;
-  const totalPL = pls.reduce((s, p) => s + p.pl, 0);
-  const exitReasons: Record<string, number> = {};
-  for (const t of trades) {
-    const reason = exitReasonFn(t) || 'unknown';
-    exitReasons[reason] = (exitReasons[reason] || 0) + 1;
-  }
-  const tickerMap = new Map<string, { count: number; pl: number }>();
-  for (const p of pls) {
-    const e = tickerMap.get(p.ticker) || { count: 0, pl: 0 };
-    e.count++; e.pl += p.pl;
-    tickerMap.set(p.ticker, e);
-  }
-  const topTickers = Array.from(tickerMap.entries()).map(([ticker, s]) => ({ ticker, ...s })).sort((a, b) => b.count - a.count).slice(0, 10);
-  const daysHeld = trades.map(t => {
-    const entry = parseISO(t.entryDate);
-    const exit = t.exitDate ? parseISO(t.exitDate) : new Date();
-    return Math.max(1, differenceInDays(exit, entry));
-  });
-  return {
-    totalTrades: trades.length,
-    wins,
-    losses: trades.length - wins,
-    winRate: (wins / trades.length) * 100,
-    totalPL,
-    avgPL: totalPL / trades.length,
-    avgDaysHeld: daysHeld.reduce((s, d) => s + d, 0) / daysHeld.length,
-    avgDTEAtEntry: trades.reduce((s, t) => s + t.dteAtEntry, 0) / trades.length,
-    exitReasons,
-    topTickers,
-  };
-}
-
 export async function GET() {
   const available = !!process.env.ANTHROPIC_API_KEY;
   const col = await getConversationsCollection();
@@ -199,10 +139,11 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { conversationId, message, portfolioContext } = body as {
+  const { conversationId, message, portfolioContext, skipUserMessage } = body as {
     conversationId?: string;
     message: string;
     portfolioContext: Record<string, unknown>;
+    skipUserMessage?: boolean;
   };
 
   if (!message?.trim()) {
@@ -305,17 +246,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Build messages array for Claude
-  const userMsg: ChatMessage = {
+  const userMsg: ChatMessage | null = skipUserMessage ? null : {
     id: crypto.randomUUID(),
     role: 'user',
     content: message,
     createdAt: new Date().toISOString(),
   };
 
-  const claudeMessages = [
-    ...existingMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    { role: 'user' as const, content: message },
-  ];
+  const claudeMessages = skipUserMessage
+    ? existingMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    : [
+        ...existingMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        { role: 'user' as const, content: message },
+      ];
 
   const systemPrompt = buildSystemPrompt(portfolioContext);
   const client = new Anthropic({ apiKey });
@@ -358,7 +301,9 @@ export async function POST(request: NextRequest) {
           createdAt: new Date().toISOString(),
         };
 
-        const allMessages = [...existingMessages, userMsg, assistantMsg];
+        const allMessages = userMsg
+          ? [...existingMessages, userMsg, assistantMsg]
+          : [...existingMessages, assistantMsg];
         const title = existingMessages.length === 0
           ? message.slice(0, 60) + (message.length > 60 ? '...' : '')
           : undefined;
@@ -388,7 +333,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Send metadata
-        controller.enqueue(encoder.encode(`\n---METADATA---\n${JSON.stringify({ conversationId: convId, userMsgId: userMsg.id, assistantMsgId })}`));
+        controller.enqueue(encoder.encode(`\n---METADATA---\n${JSON.stringify({ conversationId: convId, userMsgId: userMsg?.id, assistantMsgId })}`));
         controller.close();
       } catch (err) {
         controller.error(err);

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { Collection, Filter } from 'mongodb';
+import { Collection, Filter, OptionalUnlessRequiredId } from 'mongodb';
 
 export function createTradeHandlers<T extends { id: string }>(
   getCollection: () => Promise<Collection<T>>,
-  entityName: string
+  entityName: string,
+  requiredFields?: string[],
 ) {
   async function GET() {
     try {
@@ -18,9 +19,33 @@ export function createTradeHandlers<T extends { id: string }>(
 
   async function POST(request: Request) {
     try {
-      const item = await request.json();
+      let item: Record<string, unknown>;
+      try {
+        item = await request.json();
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Invalid JSON in request body' },
+          { status: 400 },
+        );
+      }
+
+      if (requiredFields && requiredFields.length > 0) {
+        const missing = requiredFields.filter(
+          (field) => item[field] === undefined || item[field] === null,
+        );
+        if (missing.length > 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Missing required fields: ${missing.join(', ')}`,
+            },
+            { status: 400 },
+          );
+        }
+      }
+
       const col = await getCollection();
-      await col.insertOne(item);
+      await col.insertOne(item as OptionalUnlessRequiredId<T>);
       return NextResponse.json({ success: true });
     } catch (error) {
       console.error(`Error adding ${entityName}:`, error);

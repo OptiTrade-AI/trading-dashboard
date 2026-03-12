@@ -2,13 +2,7 @@ import { NextResponse } from 'next/server';
 import { aiCall } from '@/lib/ai';
 import { gatherPortfolioData } from '@/lib/ai-data';
 import { getPatternAnalysesCollection } from '@/lib/collections';
-import { calculatePL, calculateDirectionalPL, calculateSpreadPL, calculateDaysHeld } from '@/lib/utils';
-import type { CoveredCall } from '@/types';
-
-function calculateCCPL(call: CoveredCall): number {
-  if (call.status === 'open') return 0;
-  return call.premiumCollected - (call.exitPrice ?? 0);
-}
+import { calculatePL, calculateCCPL, calculateDirectionalPL, calculateSpreadPL, calculateDaysHeld } from '@/lib/utils';
 
 export async function GET() {
   const col = await getPatternAnalysesCollection();

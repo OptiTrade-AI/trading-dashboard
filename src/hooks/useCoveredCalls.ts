@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { CoveredCall } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { calculateDTEFromEntry } from '@/lib/utils';
+import { calculateDTEFromEntry, calculateCCPL, calculateCCPLPercent } from '@/lib/utils';
 import { createTradeHook } from './useTradeData';
 
 const useCCBase = createTradeHook<CoveredCall>({
@@ -98,15 +98,5 @@ export function useCoveredCalls() {
   };
 }
 
-// Calculate P/L for a covered call
-export function calculateCCPL(call: CoveredCall): number {
-  if (call.status === 'open') return 0;
-  return call.premiumCollected - (call.exitPrice ?? 0);
-}
-
-// Calculate P/L percent based on cost basis
-export function calculateCCPLPercent(call: CoveredCall): number {
-  const pl = calculateCCPL(call);
-  if (call.costBasis === 0) return 0;
-  return (pl / call.costBasis) * 100;
-}
+// Re-export from utils for backwards compatibility
+export { calculateCCPL, calculateCCPLPercent } from '@/lib/utils';

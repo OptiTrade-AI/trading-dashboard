@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, Suspense } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { cn, calculatePL, calculateDTE, calculateDirectionalPL, calculateSpreadPL } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
@@ -42,8 +42,11 @@ function AnalysisPage() {
   const {
     conversations, activeConversation, streamingContent, isStreaming,
     isAvailable, isLoading: isChatLoading, error,
-    sendMessage, stopStreaming, startNewConversation, selectConversation, deleteConversation,
+    sendMessage, triggerResponse, stopStreaming, startNewConversation, selectConversation, deleteConversation,
   } = useChat();
+
+  // Track whether we've already triggered auto-response for this URL conversation
+  const autoTriggeredRef = useRef<string | null>(null);
 
   // Select conversation from URL query param (used by "Discuss in Chat" links)
   useEffect(() => {
@@ -209,6 +212,23 @@ function AnalysisPage() {
     closedDirectional, closedSpreads, optionQuotes, pressurePositions, holdings,
     holdingPrices, stockEvents, stockPrices, accountSettings, heat, totalCollateral, marketLabel,
   ]);
+
+  // Auto-trigger AI response for "Discuss in Chat" conversations that have no assistant reply yet
+  useEffect(() => {
+    const convId = searchParams.get('conversation');
+    if (
+      convId &&
+      activeConversation?.id === convId &&
+      !isStreaming &&
+      autoTriggeredRef.current !== convId
+    ) {
+      const hasAssistantReply = activeConversation.messages.some(m => m.role === 'assistant');
+      if (!hasAssistantReply && activeConversation.messages.some(m => m.role === 'user')) {
+        autoTriggeredRef.current = convId;
+        triggerResponse(portfolioContext);
+      }
+    }
+  }, [activeConversation, searchParams, isStreaming, triggerResponse, portfolioContext]);
 
   // Smart starter prompts
   const starterPrompts = useMemo(() => {

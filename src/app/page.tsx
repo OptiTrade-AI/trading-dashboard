@@ -1,19 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useTrades } from '@/hooks/useTrades';
-import { useCoveredCalls, calculateCCPL } from '@/hooks/useCoveredCalls';
-import { useDirectionalTrades } from '@/hooks/useDirectionalTrades';
-import { useSpreads } from '@/hooks/useSpreads';
-import { useStockEvents } from '@/hooks/useStockEvents';
-import { useOptionQuotes } from '@/hooks/useOptionQuotes';
-import { useMarketStatus } from '@/hooks/useMarketStatus';
-import { useTickerDetails } from '@/hooks/useTickerDetails';
-import { useHoldings } from '@/hooks/useHoldings';
 import { PressureCard } from '@/components/PressureCard';
 import { CloseTradeModal } from '@/components/TradeModal';
-import { SkeletonDashboard } from '@/components/SkeletonLoader';
+import { SkeletonDashboard, ErrorState } from '@/components/SkeletonLoader';
 import { PositionsTimeline } from '@/components/dashboard/PositionsTimeline';
 import { CapitalAllocationCard } from '@/components/dashboard/CapitalAllocationCard';
 import { PortfolioGreeksCard } from '@/components/dashboard/PortfolioGreeksCard';
@@ -30,78 +21,72 @@ import { AddCCModal } from '@/components/CCModal';
 import { AddDirectionalModal } from '@/components/DirectionalModal';
 import { AddSpreadModal } from '@/components/SpreadsModal';
 import { CommandPalette } from '@/components/CommandPalette';
-import { useStockPrices } from '@/hooks/useStockPrices';
 import { ImportModal } from '@/components/ImportModal';
-import { Trade, ExitReason, SPREAD_TYPE_LABELS } from '@/types';
+import { Trade, ExitReason } from '@/types';
 import {
   formatCurrency as rawFormatCurrency,
   formatDateShort,
-  calculatePL,
-  calculateDTE,
-  calculateDirectionalPL,
-  calculateSpreadPL,
-  calculateReturnOnCollateral,
   cn,
 } from '@/lib/utils';
-import { useFormatters } from '@/hooks/useFormatters';
+import { usePortfolioPositions } from '@/hooks/usePortfolioPositions';
 
 export default function Dashboard() {
   const {
-    trades: allCSPTrades,
-    openTrades,
-    closedTrades,
-    accountSettings,
-    totalCollateral,
+    // Aggregated data
+    allOpenPositions,
+    recentActivity,
+    allocationData,
+    strategies,
+    unrealizedByStrategy,
+
+    // P/L summaries
+    optionsPL,
+    totalPL,
+    totalStockPL,
+    totalUnrealizedPL,
+    hasUnrealizedData,
+    totalDailyPL,
+    holdingsDailyPL,
+    optionsDailyPL,
+    totalClosedCount,
+    totalWinning,
+    overallWinRate,
+
+    // Capital
     heat,
+    accountSettings,
+
+    // Market data
+    greeksFetchedAt,
+    tickerNames,
+    stockPrices,
+
+    // Loading / error
+    isLoading,
+    firstError,
+    retryAll,
+
+    // Formatters
+    formatCurrency,
+    privacyMode,
+
+    // Raw collections
+    allCSPTrades,
+    openCalls,
+    allCCTrades,
+    allDirectional,
+    allSpreads,
+    stockEvents,
+    holdings,
+
+    // Mutation functions
     addTrade,
     closeTrade,
     rollTrade,
-    isLoading: tradesLoading,
-  } = useTrades();
-
-  const { openCalls, closedCalls, calls: allCCTrades, addCall, isLoading: ccLoading } = useCoveredCalls();
-
-  const {
-    openTrades: openDirectional,
-    closedTrades: closedDirectional,
-    trades: allDirectional,
-    addTrade: addDirectional,
-    isLoading: dirLoading,
-  } = useDirectionalTrades();
-
-  const {
-    openSpreads,
-    closedSpreads,
-    spreads: allSpreads,
+    addCall,
+    addDirectional,
     addSpread,
-    isLoading: spreadsLoading,
-  } = useSpreads();
-
-  const {
-    stockEvents,
-    totalStockPL,
-    isLoading: stockLoading,
-  } = useStockEvents();
-
-  const { holdings, isLoading: holdingsLoading } = useHoldings();
-
-  const { positions: optionPositions, fetchedAt: greeksFetchedAt } = useOptionQuotes();
-  useMarketStatus(); // triggers SWR caching for child components
-
-  // Collect all unique tickers for company name lookup + stock prices
-  const allTickers = useMemo(() => {
-    const set = new Set<string>();
-    openTrades.forEach(t => set.add(t.ticker));
-    openCalls.forEach(c => set.add(c.ticker));
-    openDirectional.forEach(t => set.add(t.ticker));
-    openSpreads.forEach(s => set.add(s.ticker));
-    holdings.forEach(h => set.add(h.ticker.toUpperCase()));
-    return Array.from(set);
-  }, [openTrades, openCalls, openDirectional, openSpreads, holdings]);
-  const { nameMap: tickerNames } = useTickerDetails(allTickers);
-  const { prices: stockPrices } = useStockPrices(allTickers);
-
-  const isLoading = tradesLoading || ccLoading || dirLoading || spreadsLoading || stockLoading || holdingsLoading;
+  } = usePortfolioPositions();
 
   const [closeModalTrade, setCloseModalTrade] = useState<Trade | null>(null);
   const [quickAddType, setQuickAddType] = useState<'csp' | 'cc' | 'directional' | 'spread' | null>(null);
@@ -121,266 +106,6 @@ export default function Dashboard() {
     }
   };
 
-  const { formatCurrency, privacyMode } = useFormatters();
-
-  if (isLoading) {
-    return <SkeletonDashboard />;
-  }
-
-  // P/L calculations
-  const cspPL = closedTrades.reduce((sum, t) => sum + calculatePL(t), 0);
-  const ccPL = closedCalls.reduce((sum, c) => sum + calculateCCPL(c), 0);
-  const directionalPL = closedDirectional.reduce((sum, t) => sum + calculateDirectionalPL(t), 0);
-  const spreadsPL = closedSpreads.reduce((sum, t) => sum + calculateSpreadPL(t), 0);
-  const optionsPL = cspPL + ccPL + directionalPL + spreadsPL;
-  const totalPL = optionsPL + totalStockPL;
-
-  const allClosed = [...closedTrades.map(t => ({ ...t, _type: 'csp' as const })),
-    ...closedCalls.map(c => ({ ...c, _type: 'cc' as const })),
-    ...closedDirectional.map(t => ({ ...t, _type: 'dir' as const })),
-    ...closedSpreads.map(t => ({ ...t, _type: 'spread' as const }))];
-  const totalClosedCount = allClosed.length;
-  const totalWinning = closedTrades.filter(t => calculatePL(t) > 0).length
-    + closedCalls.filter(c => calculateCCPL(c) > 0).length
-    + closedDirectional.filter(t => calculateDirectionalPL(t) > 0).length
-    + closedSpreads.filter(t => calculateSpreadPL(t) > 0).length;
-  const overallWinRate = totalClosedCount > 0 ? (totalWinning / totalClosedCount) * 100 : 0;
-
-  const directionalCapitalDeployed = openDirectional.reduce((sum, t) => sum + t.costAtOpen, 0);
-  const spreadsCapitalAtRisk = openSpreads.reduce((sum, t) => sum + t.maxLoss, 0);
-
-  // Capital allocation data
-  const allocationData = [
-    { name: 'CSP Collateral', value: totalCollateral, color: '#10b981' },
-    { name: 'CC Shares', value: openCalls.reduce((sum, c) => sum + c.costBasis, 0), color: '#3b82f6' },
-    { name: 'Directional', value: directionalCapitalDeployed, color: '#f59e0b' },
-    { name: 'Spreads', value: spreadsCapitalAtRisk, color: '#a855f7' },
-  ].filter((d) => d.value > 0);
-
-  // Unified open positions
-  const allOpenPositions = [
-    ...openTrades.map((t) => {
-      const oq = optionPositions.get(t.id);
-      return {
-        id: t.id,
-        ticker: t.ticker,
-        type: 'csp' as const,
-        label: `$${t.strike}P`,
-        badge: 'CSP',
-        badgeColor: 'bg-emerald-500/10 text-emerald-400',
-        dte: calculateDTE(t.expiration),
-        expiration: t.expiration,
-        contracts: t.contracts,
-        detail: `x${t.contracts}`,
-        value: formatCurrency(t.premiumCollected),
-        valueLabel: 'premium',
-        subDetail: privacyMode ? '**% ROC' : `${calculateReturnOnCollateral(t).toFixed(1)}% ROC`,
-        canClose: true,
-        trade: t,
-        rawTrade: t,
-        unrealizedPL: oq?.unrealizedPL ?? null,
-        dailyPL: oq?.dailyPL ?? null,
-        maxPremium: t.premiumCollected,
-        delta: oq?.delta ?? null,
-        gamma: oq?.gamma ?? null,
-        theta: oq?.theta ?? null,
-        vega: oq?.vega ?? null,
-        iv: oq?.iv ?? null,
-        companyName: tickerNames.get(t.ticker) ?? null,
-        stockPrice: stockPrices.get(t.ticker)?.price ?? null,
-      };
-    }),
-    ...openCalls.map((c) => {
-      const oq = optionPositions.get(c.id);
-      return {
-        id: c.id,
-        ticker: c.ticker,
-        type: 'cc' as const,
-        label: `$${c.strike}C`,
-        badge: 'CC',
-        badgeColor: 'bg-blue-500/10 text-blue-400',
-        dte: calculateDTE(c.expiration),
-        expiration: c.expiration,
-        contracts: c.contracts,
-        detail: `x${c.contracts}`,
-        value: formatCurrency(c.premiumCollected),
-        valueLabel: 'premium',
-        subDetail: privacyMode ? '*** shares' : `${c.sharesHeld} shares`,
-        canClose: false,
-        trade: null,
-        rawTrade: c,
-        unrealizedPL: oq?.unrealizedPL ?? null,
-        dailyPL: oq?.dailyPL ?? null,
-        maxPremium: c.premiumCollected,
-        delta: oq?.delta ?? null,
-        gamma: oq?.gamma ?? null,
-        theta: oq?.theta ?? null,
-        vega: oq?.vega ?? null,
-        iv: oq?.iv ?? null,
-        companyName: tickerNames.get(c.ticker) ?? null,
-        stockPrice: stockPrices.get(c.ticker)?.price ?? null,
-      };
-    }),
-    ...openDirectional.map((t) => {
-      const oq = optionPositions.get(t.id);
-      return {
-        id: t.id,
-        ticker: t.ticker,
-        type: 'directional' as const,
-        label: `$${t.strike}${t.optionType === 'call' ? 'C' : 'P'}`,
-        badge: t.optionType === 'call' ? 'CALL' : 'PUT',
-        badgeColor: t.optionType === 'call' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400',
-        dte: calculateDTE(t.expiration),
-        expiration: t.expiration,
-        contracts: t.contracts,
-        detail: `x${t.contracts}`,
-        value: formatCurrency(t.costAtOpen),
-        valueLabel: 'cost',
-        subDetail: '',
-        canClose: false,
-        trade: null,
-        rawTrade: t,
-        unrealizedPL: oq?.unrealizedPL ?? null,
-        dailyPL: oq?.dailyPL ?? null,
-        maxPremium: t.costAtOpen,
-        delta: oq?.delta ?? null,
-        gamma: oq?.gamma ?? null,
-        theta: oq?.theta ?? null,
-        vega: oq?.vega ?? null,
-        iv: oq?.iv ?? null,
-        companyName: tickerNames.get(t.ticker) ?? null,
-        stockPrice: stockPrices.get(t.ticker)?.price ?? null,
-      };
-    }),
-    ...openSpreads.map((t) => {
-      const oq = optionPositions.get(t.id);
-      return {
-        id: t.id,
-        ticker: t.ticker,
-        type: 'spread' as const,
-        label: `$${t.longStrike}/$${t.shortStrike}`,
-        badge: SPREAD_TYPE_LABELS[t.spreadType],
-        badgeColor: 'bg-purple-500/10 text-purple-400',
-        dte: calculateDTE(t.expiration),
-        expiration: t.expiration,
-        contracts: t.contracts,
-        detail: `x${t.contracts}`,
-        value: privacyMode ? '$***' : (t.netDebit < 0 ? `CR ${rawFormatCurrency(Math.abs(t.netDebit))}` : rawFormatCurrency(t.netDebit)),
-        valueLabel: t.netDebit < 0 ? 'credit' : 'debit',
-        subDetail: privacyMode ? 'Max loss: $***' : `Max loss: ${formatCurrency(t.maxLoss)}`,
-        canClose: false,
-        trade: null,
-        rawTrade: t,
-        unrealizedPL: oq?.unrealizedPL ?? null,
-        dailyPL: oq?.dailyPL ?? null,
-        maxPremium: t.netDebit < 0 ? Math.abs(t.netDebit) : t.maxProfit,
-        delta: oq?.delta ?? null,
-        gamma: oq?.gamma ?? null,
-        theta: oq?.theta ?? null,
-        vega: oq?.vega ?? null,
-        iv: oq?.iv ?? null,
-        companyName: tickerNames.get(t.ticker) ?? null,
-        stockPrice: stockPrices.get(t.ticker)?.price ?? null,
-      };
-    }),
-  ].sort((a, b) => a.dte - b.dte);
-
-  // Total unrealized P/L across all open positions
-  const totalUnrealizedPL = allOpenPositions.reduce(
-    (sum, p) => sum + (p.unrealizedPL ?? 0), 0
-  );
-  const hasUnrealizedData = allOpenPositions.some(p => p.unrealizedPL !== null);
-
-  // Unrealized breakdown by strategy
-  const unrealizedByStrategy = {
-    csp: { unrealized: 0, premiumCollected: 0, count: 0 },
-    cc: { unrealized: 0, premiumCollected: 0, count: 0 },
-    directional: { unrealized: 0, cost: 0, count: 0 },
-    spread: { unrealized: 0, netDebit: 0, count: 0 },
-  };
-  for (const p of allOpenPositions) {
-    if (p.unrealizedPL == null) continue;
-    const s = unrealizedByStrategy[p.type];
-    s.unrealized += p.unrealizedPL;
-    s.count += 1;
-  }
-  for (const t of openTrades) unrealizedByStrategy.csp.premiumCollected += t.premiumCollected;
-  for (const c of openCalls) unrealizedByStrategy.cc.premiumCollected += c.premiumCollected;
-  for (const t of openDirectional) unrealizedByStrategy.directional.cost += t.costAtOpen;
-  for (const s of openSpreads) unrealizedByStrategy.spread.netDebit += s.netDebit;
-
-  // Daily P/L from holdings price changes
-  const holdingsDailyPL = holdings.reduce((sum, h) => {
-    const sp = stockPrices.get(h.ticker.toUpperCase());
-    return sum + (sp ? h.shares * sp.change : 0);
-  }, 0);
-
-  // Daily P/L from options positions (session change from Polygon)
-  const optionsDailyPL = allOpenPositions.reduce(
-    (sum, p) => sum + (p.dailyPL ?? 0), 0
-  );
-  const totalDailyPL = holdingsDailyPL + optionsDailyPL;
-
-  // Recent activity — all trade types
-  const recentActivity = [
-    ...closedTrades.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      detail: `$${t.strike}P x${t.contracts}`,
-      exitDate: t.exitDate || '',
-      pl: calculatePL(t),
-      type: 'csp' as const,
-      reason: t.exitReason || '',
-    })),
-    ...closedCalls.map((c) => ({
-      id: c.id,
-      ticker: c.ticker,
-      detail: `$${c.strike}C x${c.contracts}`,
-      exitDate: c.exitDate || '',
-      pl: calculateCCPL(c),
-      type: 'cc' as const,
-      reason: c.status || '',
-    })),
-    ...closedDirectional.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      detail: `$${t.strike}${t.optionType === 'call' ? 'C' : 'P'} x${t.contracts}`,
-      exitDate: t.exitDate || '',
-      pl: calculateDirectionalPL(t),
-      type: 'directional' as const,
-      reason: '',
-    })),
-    ...closedSpreads.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      detail: `$${t.longStrike}/$${t.shortStrike} x${t.contracts}`,
-      exitDate: t.exitDate || '',
-      pl: calculateSpreadPL(t),
-      type: 'spread' as const,
-      reason: '',
-    })),
-    ...stockEvents.map((e) => ({
-      id: e.id,
-      ticker: e.ticker,
-      detail: privacyMode ? `*** shares @ $***` : `${e.shares} shares @ $${e.salePrice.toFixed(2)}`,
-      exitDate: e.saleDate,
-      pl: e.realizedPL,
-      type: 'stock' as const,
-      reason: e.isTaxLossHarvest ? 'TLH' : '',
-    })),
-  ]
-    .sort((a, b) => b.exitDate.localeCompare(a.exitDate))
-    .slice(0, 8);
-
-  // Strategy pulse data
-  const strategies = [
-    { key: 'csp', label: 'CSPs', icon: 'P', color: 'emerald', pl: cspPL, open: openTrades.length, closed: closedTrades.length },
-    { key: 'cc', label: 'Covered Calls', icon: 'C', color: 'blue', pl: ccPL, open: openCalls.length, closed: closedCalls.length },
-    ...(allDirectional.length > 0 ? [{ key: 'dir', label: 'Directional', icon: 'D', color: 'amber', pl: directionalPL, open: openDirectional.length, closed: closedDirectional.length }] : []),
-    ...(allSpreads.length > 0 ? [{ key: 'spread', label: 'Spreads', icon: 'S', color: 'purple', pl: spreadsPL, open: openSpreads.length, closed: closedSpreads.length }] : []),
-    ...(stockEvents.length > 0 ? [{ key: 'stock', label: 'Stock / TLH', icon: '$', color: 'pink', pl: totalStockPL, open: 0, closed: stockEvents.length }] : []),
-  ];
-
   const colorMap: Record<string, { bg: string; text: string; iconBg: string }> = {
     emerald: { bg: 'bg-emerald-500/5', text: 'text-emerald-400', iconBg: 'bg-emerald-500/10' },
     blue: { bg: 'bg-blue-500/5', text: 'text-blue-400', iconBg: 'bg-blue-500/10' },
@@ -388,6 +113,14 @@ export default function Dashboard() {
     purple: { bg: 'bg-purple-500/5', text: 'text-purple-400', iconBg: 'bg-purple-500/10' },
     pink: { bg: 'bg-pink-500/5', text: 'text-pink-400', iconBg: 'bg-pink-500/10' },
   };
+
+  if (isLoading) {
+    return <SkeletonDashboard />;
+  }
+
+  if (firstError) {
+    return <ErrorState message={firstError} onRetry={retryAll} />;
+  }
 
   return (
     <div className="space-y-6">

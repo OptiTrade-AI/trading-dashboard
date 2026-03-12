@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CoveredCall, ALL_TICKERS, CC_EXIT_REASONS, CCExitReason } from '@/types';
-import { calculateDTEFromEntry, formatCurrency } from '@/lib/utils';
+import { CoveredCall, CC_EXIT_REASONS, CCExitReason } from '@/types';
+import { calculateDTEFromEntry } from '@/lib/utils';
+import { useFormatters } from '@/hooks/useFormatters';
 import { format } from 'date-fns';
 import { AITradeCheck } from './AITradeCheck';
 import { AIRollAdvisor } from './AIRollAdvisor';
+import { TickerAutocomplete } from './shared/TickerAutocomplete';
 import type { RollRecommendation } from '@/types';
 
 interface AddCCModalProps {
@@ -16,6 +18,7 @@ interface AddCCModalProps {
 }
 
 export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCModalProps) {
+  const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [strike, setStrike] = useState('');
   const [contracts, setContracts] = useState('1');
@@ -23,19 +26,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
   const [premium, setPremium] = useState('');
   const [costBasis, setCostBasis] = useState('');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [showTickerList, setShowTickerList] = useState(false);
-  const [filteredTickers, setFilteredTickers] = useState(ALL_TICKERS);
   const [autoFilled, setAutoFilled] = useState(false);
-
-  useEffect(() => {
-    if (ticker) {
-      setFilteredTickers(
-        ALL_TICKERS.filter(t => t.toLowerCase().includes(ticker.toLowerCase()))
-      );
-    } else {
-      setFilteredTickers(ALL_TICKERS);
-    }
-  }, [ticker]);
 
   // Auto-fill cost basis from holdings
   useEffect(() => {
@@ -108,39 +99,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
-          <div className="relative">
-            <label className="stat-label mb-2 block">Ticker</label>
-            <input
-              type="text"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value)}
-              onFocus={() => setShowTickerList(true)}
-              onBlur={() => setTimeout(() => setShowTickerList(false), 200)}
-              className="input-field"
-              placeholder="AAPL"
-              required
-            />
-            {showTickerList && filteredTickers.length > 0 && (
-              <div className="absolute top-full left-0 right-0 glass-card mt-2 overflow-hidden z-10 max-h-48 overflow-y-auto">
-                {filteredTickers.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      setTicker(t);
-                      setShowTickerList(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-foreground hover:bg-accent/10 transition-colors flex items-center gap-3"
-                  >
-                    <span className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent text-xs font-bold">
-                      {t.slice(0, 2)}
-                    </span>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <TickerAutocomplete value={ticker} onChange={setTicker} />
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -274,6 +233,7 @@ interface EditCCModalProps {
 }
 
 export function EditCCModal({ isOpen, call, onClose, onSubmit }: EditCCModalProps) {
+  const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [strike, setStrike] = useState('');
   const [contracts, setContracts] = useState('');
@@ -466,6 +426,7 @@ interface CloseCCModalProps {
 type CloseMode = 'close' | 'partial' | 'roll' | 'called';
 
 export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartialClose }: CloseCCModalProps) {
+  const { formatCurrency } = useFormatters();
   const [mode, setMode] = useState<CloseMode>('close');
   const [exitPrice, setExitPrice] = useState('');
   const [exitDate, setExitDate] = useState(format(new Date(), 'yyyy-MM-dd'));

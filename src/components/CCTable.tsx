@@ -2,9 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { CoveredCall } from '@/types';
-import { formatDateShort, calculateDaysHeld, cn } from '@/lib/utils';
+import { formatDateShort, calculateDaysHeld, cn, calculateCCPL, calculateCCPLPercent } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
-import { calculateCCPL, calculateCCPLPercent } from '@/hooks/useCoveredCalls';
 
 type SortKey = keyof CoveredCall | 'pl' | 'plPercent' | 'daysHeld';
 type SortDirection = 'asc' | 'desc';
