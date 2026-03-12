@@ -109,9 +109,10 @@ src/
 │   ├── analysis/                   # AI Trading Coach (chat)
 │   └── api/                        # REST API routes
 ├── components/                     # UI components
+│   └── shared/                    # Reusable components (TickerAutocomplete)
 ├── contexts/                       # React context providers
-├── hooks/                          # SWR data fetching hooks
-├── lib/                            # MongoDB, utilities, calculations
+├── hooks/                          # SWR data fetching + utility hooks
+├── lib/                            # MongoDB, utilities, calculations, strategy colors
 └── types/                          # TypeScript interfaces
 ```
 

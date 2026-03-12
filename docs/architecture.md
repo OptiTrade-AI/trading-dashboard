@@ -11,7 +11,7 @@ graph TB
     subgraph Client["Browser (React)"]
         Pages["Pages<br/>Dashboard · Logs · Analytics · AI Chat"]
         Components["Components<br/>Modals · Cards · Charts"]
-        Hooks["SWR Hooks<br/>useTrades · useOptionQuotes · useSmartAlerts"]
+        Hooks["SWR Hooks<br/>useTrades · useOptionQuotes · useSmartAlerts<br/>usePortfolioPositions · useAnalyticsData"]
         Contexts["Contexts<br/>Privacy · Toast"]
     end
 
@@ -143,6 +143,7 @@ graph LR
         Privacy["Privacy Provider"]
         CmdK["Command Palette"]
         FAB["Quick-Add FAB"]
+        Ticker["TickerAutocomplete"]
     end
 
     D --- Nav
@@ -357,6 +358,7 @@ graph LR
 ```mermaid
 graph TD
     Page["page.tsx (Dashboard)"]
+    Page --> Portfolio["usePortfolioPositions<br/>(master data hook)"]
 
     Page --> Nav["Navigation + AICostIndicator"]
     Page --> Alert["ExpirationAlertBanner"]
