@@ -1,8 +1,8 @@
 # OptiTrade Dashboard
 
-A professional-grade options trading journal built with **Next.js 14**, **MongoDB**, and **Tailwind CSS**. Track cash-secured puts, covered calls, directional trades, vertical spreads, and stock holdings — all in one sleek, dark-themed dashboard with deep analytics.
+A professional-grade options trading journal built with **Next.js 16**, **MongoDB**, **Tailwind CSS**, and **Claude AI**. Track cash-secured puts, covered calls, directional trades, vertical spreads, and stock holdings — all in one sleek, dark-themed dashboard with deep analytics and 9 embedded AI features.
 
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![MongoDB](https://img.shields.io/badge/MongoDB-7.x-47A248?logo=mongodb)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)
@@ -45,15 +45,15 @@ A professional-grade options trading journal built with **Next.js 14**, **MongoD
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 14 (App Router + Turbopack) |
+| Framework | Next.js 16 (App Router + Turbopack) |
 | Language | TypeScript 5 |
 | Database | MongoDB 7.x |
 | Styling | Tailwind CSS 3.4 |
-| Charts | Recharts 3.6 |
+| Charts | Recharts 3.x |
 | Caching | SWR 2.x |
 | AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.6) |
+| Market Data | Polygon.io (stocks, options, events) |
 | Dates | date-fns 4.x |
-| IDs | uuid 13.x |
 
 ---
 
@@ -106,7 +106,7 @@ src/
 │   ├── holdings/                   # Stock holdings
 │   ├── stock/                      # Stock events / TLH
 │   ├── analytics/                  # Analytics suite
-│   ├── analysis/                   # AI Strategy Analyzer
+│   ├── analysis/                   # AI Trading Coach (chat)
 │   └── api/                        # REST API routes
 ├── components/                     # UI components
 ├── contexts/                       # React context providers
