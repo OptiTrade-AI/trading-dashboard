@@ -23,7 +23,6 @@ import { ExpirationAlertBanner } from '@/components/dashboard/ExpirationAlertBan
 import { SmartAlertsBadge } from '@/components/dashboard/SmartAlertsBadge';
 import { EarningsWatchCard } from '@/components/dashboard/EarningsWatchCard';
 import { ThetaDashboardCard } from '@/components/dashboard/ThetaDashboardCard';
-import { ScenarioSimulator } from '@/components/dashboard/ScenarioSimulator';
 import { QuickAddFAB } from '@/components/QuickAddFAB';
 import { AddTradeModal } from '@/components/TradeModal';
 import { AddCCModal } from '@/components/CCModal';
@@ -595,11 +594,6 @@ export default function Dashboard() {
       {/* ── Theta Income ── */}
       {hasUnrealizedData && (
         <ThetaDashboardCard positions={allOpenPositions} fetchedAt={greeksFetchedAt} />
-      )}
-
-      {/* ── Scenario Simulator ── */}
-      {hasUnrealizedData && (
-        <ScenarioSimulator positions={allOpenPositions} />
       )}
 
       {/* ── Positions Under Pressure ── */}
