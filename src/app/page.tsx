@@ -56,7 +56,6 @@ export default function Dashboard() {
     addTrade,
     closeTrade,
     rollTrade,
-    updateAccountValue,
     isLoading: tradesLoading,
   } = useTrades();
 
@@ -104,21 +103,9 @@ export default function Dashboard() {
 
   const isLoading = tradesLoading || ccLoading || dirLoading || spreadsLoading || stockLoading || holdingsLoading;
 
-  const [editingAccountValue, setEditingAccountValue] = useState(false);
-  const [accountValueInput, setAccountValueInput] = useState(
-    accountSettings.accountValue.toString()
-  );
   const [closeModalTrade, setCloseModalTrade] = useState<Trade | null>(null);
   const [quickAddType, setQuickAddType] = useState<'csp' | 'cc' | 'directional' | 'spread' | null>(null);
   const [showImport, setShowImport] = useState(false);
-
-  const handleSaveAccountValue = () => {
-    const value = parseFloat(accountValueInput);
-    if (!isNaN(value) && value > 0) {
-      updateAccountValue(value);
-    }
-    setEditingAccountValue(false);
-  };
 
   const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: ExitReason) => {
     if (closeModalTrade) {
@@ -192,6 +179,7 @@ export default function Dashboard() {
         trade: t,
         rawTrade: t,
         unrealizedPL: oq?.unrealizedPL ?? null,
+        dailyPL: oq?.dailyPL ?? null,
         maxPremium: t.premiumCollected,
         delta: oq?.delta ?? null,
         gamma: oq?.gamma ?? null,
@@ -222,6 +210,7 @@ export default function Dashboard() {
         trade: null,
         rawTrade: c,
         unrealizedPL: oq?.unrealizedPL ?? null,
+        dailyPL: oq?.dailyPL ?? null,
         maxPremium: c.premiumCollected,
         delta: oq?.delta ?? null,
         gamma: oq?.gamma ?? null,
@@ -252,6 +241,7 @@ export default function Dashboard() {
         trade: null,
         rawTrade: t,
         unrealizedPL: oq?.unrealizedPL ?? null,
+        dailyPL: oq?.dailyPL ?? null,
         maxPremium: t.costAtOpen,
         delta: oq?.delta ?? null,
         gamma: oq?.gamma ?? null,
@@ -282,6 +272,7 @@ export default function Dashboard() {
         trade: null,
         rawTrade: t,
         unrealizedPL: oq?.unrealizedPL ?? null,
+        dailyPL: oq?.dailyPL ?? null,
         maxPremium: t.netDebit < 0 ? Math.abs(t.netDebit) : t.maxProfit,
         delta: oq?.delta ?? null,
         gamma: oq?.gamma ?? null,
@@ -317,6 +308,18 @@ export default function Dashboard() {
   for (const c of openCalls) unrealizedByStrategy.cc.premiumCollected += c.premiumCollected;
   for (const t of openDirectional) unrealizedByStrategy.directional.cost += t.costAtOpen;
   for (const s of openSpreads) unrealizedByStrategy.spread.netDebit += s.netDebit;
+
+  // Daily P/L from holdings price changes
+  const holdingsDailyPL = holdings.reduce((sum, h) => {
+    const sp = stockPrices.get(h.ticker.toUpperCase());
+    return sum + (sp ? h.shares * sp.change : 0);
+  }, 0);
+
+  // Daily P/L from options positions (session change from Polygon)
+  const optionsDailyPL = allOpenPositions.reduce(
+    (sum, p) => sum + (p.dailyPL ?? 0), 0
+  );
+  const totalDailyPL = holdingsDailyPL + optionsDailyPL;
 
   // Recent activity — all trade types
   const recentActivity = [
@@ -400,32 +403,67 @@ export default function Dashboard() {
       {/* ── Hero Banner ── */}
       <div className="glass-card p-6">
         <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-          {/* Account Value */}
-          <div className="flex-1">
-            <div className="stat-label mb-1">Account Value</div>
-            {editingAccountValue ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={accountValueInput}
-                  onChange={(e) => setAccountValueInput(e.target.value)}
-                  className="input-field text-3xl font-bold py-1 w-48"
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveAccountValue()}
-                />
-                <button onClick={handleSaveAccountValue} className="text-accent hover:text-accent-light font-medium text-sm">
-                  Save
-                </button>
+          {/* Daily P/L */}
+          <div className="flex-1 relative group/daily">
+            <div className="stat-label mb-1 flex items-center gap-1.5">
+              Daily P/L
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+            </div>
+            <div className={cn('text-3xl font-bold', totalDailyPL >= 0 ? 'text-profit' : 'text-loss')}>
+              {totalDailyPL >= 0 ? '+' : ''}{formatCurrency(totalDailyPL)}
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <span className={cn('text-xs font-medium', holdingsDailyPL >= 0 ? 'text-profit' : 'text-loss')}>
+                Stocks {holdingsDailyPL >= 0 ? '+' : ''}{formatCurrency(holdingsDailyPL)}
+              </span>
+              <span className={cn('text-xs font-medium', optionsDailyPL >= 0 ? 'text-profit' : 'text-loss')}>
+                Options {optionsDailyPL >= 0 ? '+' : ''}{formatCurrency(optionsDailyPL)}
+              </span>
+            </div>
+            {/* Per-position breakdown tooltip */}
+            <div className="absolute bottom-full left-0 mb-2 w-72 glass-card p-3 rounded-xl border border-border/40 opacity-0 pointer-events-none group-hover/daily:opacity-100 group-hover/daily:pointer-events-auto transition-opacity z-[100] shadow-xl">
+              <div className="text-xs font-semibold text-foreground mb-2">Today&apos;s Breakdown</div>
+              <div className="space-y-1.5 text-xs">
+                {holdings.length > 0 && (
+                  <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Holdings</div>
+                )}
+                {holdings
+                  .map(h => {
+                    const sp = stockPrices.get(h.ticker.toUpperCase());
+                    const pl = sp ? h.shares * sp.change : 0;
+                    const pct = sp ? sp.changePercent : 0;
+                    return { ticker: h.ticker, pl, pct, has: !!sp };
+                  })
+                  .sort((a, b) => b.pl - a.pl)
+                  .map(h => (
+                    <div key={`h-${h.ticker}`} className="flex justify-between">
+                      <span className="text-muted">{h.ticker}</span>
+                      <span className={cn('font-semibold', h.pl >= 0 ? 'text-profit' : 'text-loss')}>
+                        {h.has ? `${h.pl >= 0 ? '+' : ''}${rawFormatCurrency(h.pl)} (${h.pct >= 0 ? '+' : ''}${h.pct.toFixed(1)}%)` : 'No data'}
+                      </span>
+                    </div>
+                  ))}
+                {allOpenPositions.some(p => p.dailyPL != null) && (
+                  <>
+                    <div className="text-[10px] font-semibold text-muted uppercase tracking-wide mt-2">Options</div>
+                    {allOpenPositions
+                      .filter(p => p.dailyPL != null)
+                      .sort((a, b) => (b.dailyPL ?? 0) - (a.dailyPL ?? 0))
+                      .map(p => (
+                        <div key={p.id} className="flex justify-between">
+                          <span className="text-muted">{p.ticker} {p.label}</span>
+                          <span className={cn('font-semibold', (p.dailyPL ?? 0) >= 0 ? 'text-profit' : 'text-loss')}>
+                            {(p.dailyPL ?? 0) >= 0 ? '+' : ''}{rawFormatCurrency(p.dailyPL ?? 0)}
+                          </span>
+                        </div>
+                      ))}
+                  </>
+                )}
               </div>
-            ) : (
-              <div
-                onClick={() => { setAccountValueInput(accountSettings.accountValue.toString()); setEditingAccountValue(true); }}
-                className="text-3xl font-bold text-foreground cursor-pointer hover:text-accent transition-colors group inline-flex items-center gap-2"
-              >
-                {formatCurrency(accountSettings.accountValue)}
-                <span className="text-muted text-sm font-normal opacity-0 group-hover:opacity-100 transition-opacity">Edit</span>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Divider */}
@@ -447,7 +485,6 @@ export default function Dashboard() {
                 </span>
               )}
             </div>
-            <DailySummaryLine />
           </div>
 
           {/* Unrealized P/L — own column */}
@@ -562,6 +599,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── AI Daily Summary ── */}
+      <DailySummaryLine />
+
       {/* ── Strategy Pulse ── */}
       <div className={cn('grid gap-4', strategies.length <= 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 lg:grid-cols-4')}>
         {strategies.map((s) => {
@@ -608,6 +648,7 @@ export default function Dashboard() {
           openCalls={openCalls}
           privacyMode={privacyMode}
           tickerNames={tickerNames}
+          stockPrices={stockPrices}
         />
       )}
 

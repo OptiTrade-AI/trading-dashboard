@@ -13,6 +13,7 @@ const FEATURE_LABELS: Record<string, string> = {
   patterns: 'Patterns',
   'roll-advisor': 'Roll Advisor',
   'events-check': 'Events',
+  'daily-summary': 'Daily Summary',
   scenario: 'Scenario',
 };
 

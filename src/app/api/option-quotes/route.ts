@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       const midpoint =
         bid && ask ? (bid + ask) / 2 : lastTradePrice || r.day?.close || r.session?.close || 0;
 
+      const session = r.session || {};
       return {
         symbol: r.ticker ?? '',
         underlying: r.underlying_asset?.ticker ?? '',
@@ -57,6 +58,9 @@ export async function GET(request: NextRequest) {
         theta: greeks.theta ?? null,
         vega: greeks.vega ?? null,
         iv: r.implied_volatility ?? null,
+        change: session.change ?? null,
+        changePercent: session.change_percent ?? null,
+        previousClose: session.previous_close ?? null,
       };
     });
 

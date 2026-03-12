@@ -19,6 +19,7 @@
 # misc
 .DS_Store
 *.pem
+tmp_snap.json
 
 # debug
 npm-debug.log*

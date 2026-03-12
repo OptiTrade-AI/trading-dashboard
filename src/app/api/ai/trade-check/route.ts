@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { aiCall } from '@/lib/ai';
 import { gatherPortfolioData, getClosedTradesForTicker } from '@/lib/ai-data';
+import { calculateDTE } from '@/lib/utils';
 import type { TradeCheckResult } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   const data = await gatherPortfolioData();
   const tickerHistory = getClosedTradesForTicker(data, trade.ticker);
-  const dte = Math.max(0, Math.round((new Date(trade.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const dte = calculateDTE(trade.expiration);
 
   const tickerConc = data.tickerConcentration[trade.ticker] || 0;
   const existingOpen = data.openPositions.filter(p => (p.ticker as string) === trade.ticker).length;

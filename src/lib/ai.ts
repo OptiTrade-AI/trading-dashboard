@@ -2,9 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getAIUsageCollection } from './collections';
 import type { AIFeature } from '@/types';
 
-// Model pricing per million tokens (as of 2025)
+// Model pricing per million tokens (https://docs.anthropic.com/en/docs/about-claude/pricing)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+  'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
   'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
 };
 

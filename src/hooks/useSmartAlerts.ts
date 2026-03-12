@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import useSWR from 'swr';
 import { useMarketStatus } from './useMarketStatus';
 import type { SmartAlert } from '@/types';
@@ -15,25 +15,31 @@ export function useSmartAlerts(options?: UseSmartAlertsOptions) {
   const prevAlertIds = useRef<Set<string>>(new Set());
   const greeksMap = options?.greeksMap;
   const notificationsEnabled = options?.notificationsEnabled ?? false;
+  const hasGreeks = !!(greeksMap && Object.keys(greeksMap).length > 0);
 
-  const fetcher = useCallback(async (url: string) => {
-    if (greeksMap && Object.keys(greeksMap).length > 0) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ greeks: greeksMap }),
-      });
-      return res.json();
-    }
-    return fetch(url).then(r => r.json());
-  }, [greeksMap]);
+  // Store greeksMap in a ref so the fetcher always reads the latest value
+  const greeksRef = useRef(greeksMap);
+  greeksRef.current = greeksMap;
 
   const { data, error, isLoading } = useSWR<{ alerts: SmartAlert[]; available: boolean }>(
-    '/api/ai/smart-alerts',
-    fetcher,
+    // Change key when greeks become available so SWR refetches with POST
+    hasGreeks ? 'smart-alerts-with-greeks' : 'smart-alerts',
+    async () => {
+      const greeks = greeksRef.current;
+      if (greeks && Object.keys(greeks).length > 0) {
+        const res = await fetch('/api/ai/smart-alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ greeks }),
+        });
+        return res.json();
+      }
+      return fetch('/api/ai/smart-alerts').then(r => r.json());
+    },
     {
       refreshInterval: isOpen ? 5 * 60 * 1000 : 0,
       revalidateOnFocus: false,
+      errorRetryCount: 2,
     }
   );
 

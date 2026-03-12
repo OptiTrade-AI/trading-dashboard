@@ -42,7 +42,7 @@ function AnalysisPage() {
   const {
     conversations, activeConversation, streamingContent, isStreaming,
     isAvailable, isLoading: isChatLoading, error,
-    sendMessage, startNewConversation, selectConversation, deleteConversation,
+    sendMessage, stopStreaming, startNewConversation, selectConversation, deleteConversation,
   } = useChat();
 
   // Select conversation from URL query param (used by "Discuss in Chat" links)
@@ -329,7 +329,7 @@ function AnalysisPage() {
 
         {/* Chat or Starters */}
         {hasActiveChat || isStreaming ? (
-          <>
+          <div className="flex-1 flex flex-col min-h-0 animate-fade-in">
             <ChatMessageList
               messages={messages}
               streamingContent={streamingContent}
@@ -340,18 +340,20 @@ function AnalysisPage() {
             <ChatInput
               onSend={handleSend}
               disabled={isStreaming}
+              isStreaming={isStreaming}
+              onStop={stopStreaming}
               placeholder={isStreaming ? 'AI is responding...' : 'Ask a follow-up question...'}
             />
-          </>
+          </div>
         ) : (
-          <>
+          <div className="flex-1 flex flex-col min-h-0 animate-fade-in">
             <StarterCards prompts={starterPrompts} onSelect={handleSend} />
             <ChatInput
               onSend={handleSend}
               disabled={isStreaming}
               placeholder="Ask anything about your portfolio..."
             />
-          </>
+          </div>
         )}
       </div>
     </div>

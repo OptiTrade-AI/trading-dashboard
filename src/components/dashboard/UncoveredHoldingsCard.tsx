@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { StockHolding, CoveredCall } from '@/types';
+import { StockHolding, CoveredCall, StockPrice } from '@/types';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
+
+type CoverageSignal = 'opportunity' | 'capturing' | null;
 
 interface TickerCoverage {
   ticker: string;
@@ -12,6 +14,9 @@ interface TickerCoverage {
   uncoveredShares: number;
   coveragePct: number;
   availableContracts: number; // 100-share lots available to write
+  signal: CoverageSignal;
+  priceChange: number | null;
+  priceChangePct: number | null;
 }
 
 interface UncoveredHoldingsCardProps {
@@ -19,6 +24,7 @@ interface UncoveredHoldingsCardProps {
   openCalls: CoveredCall[];
   privacyMode: boolean;
   tickerNames?: Map<string, string>;
+  stockPrices?: Map<string, StockPrice>;
 }
 
 export function UncoveredHoldingsCard({
@@ -26,8 +32,9 @@ export function UncoveredHoldingsCard({
   openCalls,
   privacyMode,
   tickerNames,
+  stockPrices,
 }: UncoveredHoldingsCardProps) {
-  const { tickers, overallCoverage, totalUncoveredShares, totalShares } = useMemo(() => {
+  const { tickers, overallCoverage, totalUncoveredShares, totalShares, opportunityCount } = useMemo(() => {
     // Group holdings by ticker
     const holdingsByTicker: Record<string, StockHolding[]> = {};
     for (const h of holdings) {
@@ -49,20 +56,53 @@ export function UncoveredHoldingsCard({
         const totalShares = lots.reduce((s, h) => s + h.shares, 0);
         const coveredShares = Math.min(coveredByTicker[ticker] || 0, totalShares);
         const uncoveredShares = totalShares - coveredShares;
+        const coveragePct = totalShares > 0 ? (coveredShares / totalShares) * 100 : 0;
+
+        // Look up live price
+        const sp = stockPrices?.get(ticker);
+        const priceChange = sp?.change ?? null;
+        const priceChangePct = sp?.changePercent ?? null;
+
+        // Determine signal
+        let signal: CoverageSignal = null;
+        if (priceChange !== null) {
+          if (priceChange > 0 && uncoveredShares > 0) {
+            signal = 'opportunity'; // stock up + uncovered = sell a call
+          } else if (priceChange < 0 && coveredShares > 0) {
+            signal = 'capturing'; // stock down + covered = premium capturing
+          }
+        }
 
         return {
           ticker,
           totalShares,
           coveredShares,
           uncoveredShares,
-          coveragePct: totalShares > 0 ? (coveredShares / totalShares) * 100 : 0,
+          coveragePct,
           availableContracts: Math.floor(uncoveredShares / 100),
+          signal,
+          priceChange,
+          priceChangePct,
         };
       }
     );
 
-    // Sort: fully uncovered first, then by uncovered shares desc
+    // Sort: opportunity first, then capturing, then rest
+    const signalOrder = { opportunity: 0, capturing: 1 };
     tickers.sort((a, b) => {
+      const aOrder = a.signal ? signalOrder[a.signal] : 2;
+      const bOrder = b.signal ? signalOrder[b.signal] : 2;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      // Within opportunity: biggest % gainer first
+      if (a.signal === 'opportunity' && b.signal === 'opportunity') {
+        return (b.priceChangePct ?? 0) - (a.priceChangePct ?? 0);
+      }
+      // Within capturing: biggest % drop first
+      if (a.signal === 'capturing' && b.signal === 'capturing') {
+        return (a.priceChangePct ?? 0) - (b.priceChangePct ?? 0);
+      }
+      // Fallback: fully uncovered first, then by uncovered shares desc
       if (a.coveragePct === 0 && b.coveragePct > 0) return -1;
       if (a.coveragePct > 0 && b.coveragePct === 0) return 1;
       return b.uncoveredShares - a.uncoveredShares;
@@ -72,9 +112,10 @@ export function UncoveredHoldingsCard({
     const totalCovered = tickers.reduce((s, t) => s + t.coveredShares, 0);
     const overallCoverage = totalShares > 0 ? (totalCovered / totalShares) * 100 : 0;
     const totalUncoveredShares = tickers.reduce((s, t) => s + t.uncoveredShares, 0);
+    const opportunityCount = tickers.filter(t => t.signal === 'opportunity').length;
 
-    return { tickers, overallCoverage, totalUncoveredShares, totalShares };
-  }, [holdings, openCalls]);
+    return { tickers, overallCoverage, totalUncoveredShares, totalShares, opportunityCount };
+  }, [holdings, openCalls, stockPrices]);
 
   // Don't render if no holdings
   if (holdings.length === 0) return null;
@@ -179,7 +220,7 @@ export function UncoveredHoldingsCard({
         </div>
 
         {/* Stats */}
-        <div className="flex-1 grid grid-cols-3 gap-4">
+        <div className="flex-1 grid grid-cols-4 gap-4">
           <div>
             <div className="text-xs text-muted mb-0.5">Uncovered Tickers</div>
             <div className="text-xl font-bold text-foreground">
@@ -205,6 +246,15 @@ export function UncoveredHoldingsCard({
               <span className="text-sm font-normal text-muted ml-1">lots</span>
             </div>
           </div>
+          <div>
+            <div className="text-xs text-muted mb-0.5">Opportunities</div>
+            <div className="text-xl font-bold text-amber-300">
+              {privacyMode ? '***' : opportunityCount}
+              {opportunityCount > 0 && (
+                <span className="ml-1.5 w-1.5 h-1.5 inline-block rounded-full bg-amber-400 animate-pulse" />
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -215,6 +265,7 @@ export function UncoveredHoldingsCard({
             const isFullyUncovered = t.coveragePct === 0;
             const isFullyCovered = t.coveragePct >= 100;
             const companyName = tickerNames?.get(t.ticker);
+            const changeUp = t.priceChange !== null && t.priceChange >= 0;
 
             return (
               <div
@@ -228,13 +279,13 @@ export function UncoveredHoldingsCard({
                     : 'bg-zinc-800/20 hover:bg-zinc-800/30'
                 )}
               >
-                {/* Ticker + name */}
+                {/* Ticker + name + signal */}
                 <div className="w-28 flex-shrink-0">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-foreground text-sm">
                       {t.ticker}
                     </span>
-                    {isFullyUncovered && (
+                    {isFullyUncovered && !t.signal && (
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
                     )}
                   </div>
@@ -243,6 +294,27 @@ export function UncoveredHoldingsCard({
                       {companyName}
                     </div>
                   )}
+                  {t.signal === 'opportunity' && (
+                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 animate-pulse">
+                      OPPORTUNITY
+                    </span>
+                  )}
+                  {t.signal === 'capturing' && (
+                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
+                      CAPTURING
+                    </span>
+                  )}
+                </div>
+
+                {/* Price direction */}
+                <div className="w-20 flex-shrink-0 text-right">
+                  {t.priceChangePct != null && !privacyMode ? (
+                    <span className={cn('text-xs font-medium', changeUp ? 'text-profit' : 'text-loss')}>
+                      {changeUp ? '↑' : '↓'} {Math.abs(t.priceChangePct).toFixed(1)}%
+                    </span>
+                  ) : privacyMode && t.priceChangePct != null ? (
+                    <span className="text-xs text-muted">***</span>
+                  ) : null}
                 </div>
 
                 {/* Coverage bar */}

@@ -1,16 +1,16 @@
 import { Trade, CoveredCall, DirectionalTrade, SpreadTrade, StockEvent, SPREAD_TYPE_LABELS } from '@/types';
-import { differenceInDays, parseISO, format, startOfDay } from 'date-fns';
+import { differenceInDays, differenceInCalendarDays, parseISO, format, startOfDay } from 'date-fns';
 
 export function calculateDTE(expirationDate: string): number {
   const today = startOfDay(new Date());
-  const expiry = parseISO(expirationDate);
-  return Math.max(0, differenceInDays(expiry, today));
+  const expiry = startOfDay(parseISO(expirationDate));
+  return Math.max(0, differenceInCalendarDays(expiry, today));
 }
 
 export function calculateDTEFromEntry(entryDate: string, expirationDate: string): number {
-  const entry = parseISO(entryDate);
-  const expiry = parseISO(expirationDate);
-  return Math.max(0, differenceInDays(expiry, entry));
+  const entry = startOfDay(parseISO(entryDate));
+  const expiry = startOfDay(parseISO(expirationDate));
+  return Math.max(0, differenceInCalendarDays(expiry, entry));
 }
 
 export function calculateCollateral(strike: number, contracts: number = 1): number {
@@ -39,7 +39,7 @@ export function calculateReturnOnCollateral(trade: Trade): number {
 export function calculateDaysHeld(trade: { entryDate: string; exitDate?: string }): number {
   const entry = parseISO(trade.entryDate);
   const exit = trade.exitDate ? parseISO(trade.exitDate) : new Date();
-  return Math.max(1, differenceInDays(exit, entry));
+  return Math.max(1, differenceInCalendarDays(exit, entry));
 }
 
 export function calculateAnnualizedReturn(trade: Trade): number {

@@ -12,6 +12,7 @@ import { buildOptionSymbol } from '@/lib/utils';
 
 export interface PositionQuoteData {
   unrealizedPL: number;
+  dailyPL: number | null;
   delta: number | null;
   gamma: number | null;
   theta: number | null;
@@ -154,8 +155,14 @@ export function useOptionQuotes() {
       // (Polygon reports from the holder's view; selling flips the exposure)
       const sign = mapping.direction === 'sold' ? -1 : 1;
 
+      // Daily P/L: session change × contracts × 100, flipped for sold positions
+      const dailyPL = q?.change != null
+        ? q.change * 100 * mapping.contracts * sign
+        : null;
+
       map.set(mapping.positionId, {
         unrealizedPL,
+        dailyPL,
         delta: q?.delta != null ? q.delta * sign : null,
         gamma: q?.gamma != null ? q.gamma * sign : null,
         theta: q?.theta != null ? q.theta * sign : null,
@@ -182,8 +189,16 @@ export function useOptionQuotes() {
       const netTheta = ((longQ?.theta ?? 0) - (shortQ?.theta ?? 0)) || null;
       const netVega = ((longQ?.vega ?? 0) - (shortQ?.vega ?? 0)) || null;
 
+      // Spread daily P/L: long leg change - short leg change
+      const longChange = longQ?.change ?? null;
+      const shortChange = shortQ?.change ?? null;
+      const spreadDailyPL = longChange != null && shortChange != null
+        ? (longChange - shortChange) * 100 * pair.contracts
+        : null;
+
       map.set(posId, {
         unrealizedPL,
+        dailyPL: spreadDailyPL,
         delta: netDelta,
         gamma: netGamma,
         theta: netTheta,
