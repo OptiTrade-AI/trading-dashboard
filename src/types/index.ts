@@ -291,12 +291,30 @@ export interface AIUsageRecord {
   ticker?: string;
 }
 
+export interface DailyCostEntry {
+  date: string; // "2026-03-13"
+  cost: number;
+  calls: number;
+  byModel: Record<string, number>; // model -> cost
+}
+
 export interface AIUsageStats {
   today: number;
+  yesterday: number;
   thisWeek: number;
   thisMonth: number;
   allTime: number;
+  avgDailyLast30: number;
+  totalCalls: number;
+  dailyCosts: DailyCostEntry[];
   byFeature: Record<string, { calls: number; cost: number; tokens: number }>;
+  byFeatureDetailed: Record<string, {
+    calls: number;
+    cost: number;
+    inputTokens: number;
+    outputTokens: number;
+    avgCostPerCall: number;
+  }>;
   byModel: Record<string, { calls: number; cost: number }>;
   recentCalls: AIUsageRecord[];
 }

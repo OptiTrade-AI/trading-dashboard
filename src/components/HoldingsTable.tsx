@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { StockHolding, StockPrice, AggBar } from '@/types';
 import { formatDateShort, cn } from '@/lib/utils';
 import { useFormatters } from '@/hooks/useFormatters';
@@ -162,8 +162,8 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
               const yearRange = yearRanges?.get(holding.ticker);
 
               return (
-                <>
-                  <tr key={holding.id} className="hover:bg-background/20 transition-colors">
+                <Fragment key={holding.id}>
+                  <tr className="hover:bg-background/20 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
@@ -265,7 +265,7 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

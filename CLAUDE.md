@@ -109,7 +109,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | AITradeCheck | `src/components/AITradeCheck.tsx` | Pre-trade risk check with live market data, strategy-specific metrics (ROC/ROS/Greeks), and AI insights in all add-trade modals |
 | AIRollAdvisor | `src/components/AIRollAdvisor.tsx` | Roll suggestions with live options chain in all close modals |
 | BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | AI pattern recognition with evolution tracking on Analytics page |
-| AICostIndicator | `src/components/AICostIndicator.tsx` | AI usage and cost display in navigation bar |
+| AICostIndicator | `src/components/AICostIndicator.tsx` | Nav button with sparkle icon + slide-out panel: hero with count-up animation & sparkline, 30-day stacked AreaChart by model, feature BarChart, model split segmented bar, token efficiency, recent activity timeline. Privacy mode overlays on all charts |
 | UncoveredHoldingsCard | `src/components/dashboard/UncoveredHoldingsCard.tsx` | Shows holdings not covered by calls, with suggestion to write covered calls |
 | DiscussChatLink | `src/components/DiscussChatLink.tsx` | "Discuss in Chat" button linking AI outputs to conversational coach |
 | TickerAutocomplete | `src/components/shared/TickerAutocomplete.tsx` | Reusable ticker search input with autocomplete dropdown, used in all trade add/edit modals |

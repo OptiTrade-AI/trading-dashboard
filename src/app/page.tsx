@@ -171,8 +171,8 @@ export default function Dashboard() {
                     return { ticker: h.ticker, pl, pct, has: !!sp };
                   })
                   .sort((a, b) => b.pl - a.pl)
-                  .map(h => (
-                    <div key={`h-${h.ticker}`} className="flex justify-between">
+                  .map((h, i) => (
+                    <div key={`h-${h.ticker}-${i}`} className="flex justify-between">
                       <span className="text-muted">{h.ticker}</span>
                       <span className={cn('font-semibold', h.pl >= 0 ? 'text-profit' : 'text-loss')}>
                         {h.has ? `${h.pl >= 0 ? '+' : ''}${rawFormatCurrency(h.pl)} (${h.pct >= 0 ? '+' : ''}${h.pct.toFixed(1)}%)` : 'No data'}

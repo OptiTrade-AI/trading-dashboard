@@ -23,7 +23,7 @@ All AI features degrade gracefully when the API key is not configured — UI ele
 | **Earnings Watchdog** | Auto (4 hr refresh) | Haiku 4.5 | Upcoming earnings/events for open position tickers |
 | **Daily Summary** | Auto (dashboard hero, 24h cache) | Haiku 4.5 | 1-2 sentence portfolio summary |
 | **Conversational Coach** | `/analysis` page | Sonnet 4.6 | Multi-turn chat with full portfolio context |
-| **AI Cost Tracker** | Navigation bar indicator | N/A | Tracks all AI usage and costs |
+| **AI Cost Tracker** | Navigation bar button → slide-out panel | N/A | Rich usage dashboard with charts and breakdowns |
 
 ---
 
@@ -83,6 +83,19 @@ Single-line AI summary in the dashboard hero:
 - Generated once per 24 hours, cached in MongoDB
 - Highlights the most notable portfolio item (expiring position, high heat, streak, risk)
 - Respects privacy mode
+
+### AI Cost Tracker
+Navigation bar button that opens a full-height slide-out panel (440px, full-width on mobile):
+
+- **Hero** — Today's spend with animated count-up (requestAnimationFrame, ease-out cubic), % change vs yesterday badge, inline SVG sparkline of last 7 days, stats grid (yesterday / week / month / all-time), total calls and avg daily spend
+- **Daily Cost Chart** — Recharts stacked AreaChart of last 30 days, broken down by model (Haiku = purple, Sonnet = blue) with gradient fills
+- **Feature Breakdown** — Horizontal BarChart with per-feature colors, sorted by cost, with call count legend
+- **Model Split** — Segmented bar showing Haiku vs Sonnet cost proportions, detail cards with calls and percentage
+- **Token Efficiency** — Input/output token segmented bar with totals, avg cost per call ranked by feature
+- **Recent Activity** — Last 20 calls as compact timeline with relative timestamps, colored feature dots, ticker badges, and cost
+- **Privacy Mode** — All cost values masked, charts replaced with "Hidden in privacy mode" overlay
+
+Data comes from `/api/ai/usage` which aggregates all `AIUsageRecord` documents in a single pass computing daily breakdowns, feature/model splits, and token totals.
 
 ### Chat Integration
 "Discuss in Chat" links appear on Exit Coach results, Trade Check results, and Pattern cards:
