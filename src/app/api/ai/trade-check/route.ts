@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { aiCall } from '@/lib/ai';
+import { aiCall, extractJSON } from '@/lib/ai';
 import { gatherPortfolioData, getClosedTradesForTicker } from '@/lib/ai-data';
 import { calculateDTE } from '@/lib/utils';
 import { fetchOptionsChain } from '@/lib/polygon';
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
     model: 'claude-haiku-4-5-20251001',
     system: systemPrompt,
     messages: [{ role: 'user', content: `Evaluate this ${trade.strategy} trade on ${trade.ticker}.` }],
-    maxTokens: 500,
+    maxTokens: 1024,
     ticker: trade.ticker,
   });
 
@@ -285,11 +285,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    let jsonStr = result.text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    }
-    const aiResponse = JSON.parse(jsonStr) as { recommendation: TradeCheckResult['recommendation']; headline: string; insights: TradeCheckResult['insights'] };
+    const aiResponse = extractJSON<{ recommendation: TradeCheckResult['recommendation']; headline: string; insights: TradeCheckResult['insights'] }>(result.text);
     const check: TradeCheckResult = {
       recommendation: aiResponse.recommendation,
       headline: aiResponse.headline,

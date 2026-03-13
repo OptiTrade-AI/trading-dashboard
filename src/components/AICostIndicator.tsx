@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAIUsage } from '@/hooks/useAIUsage';
 import { useFormatters } from '@/hooks/useFormatters';
 import { cn } from '@/lib/utils';
@@ -165,7 +166,7 @@ export function AICostIndicator() {
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          'flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all duration-200',
+          'flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap shrink-0',
           'text-muted hover:text-foreground hover:bg-card/50',
           stats.today > 0 && 'shadow-[0_0_6px_rgba(16,185,129,0.15)]'
         )}
@@ -180,40 +181,43 @@ export function AICostIndicator() {
         )}
       </button>
 
-      {/* Slide-out panel */}
-      {open && (
+      {/* Slide-out panel — portaled to body to escape nav's backdrop-filter containing block */}
+      {open && createPortal(
         <>
           <div className="fixed inset-0 z-[55] bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-full sm:w-[440px] z-[60] bg-card-solid border-l border-border shadow-lg shadow-black/30 animate-slide-in-right flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="flex items-center gap-2">
-                <SparkleIcon className="w-5 h-5 text-accent" />
-                <h2 className="text-base font-semibold text-foreground">AI Usage</h2>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div className="w-full max-w-3xl max-h-[85vh] bg-card-solid border border-border rounded-2xl shadow-2xl shadow-black/40 flex flex-col pointer-events-auto animate-fade-in">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+                <div className="flex items-center gap-2">
+                  <SparkleIcon className="w-5 h-5 text-accent" />
+                  <h2 className="text-base font-semibold text-foreground">AI Usage</h2>
+                </div>
+                <button onClick={() => setOpen(false)} className="text-muted hover:text-foreground transition-colors p-1 rounded-lg hover:bg-card/50">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button onClick={() => setOpen(false)} className="text-muted hover:text-foreground transition-colors p-1 rounded-lg hover:bg-card/50">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-              <HeroSection stats={stats} privacyMode={privacyMode} />
-              <Divider />
-              <DailyCostChart dailyCosts={stats.dailyCosts} privacyMode={privacyMode} />
-              <Divider />
-              <FeatureBreakdown byFeature={stats.byFeatureDetailed} privacyMode={privacyMode} />
-              <Divider />
-              <ModelSplit byModel={stats.byModel} privacyMode={privacyMode} />
-              <Divider />
-              <TokenEfficiency byFeature={stats.byFeatureDetailed} privacyMode={privacyMode} />
-              <Divider />
-              <RecentActivity recentCalls={stats.recentCalls} privacyMode={privacyMode} />
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                <HeroSection stats={stats} privacyMode={privacyMode} />
+                <Divider />
+                <DailyCostChart dailyCosts={stats.dailyCosts} privacyMode={privacyMode} />
+                <Divider />
+                <FeatureBreakdown byFeature={stats.byFeatureDetailed} privacyMode={privacyMode} />
+                <Divider />
+                <ModelSplit byModel={stats.byModel} privacyMode={privacyMode} />
+                <Divider />
+                <TokenEfficiency byFeature={stats.byFeatureDetailed} privacyMode={privacyMode} />
+                <Divider />
+                <RecentActivity recentCalls={stats.recentCalls} privacyMode={privacyMode} />
+              </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </>
   );

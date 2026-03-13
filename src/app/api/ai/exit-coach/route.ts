@@ -121,7 +121,7 @@ RULES:
     model: 'claude-haiku-4-5-20251001',
     system: systemPrompt,
     messages: [{ role: 'user', content: `What should I do with this ${position.strategy} position on ${position.ticker}?` }],
-    maxTokens: 256,
+    maxTokens: 512,
     ticker: position.ticker,
   });
 

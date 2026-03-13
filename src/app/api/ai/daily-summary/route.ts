@@ -100,7 +100,7 @@ Return ONLY the 2-3 sentence summary text, no JSON, no markdown.`;
     model: 'claude-haiku-4-5-20251001',
     system: systemPrompt,
     messages: [{ role: 'user', content: 'Generate my daily summary.' }],
-    maxTokens: 250,
+    maxTokens: 512,
   });
 
   if (!result) {

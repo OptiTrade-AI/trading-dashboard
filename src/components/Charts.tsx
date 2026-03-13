@@ -250,7 +250,7 @@ export function CumulativePLWithDrawdownChart({ data }: { data: CumulativeWithDr
 
 interface AllocationData { name: string; value: number; color: string }
 
-export function StrategyDonutChart({ data, centerLabel }: { data: AllocationData[]; centerLabel?: string }) {
+export function StrategyDonutChart({ data, centerLabel, onSliceClick }: { data: AllocationData[]; centerLabel?: string; onSliceClick?: (name: string) => void }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
   if (total === 0) return <div className="h-64 flex items-center justify-center text-muted">No allocations</div>;
   return (
@@ -266,6 +266,8 @@ export function StrategyDonutChart({ data, centerLabel }: { data: AllocationData
             paddingAngle={3}
             dataKey="value"
             strokeWidth={0}
+            className={onSliceClick ? 'cursor-pointer' : ''}
+            onClick={onSliceClick ? (_: any, index: number) => onSliceClick(data[index].name) : undefined}
           >
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.color} fillOpacity={0.85} />
@@ -290,10 +292,14 @@ export function StrategyDonutChart({ data, centerLabel }: { data: AllocationData
       )}
       <div className="flex flex-wrap justify-center gap-4 mt-2">
         {data.map((entry) => (
-          <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+          <button
+            key={entry.name}
+            onClick={() => onSliceClick?.(entry.name)}
+            className={cn('flex items-center gap-1.5 text-xs', onSliceClick ? 'hover:text-foreground cursor-pointer transition-colors' : '')}
+          >
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted">{entry.name}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

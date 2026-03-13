@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { aiCall } from '@/lib/ai';
+import { aiCall, extractJSON } from '@/lib/ai';
 import { gatherPortfolioData } from '@/lib/ai-data';
 import { getPatternAnalysesCollection } from '@/lib/collections';
 import { calculatePL, calculateCCPL, calculateDirectionalPL, calculateSpreadPL, calculateDaysHeld } from '@/lib/utils';
+import type { BehavioralPattern } from '@/types';
 
 export async function GET() {
   const col = await getPatternAnalysesCollection();
@@ -195,7 +196,7 @@ Do NOT just restate the stats. Find the INSIGHT behind the numbers.`;
     model: 'claude-sonnet-4-6',
     system: systemPrompt,
     messages: [{ role: 'user', content: 'Analyze my trading patterns.' }],
-    maxTokens: 1024,
+    maxTokens: 2048,
   });
 
   if (!result) {
@@ -203,11 +204,7 @@ Do NOT just restate the stats. Find the INSIGHT behind the numbers.`;
   }
 
   try {
-    let jsonStr = result.text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    }
-    const patterns = JSON.parse(jsonStr);
+    const patterns = extractJSON<BehavioralPattern[]>(result.text);
 
     // Save to MongoDB
     const record = {

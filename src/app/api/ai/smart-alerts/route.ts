@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { aiCall } from '@/lib/ai';
+import { aiCall, extractJSON } from '@/lib/ai';
 import { gatherPortfolioData } from '@/lib/ai-data';
 import { getAccountSettingsCollection } from '@/lib/collections';
 import type { SmartAlert } from '@/types';
@@ -70,7 +70,7 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     model: 'claude-haiku-4-5-20251001',
     system: systemPrompt,
     messages: [{ role: 'user', content: 'Analyze my positions for alerts.' }],
-    maxTokens: 512,
+    maxTokens: 1024,
   });
 
   if (!result) {
@@ -78,11 +78,7 @@ Return ONLY valid JSON, no markdown, no explanation.`;
   }
 
   try {
-    let jsonStr = result.text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    }
-    const alerts: SmartAlert[] = JSON.parse(jsonStr);
+    const alerts: SmartAlert[] = extractJSON(result.text);
     return { alerts, available: true };
   } catch {
     return { alerts: [], available: false };

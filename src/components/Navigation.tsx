@@ -140,7 +140,7 @@ export function Navigation() {
           </div>
 
           {/* Right side */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {/* AI Cost Indicator */}
             <AICostIndicator />
 

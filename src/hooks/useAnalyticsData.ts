@@ -13,7 +13,7 @@ import {
 } from '@/lib/utils';
 import { format, parse, parseISO, startOfMonth, isThisMonth, isThisYear, subMonths, subDays, startOfYear, isAfter } from 'date-fns';
 
-export type TimeRange = '1M' | '3M' | '6M' | 'YTD' | 'ALL';
+export type TimeRange = '1W' | '1M' | '3M' | '6M' | 'YTD' | 'ALL';
 
 export interface TradeWithPL {
   ticker: string;
@@ -75,6 +75,7 @@ export interface AnalyticsData {
   monthlyStacked: { month: string; csp: number; cc: number; directional: number; spreads: number }[];
   tradeFrequency: { month: string; count: number }[];
   strategyPL: { name: string; value: number; color: string }[];
+  strategyTrades: Record<string, TradeWithPL[]>;
   heatmapTrades: { exitDate: string; pl: number }[];
   overallWinRate: number;
   plDistribution: { range: string; count: number; isProfit: boolean }[];
@@ -90,6 +91,10 @@ export interface AnalyticsData {
   worstTrade: number;
   holdTimeStrategies: { label: string; color: string; min: number; avg: number; max: number; count: number }[];
   holdTimeBuckets: { label: string; range: string; trades: number; winRate: number; avgPL: number }[];
+  stockCount: number;
+  stockTotalPL: number;
+  stockWinRate: number;
+  stockBestEvent: StockEvent | null;
 }
 
 export function useAnalyticsData(
@@ -106,7 +111,9 @@ export function useAnalyticsData(
     // Time range filter
     const now = new Date();
     const cutoff =
-      timeRange === '1M'
+      timeRange === '1W'
+        ? subDays(now, 7)
+        : timeRange === '1M'
         ? subMonths(now, 1)
         : timeRange === '3M'
         ? subMonths(now, 3)
@@ -132,6 +139,14 @@ export function useAnalyticsData(
       : stockEvents;
     const filteredStockPL = includeStockPL
       ? filteredStockEvents.reduce((sum, e) => sum + e.realizedPL, 0)
+      : 0;
+    const stockWins = filteredStockEvents.filter(e => e.realizedPL > 0);
+    const stockLosses = filteredStockEvents.filter(e => e.realizedPL <= 0);
+    const stockBestEvent = filteredStockEvents.length > 0
+      ? filteredStockEvents.reduce((best, e) => e.realizedPL > best.realizedPL ? e : best)
+      : null;
+    const stockWinRate = filteredStockEvents.length > 0
+      ? (stockWins.length / filteredStockEvents.length) * 100
       : 0;
 
     if (filteredCSP.length === 0 && filteredCC.length === 0 && filteredDir.length === 0 && filteredSpreads.length === 0) {
@@ -231,13 +246,22 @@ export function useAnalyticsData(
     const totalPL = cspTotalPL + ccTotalPL + dirTotalPL + spreadTotalPL + filteredStockPL;
     const totalTrades = allTrades.length;
 
-    const thisMonthPL = allTrades
+    // thisMonthPL and thisYearPL always use the full unfiltered dataset
+    const allUnfilteredTrades: TradeWithPL[] = [
+      ...closedTrades.map(t => ({ ...t, type: 'csp' as const, pl: calculatePL(t), plPercent: calculatePLPercent(t), daysHeld: calculateDaysHeld(t) })),
+      ...closedCalls.map(t => ({ ...t, type: 'cc' as const, pl: calculateCCPL(t), plPercent: calculateCCPLPercent(t), daysHeld: calculateDaysHeld(t) })),
+      ...closedDirectional.map(t => ({ ...t, type: 'directional' as const, pl: calculateDirectionalPL(t), plPercent: calculateDirectionalPLPercent(t), daysHeld: calculateDaysHeld(t) })),
+      ...closedSpreads.map(t => ({ ...t, type: 'spread' as const, pl: calculateSpreadPL(t), plPercent: calculateSpreadPLPercent(t), daysHeld: calculateDaysHeld(t) })),
+    ];
+    const allStockPL = includeStockPL ? stockEvents.reduce((sum, e) => sum + e.realizedPL, 0) : 0;
+
+    const thisMonthPL = allUnfilteredTrades
       .filter((t) => t.exitDate && isThisMonth(parseISO(t.exitDate)))
       .reduce((sum, t) => sum + t.pl, 0);
 
-    const thisYearPL = allTrades
+    const thisYearPL = allUnfilteredTrades
       .filter((t) => t.exitDate && isThisYear(parseISO(t.exitDate)))
-      .reduce((sum, t) => sum + t.pl, 0) + filteredStockPL;
+      .reduce((sum, t) => sum + t.pl, 0) + allStockPL;
 
     const avgPLPerTrade = totalTrades > 0 ? (cspTotalPL + ccTotalPL + dirTotalPL + spreadTotalPL) / totalTrades : 0;
     const totalPremiumCollected = [...filteredCSP, ...filteredCC].reduce(
@@ -321,7 +345,25 @@ export function useAnalyticsData(
       { name: 'Covered Calls', value: Math.abs(ccTotalPL), color: '#3b82f6' },
       { name: 'Directional', value: Math.abs(dirTotalPL), color: '#f59e0b' },
       { name: 'Spreads', value: Math.abs(spreadTotalPL), color: '#a855f7' },
+      ...(includeStockPL && filteredStockPL !== 0 ? [{ name: 'Stock Capital Gains', value: Math.abs(filteredStockPL), color: '#14b8a6' }] : []),
     ].filter((d) => d.value > 0);
+
+    const strategyTrades: Record<string, TradeWithPL[]> = {
+      'CSPs': cspWithPL,
+      'Covered Calls': ccWithPL,
+      'Directional': dirWithPL,
+      'Spreads': spreadWithPL,
+    };
+    if (includeStockPL && filteredStockEvents.length > 0) {
+      strategyTrades['Stock Capital Gains'] = filteredStockEvents.map(e => ({
+        ticker: e.ticker,
+        type: 'csp' as const,
+        pl: e.realizedPL,
+        plPercent: e.costBasis > 0 ? ((e.salePrice - e.costBasis) / e.costBasis) * 100 : 0,
+        daysHeld: 0,
+        exitDate: e.saleDate,
+      }));
+    }
 
     // Heatmap trades
     const heatmapTrades = allTrades
@@ -492,6 +534,7 @@ export function useAnalyticsData(
       monthlyStacked,
       tradeFrequency,
       strategyPL,
+      strategyTrades,
       heatmapTrades,
       overallWinRate,
       plDistribution,
@@ -507,6 +550,10 @@ export function useAnalyticsData(
       worstTrade: worstTradePL,
       holdTimeStrategies,
       holdTimeBuckets,
+      stockCount: filteredStockEvents.length,
+      stockTotalPL: filteredStockPL,
+      stockWinRate,
+      stockBestEvent,
     };
   }, [closedTrades, closedCalls, closedDirectional, closedSpreads, stockEvents, includeStockPL, timeRange, accountValue]);
 }

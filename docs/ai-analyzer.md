@@ -23,7 +23,7 @@ All AI features degrade gracefully when the API key is not configured — UI ele
 | **Earnings Watchdog** | Auto (4 hr refresh) | Haiku 4.5 | Upcoming earnings/events for open position tickers |
 | **Daily Summary** | Auto (dashboard hero, 24h cache) | Haiku 4.5 | 1-2 sentence portfolio summary |
 | **Conversational Coach** | `/analysis` page | Sonnet 4.6 | Multi-turn chat with full portfolio context |
-| **AI Cost Tracker** | Navigation bar button → slide-out panel | N/A | Rich usage dashboard with charts and breakdowns |
+| **AI Cost Tracker** | Navigation bar button → centered modal | N/A | Rich usage dashboard with charts and breakdowns |
 
 ---
 
@@ -85,7 +85,7 @@ Single-line AI summary in the dashboard hero:
 - Respects privacy mode
 
 ### AI Cost Tracker
-Navigation bar button that opens a full-height slide-out panel (440px, full-width on mobile):
+Navigation bar button that opens a centered modal dialog (max-width 3xl, portaled to document body):
 
 - **Hero** — Today's spend with animated count-up (requestAnimationFrame, ease-out cubic), % change vs yesterday badge, inline SVG sparkline of last 7 days, stats grid (yesterday / week / month / all-time), total calls and avg daily spend
 - **Daily Cost Chart** — Recharts stacked AreaChart of last 30 days, broken down by model (Haiku = purple, Sonnet = blue) with gradient fills
@@ -131,6 +131,8 @@ Gather data server-side (MongoDB + Polygon) → Construct focused prompt → Sin
 ```
 
 - **Usage tracking is automatic** — Every call goes through `aiCall()` or `aiStream()` which auto-track tokens and cost
+- **Retry with backoff** — `aiCall()` and `aiStream()` automatically retry up to 3 times on 529 (overloaded) responses with exponential backoff
+- **Robust JSON parsing** — `extractJSON()` utility handles code fences, surrounding text, and partial responses when extracting structured data from AI output
 - **Privacy mode respected** — All AI UI components mask financial data when active
 - **Graceful degradation** — Features hide when `ANTHROPIC_API_KEY` is not set
 

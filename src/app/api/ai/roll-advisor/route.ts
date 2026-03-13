@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { aiCall } from '@/lib/ai';
+import { aiCall, extractJSON } from '@/lib/ai';
 import { gatherPortfolioData, getClosedTradesForTicker } from '@/lib/ai-data';
 import { calculateDTE } from '@/lib/utils';
 import { fetchOptionsChain } from '@/lib/polygon';
@@ -145,7 +145,7 @@ Guidelines for ${position.strategy}:
     model: 'claude-haiku-4-5-20251001',
     system: systemPrompt,
     messages: [{ role: 'user', content: `Recommend roll parameters for my ${position.strategy} on ${position.ticker}.` }],
-    maxTokens: 400,
+    maxTokens: 800,
     ticker: position.ticker,
   });
 
@@ -154,11 +154,7 @@ Guidelines for ${position.strategy}:
   }
 
   try {
-    let jsonStr = result.text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    }
-    const recommendation = JSON.parse(jsonStr);
+    const recommendation = extractJSON(result.text);
     return NextResponse.json(recommendation);
   } catch {
     return NextResponse.json({
