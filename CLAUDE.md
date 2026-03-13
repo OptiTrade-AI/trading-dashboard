@@ -48,9 +48,9 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Covered Calls | `/cc` | Covered calls table with add/edit/close modals |
 | Directional | `/directional` | Long calls/puts table with add/close modals |
 | Spreads | `/spreads` | Vertical spreads table with add/close modals |
-| Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap |
+| Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap, lot grouping by ticker |
 | Stock Events | `/stock` | Realized stock P/L and tax loss harvest ledger |
-| Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations |
+| Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations, interactive strategy drill-down, stock capital gains |
 | AI Chat | `/analysis` | Conversational AI trading coach with saved history and "Discuss in Chat" integration |
 
 ### Trade Types
@@ -84,7 +84,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | Hook | Purpose |
 |------|---------|
 | `usePortfolioPositions` | Master dashboard hook aggregating all trade hooks + market data into unified open positions, recent activity, capital allocation, strategy pulse, and unrealized P/L by strategy |
-| `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets) with time range filter (1M/3M/6M/YTD/ALL) |
+| `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets, stock capital gains, strategy trade drill-down) with time range filter (1W/1M/3M/6M/YTD/ALL) |
 | `useTableSortFilter` | Generic table sort/filter state: sorting by any key with custom extractors, filtering by status/ticker/date range. Used by all trade log tables |
 | `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
 
@@ -109,7 +109,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | AITradeCheck | `src/components/AITradeCheck.tsx` | Pre-trade risk check with live market data, strategy-specific metrics (ROC/ROS/Greeks), and AI insights in all add-trade modals |
 | AIRollAdvisor | `src/components/AIRollAdvisor.tsx` | Roll suggestions with live options chain in all close modals |
 | BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | AI pattern recognition with evolution tracking on Analytics page |
-| AICostIndicator | `src/components/AICostIndicator.tsx` | Nav button with sparkle icon + slide-out panel: hero with count-up animation & sparkline, 30-day stacked AreaChart by model, feature BarChart, model split segmented bar, token efficiency, recent activity timeline. Privacy mode overlays on all charts |
+| AICostIndicator | `src/components/AICostIndicator.tsx` | Nav button with sparkle icon + centered modal (portaled): hero with count-up animation & sparkline, 30-day stacked AreaChart by model, feature BarChart, model split segmented bar, token efficiency, recent activity timeline. Privacy mode overlays on all charts |
 | UncoveredHoldingsCard | `src/components/dashboard/UncoveredHoldingsCard.tsx` | Shows holdings not covered by calls, with suggestion to write covered calls |
 | DiscussChatLink | `src/components/DiscussChatLink.tsx` | "Discuss in Chat" button linking AI outputs to conversational coach |
 | TickerAutocomplete | `src/components/shared/TickerAutocomplete.tsx` | Reusable ticker search input with autocomplete dropdown, used in all trade add/edit modals |
@@ -125,7 +125,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/app/page.tsx` — Dashboard aggregating stats across all trade types
 - `src/app/analytics/page.tsx` — Charts, analytics, SPY benchmark, and P/L annotations
 - `src/app/analysis/page.tsx` — Conversational AI trading coach with saved history
-- `src/lib/ai.ts` — Shared Anthropic client, `aiCall()`, `aiStream()`, automatic usage tracking
+- `src/lib/ai.ts` — Shared Anthropic client, `aiCall()`, `aiStream()` (with retry on 529), `extractJSON()`, automatic usage tracking
 - `src/lib/ai-data.ts` — Server-side portfolio data gathering for all AI features
 - `src/lib/polygon.ts` — Polygon options chain fetcher with 5-min in-memory cache
 - `src/lib/createTradeRoute.ts` — Generic API route factory for trade CRUD (GET, POST, PATCH, DELETE)

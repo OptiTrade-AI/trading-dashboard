@@ -11,6 +11,15 @@ import { IntradayChart } from './IntradayChart';
 type SortKey = 'ticker' | 'shares' | 'costBasisPerShare' | 'acquiredDate' | 'totalCost' | 'price' | 'mktValue' | 'pl' | 'dayChg';
 type SortDirection = 'asc' | 'desc';
 
+interface GroupedHolding {
+  ticker: string;
+  lots: StockHolding[];
+  shares: number;
+  totalCost: number;
+  costBasisPerShare: number; // weighted average
+  earliestDate: string;
+}
+
 interface HoldingsTableProps {
   holdings: StockHolding[];
   priceMap?: Map<string, StockPrice>;
@@ -27,6 +36,7 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterTicker, setFilterTicker] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [expandedLots, setExpandedLots] = useState<string | null>(null);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -37,28 +47,51 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
     }
   };
 
-  const getComputedValue = (h: StockHolding, key: SortKey): string | number => {
-    const sp = priceMap?.get(h.ticker);
+  const grouped = useMemo(() => {
+    const map = new Map<string, StockHolding[]>();
+    for (const h of holdings) {
+      const key = h.ticker.toUpperCase();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(h);
+    }
+
+    const groups: GroupedHolding[] = [];
+    for (const [ticker, lots] of map) {
+      const shares = lots.reduce((s, l) => s + l.shares, 0);
+      const totalCost = lots.reduce((s, l) => s + l.shares * l.costBasisPerShare, 0);
+      const costBasisPerShare = shares > 0 ? totalCost / shares : 0;
+      const earliestDate = lots.reduce((min, l) => l.acquiredDate < min ? l.acquiredDate : min, lots[0].acquiredDate);
+      groups.push({ ticker, lots, shares, totalCost, costBasisPerShare, earliestDate });
+    }
+
+    return groups;
+  }, [holdings]);
+
+  const getGroupValue = (g: GroupedHolding, key: SortKey): string | number => {
+    const sp = priceMap?.get(g.ticker);
     switch (key) {
-      case 'totalCost': return h.shares * h.costBasisPerShare;
+      case 'ticker': return g.ticker;
+      case 'shares': return g.shares;
+      case 'costBasisPerShare': return g.costBasisPerShare;
+      case 'totalCost': return g.totalCost;
       case 'price': return sp?.price ?? 0;
-      case 'mktValue': return sp ? h.shares * sp.price : 0;
-      case 'pl': return sp ? (h.shares * sp.price) - (h.shares * h.costBasisPerShare) : 0;
+      case 'mktValue': return sp ? g.shares * sp.price : 0;
+      case 'pl': return sp ? (g.shares * sp.price) - g.totalCost : 0;
       case 'dayChg': return sp?.changePercent ?? 0;
-      default: return h[key as keyof StockHolding] as string | number;
+      case 'acquiredDate': return g.earliestDate;
     }
   };
 
   const filtered = useMemo(() => {
-    let result = [...holdings];
+    let result = [...grouped];
 
     if (filterTicker) {
-      result = result.filter(h => h.ticker.toLowerCase().includes(filterTicker.toLowerCase()));
+      result = result.filter(g => g.ticker.toLowerCase().includes(filterTicker.toLowerCase()));
     }
 
     result.sort((a, b) => {
-      const aVal = getComputedValue(a, sortKey);
-      const bVal = getComputedValue(b, sortKey);
+      const aVal = getGroupValue(a, sortKey);
+      const bVal = getGroupValue(b, sortKey);
 
       if (typeof aVal === 'string' && typeof bVal === 'string') {
         return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
@@ -70,10 +103,10 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
 
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [holdings, filterTicker, sortKey, sortDirection, priceMap]);
+  }, [grouped, filterTicker, sortKey, sortDirection, priceMap]);
 
   const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
-  const totalColumns = 12; // ticker + 7d + shares + cost/share + total cost + price + mkt value + p/l + day chg + 52w + acquired + notes + actions
+  const totalColumns = 13;
 
   const SortHeader = ({ label, sortKeyVal, className = '' }: { label: string; sortKeyVal: SortKey; className?: string }) => (
     <th
@@ -140,7 +173,7 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
               <SortHeader label="Ticker" sortKeyVal="ticker" />
               <th className="px-4 py-3 text-left stat-label">7D</th>
               <SortHeader label="Shares" sortKeyVal="shares" />
-              <SortHeader label="Cost/Share" sortKeyVal="costBasisPerShare" />
+              <SortHeader label="Avg Cost" sortKeyVal="costBasisPerShare" />
               <SortHeader label="Total Cost" sortKeyVal="totalCost" />
               <SortHeader label="Price" sortKeyVal="price" />
               <SortHeader label="Mkt Value" sortKeyVal="mktValue" />
@@ -153,26 +186,27 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
             </tr>
           </thead>
           <tbody className="divide-y divide-border/30">
-            {filtered.map((holding) => {
-              const totalCost = holding.shares * holding.costBasisPerShare;
-              const sp = priceMap?.get(holding.ticker);
-              const mktValue = sp ? holding.shares * sp.price : null;
-              const pl = mktValue !== null ? mktValue - totalCost : null;
-              const isExpanded = expandedRow === holding.id;
-              const yearRange = yearRanges?.get(holding.ticker);
+            {filtered.map((group) => {
+              const sp = priceMap?.get(group.ticker);
+              const mktValue = sp ? group.shares * sp.price : null;
+              const pl = mktValue !== null ? mktValue - group.totalCost : null;
+              const isChartExpanded = expandedRow === group.ticker;
+              const isLotsExpanded = expandedLots === group.ticker;
+              const hasMultipleLots = group.lots.length > 1;
+              const yearRange = yearRanges?.get(group.ticker);
 
               return (
-                <Fragment key={holding.id}>
+                <Fragment key={group.ticker}>
                   <tr className="hover:bg-background/20 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setExpandedRow(isExpanded ? null : holding.id)}
+                          onClick={() => setExpandedRow(isChartExpanded ? null : group.ticker)}
                           className="text-muted hover:text-foreground transition-colors flex-shrink-0"
-                          title={isExpanded ? 'Collapse intraday chart' : 'Expand intraday chart'}
+                          title={isChartExpanded ? 'Collapse intraday chart' : 'Expand intraday chart'}
                         >
                           <svg
-                            className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')}
+                            className={cn('w-4 h-4 transition-transform', isChartExpanded && 'rotate-90')}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -182,17 +216,28 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
                           </svg>
                         </button>
                         <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                          <span className="text-blue-400 text-xs font-bold">{holding.ticker.slice(0, 2)}</span>
+                          <span className="text-blue-400 text-xs font-bold">{group.ticker.slice(0, 2)}</span>
                         </div>
-                        <span className="font-medium text-foreground">{holding.ticker}</span>
+                        <div>
+                          <span className="font-medium text-foreground">{group.ticker}</span>
+                          {hasMultipleLots && (
+                            <button
+                              onClick={() => setExpandedLots(isLotsExpanded ? null : group.ticker)}
+                              className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                              title={isLotsExpanded ? 'Hide lots' : 'Show individual lots'}
+                            >
+                              {group.lots.length} lots {isLotsExpanded ? '▴' : '▾'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <TickerSparkline bars={sparklines?.get(holding.ticker)} ticker={holding.ticker} />
+                      <TickerSparkline bars={sparklines?.get(group.ticker)} ticker={group.ticker} />
                     </td>
-                    <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '***' : holding.shares}</td>
-                    <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : formatCurrency(holding.costBasisPerShare)}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-foreground">{privacyMode ? '$***' : formatCurrency(totalCost)}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '***' : group.shares}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{privacyMode ? '$***' : formatCurrency(group.costBasisPerShare)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-foreground">{privacyMode ? '$***' : formatCurrency(group.totalCost)}</td>
 
                     {/* Live price columns */}
                     {pricesLoading ? (
@@ -229,38 +274,95 @@ export function HoldingsTable({ holdings, priceMap, pricesLoading, sparklines, y
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-sm text-muted">{formatDateShort(holding.acquiredDate)}</td>
-                    <td className="px-4 py-3 text-sm text-muted max-w-[200px] truncate">{holding.notes || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-muted">{formatDateShort(group.earliestDate)}</td>
+                    <td className="px-4 py-3 text-sm text-muted max-w-[200px] truncate">
+                      {hasMultipleLots ? `${group.lots.length} lots` : (group.lots[0].notes || '-')}
+                    </td>
                     <td className="px-4 py-3 text-sm text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        {onEdit && (
-                          <button
-                            onClick={() => onEdit(holding)}
-                            className="text-muted hover:text-accent text-xs font-medium transition-colors"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {onDelete && (
-                          <button
-                            onClick={() => onDelete(holding)}
-                            className="text-muted hover:text-loss text-xs font-medium transition-colors"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
+                      {!hasMultipleLots && (
+                        <div className="flex items-center justify-end gap-3">
+                          {onEdit && (
+                            <button
+                              onClick={() => onEdit(group.lots[0])}
+                              className="text-muted hover:text-accent text-xs font-medium transition-colors"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button
+                              onClick={() => onDelete(group.lots[0])}
+                              className="text-muted hover:text-loss text-xs font-medium transition-colors"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
-                  {isExpanded && (
-                    <tr key={`${holding.id}-intraday`}>
+
+                  {/* Expandable sub-lots for multi-lot tickers */}
+                  {isLotsExpanded && hasMultipleLots && [...group.lots]
+                    .sort((a, b) => a.acquiredDate.localeCompare(b.acquiredDate))
+                    .map((lot) => {
+                      const lotCost = lot.shares * lot.costBasisPerShare;
+                      const lotMktValue = sp ? lot.shares * sp.price : null;
+                      const lotPl = lotMktValue !== null ? lotMktValue - lotCost : null;
+
+                      return (
+                        <tr key={lot.id} className="bg-background/10 hover:bg-background/20 transition-colors">
+                          <td className="px-4 py-2 pl-16">
+                            <span className="text-xs text-muted">Lot</span>
+                          </td>
+                          <td className="px-4 py-2" />
+                          <td className="px-4 py-2 text-xs text-muted">{privacyMode ? '***' : lot.shares}</td>
+                          <td className="px-4 py-2 text-xs text-muted">{privacyMode ? '$***' : formatCurrency(lot.costBasisPerShare)}</td>
+                          <td className="px-4 py-2 text-xs text-muted">{privacyMode ? '$***' : formatCurrency(lotCost)}</td>
+                          <td className="px-4 py-2" />
+                          <td className="px-4 py-2 text-xs text-muted">
+                            {lotMktValue !== null ? formatCurrency(lotMktValue) : '—'}
+                          </td>
+                          <td className={cn('px-4 py-2 text-xs', lotPl !== null ? (lotPl >= 0 ? 'text-profit' : 'text-loss') : 'text-muted')}>
+                            {lotPl !== null ? formatCurrency(lotPl) : '—'}
+                          </td>
+                          <td className="px-4 py-2" />
+                          <td className="px-4 py-2 hidden lg:table-cell" />
+                          <td className="px-4 py-2 text-xs text-muted">{formatDateShort(lot.acquiredDate)}</td>
+                          <td className="px-4 py-2 text-xs text-muted max-w-[200px] truncate">{lot.notes || '-'}</td>
+                          <td className="px-4 py-2 text-xs text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              {onEdit && (
+                                <button
+                                  onClick={() => onEdit(lot)}
+                                  className="text-muted hover:text-accent text-xs font-medium transition-colors"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {onDelete && (
+                                <button
+                                  onClick={() => onDelete(lot)}
+                                  className="text-muted hover:text-loss text-xs font-medium transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {isChartExpanded && (
+                    <tr key={`${group.ticker}-intraday`}>
                       <td colSpan={totalColumns} className="px-4 py-4 bg-background/10">
                         <div className="max-w-4xl mx-auto">
                           <div className="flex items-center gap-2 mb-3">
-                            <span className="text-sm font-medium text-foreground">{holding.ticker}</span>
+                            <span className="text-sm font-medium text-foreground">{group.ticker}</span>
                             <span className="text-xs text-muted">Intraday (5-min)</span>
                           </div>
-                          <IntradayChart ticker={holding.ticker} prevClose={sp ? sp.price - sp.change : undefined} />
+                          <IntradayChart ticker={group.ticker} prevClose={sp ? sp.price - sp.change : undefined} />
                         </div>
                       </td>
                     </tr>

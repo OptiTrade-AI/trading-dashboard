@@ -52,6 +52,29 @@ export async function trackAICall(
 }
 
 /**
+ * Extract JSON from AI response text, handling code fences and surrounding text.
+ */
+export function extractJSON<T = unknown>(text: string): T {
+  let s = text.trim();
+  // Strip markdown code fences
+  s = s.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  // Try direct parse first
+  try { return JSON.parse(s); } catch { /* fall through */ }
+  // Extract first JSON object or array
+  const objStart = s.indexOf('{');
+  const arrStart = s.indexOf('[');
+  const start = objStart === -1 ? arrStart : arrStart === -1 ? objStart : Math.min(objStart, arrStart);
+  if (start !== -1) {
+    const isArr = s[start] === '[';
+    const end = isArr ? s.lastIndexOf(']') : s.lastIndexOf('}');
+    if (end > start) {
+      return JSON.parse(s.slice(start, end + 1));
+    }
+  }
+  throw new SyntaxError('No valid JSON found in AI response');
+}
+
+/**
  * Make a non-streaming Claude call and track usage.
  * Returns the text content and usage info.
  */
@@ -67,22 +90,37 @@ export async function aiCall(opts: {
   if (!client) return null;
 
   const model = opts.model || 'claude-haiku-4-5-20251001';
-  const response = await client.messages.create({
-    model,
-    max_tokens: opts.maxTokens || 1024,
-    system: opts.system,
-    messages: opts.messages,
-  });
+  const maxRetries = 3;
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('');
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model,
+        max_tokens: opts.maxTokens || 2048,
+        system: opts.system,
+        messages: opts.messages,
+      });
 
-  const { input_tokens, output_tokens } = response.usage;
-  await trackAICall(opts.feature, model, input_tokens, output_tokens, opts.ticker);
+      const text = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map(b => b.text)
+        .join('');
 
-  return { text, inputTokens: input_tokens, outputTokens: output_tokens };
+      const { input_tokens, output_tokens } = response.usage;
+      await trackAICall(opts.feature, model, input_tokens, output_tokens, opts.ticker);
+
+      return { text, inputTokens: input_tokens, outputTokens: output_tokens };
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status;
+      if (status === 529 && attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -116,36 +154,46 @@ export function aiStream(opts: {
     resolveAccumulated = resolve;
   });
 
-  const anthropicStream = client.messages.stream({
-    model,
-    max_tokens: opts.maxTokens || 1024,
-    system: opts.system,
-    messages: opts.messages,
-  });
-
   let fullText = '';
+  const maxRetries = 3;
 
   const readableStream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      try {
-        for await (const event of anthropicStream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            fullText += event.delta.text;
-            controller.enqueue(encoder.encode(event.delta.text));
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const anthropicStream = client.messages.stream({
+            model,
+            max_tokens: opts.maxTokens || 2048,
+            system: opts.system,
+            messages: opts.messages,
+          });
+
+          for await (const event of anthropicStream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              fullText += event.delta.text;
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
           }
+
+          // Track usage after stream completes
+          const finalMessage = await anthropicStream.finalMessage();
+          const { input_tokens, output_tokens } = finalMessage.usage;
+          await trackAICall(opts.feature, model, input_tokens, output_tokens, opts.ticker);
+
+          resolveAccumulated(fullText);
+          controller.close();
+          return;
+        } catch (err: unknown) {
+          const status = (err as { status?: number }).status;
+          if (status === 529 && attempt < maxRetries - 1) {
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          resolveAccumulated(fullText);
+          controller.error(err);
+          return;
         }
-
-        // Track usage after stream completes
-        const finalMessage = await anthropicStream.finalMessage();
-        const { input_tokens, output_tokens } = finalMessage.usage;
-        await trackAICall(opts.feature, model, input_tokens, output_tokens, opts.ticker);
-
-        resolveAccumulated(fullText);
-        controller.close();
-      } catch (err) {
-        resolveAccumulated(fullText);
-        controller.error(err);
       }
     },
   });

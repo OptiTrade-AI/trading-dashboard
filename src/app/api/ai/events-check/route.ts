@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { aiCall } from '@/lib/ai';
+import { aiCall, extractJSON } from '@/lib/ai';
 import { gatherPortfolioData } from '@/lib/ai-data';
 
 export const dynamic = 'force-dynamic';
@@ -91,7 +91,7 @@ Only include events you have reasonable confidence about.`;
     model: 'claude-haiku-4-5-20251001',
     system: systemPrompt,
     messages: [{ role: 'user', content: `Check for upcoming events on my open positions: ${tickers.join(', ')}` }],
-    maxTokens: 512,
+    maxTokens: 1024,
   });
 
   if (!result) {
@@ -99,11 +99,7 @@ Only include events you have reasonable confidence about.`;
   }
 
   try {
-    let jsonStr = result.text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    }
-    const events = JSON.parse(jsonStr);
+    const events = extractJSON(result.text);
     return NextResponse.json({ events, available: true });
   } catch {
     return NextResponse.json({ events: [], available: false });

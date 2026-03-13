@@ -4,6 +4,13 @@
 
 The Holdings page (`/holdings`) tracks your current share inventory — ticker, shares, cost basis per share, and acquisition date. Holdings are used by Covered Calls for automatic cost basis lookups when opening new positions.
 
+### Lot Grouping
+Multiple acquisitions of the same ticker are grouped into a single row showing:
+- **Weighted average cost basis** across all lots
+- **Total shares** summed from all lots
+- **"N lots" badge** — click to expand and view individual lot details (shares, cost, date, notes)
+- Sorting and filtering operates on grouped data (earliest date, weighted cost)
+
 ### Visual Features
 
 - **Portfolio Return Chart** — Line chart showing realized P/L over time
@@ -31,9 +38,9 @@ When a Cash-Secured Put is closed with exit reason **"assigned"** (full or parti
 
 - **Ticker** — from the CSP trade
 - **Shares** — contracts × 100 (or partial contract count × 100)
-- **Cost basis per share** — the put's strike price
+- **Cost basis per share** — strike price minus premium received per share (e.g., $150 strike − $2.50 premium = $147.50 cost basis)
 - **Acquired date** — the exit/assignment date
-- **Notes** — auto-generated label (e.g., `Auto: AAPL $150P assigned`)
+- **Notes** — auto-generated label with premium detail (e.g., `Auto: AAPL $150 P assigned (premium $2.50/sh)`)
 
 ## Auto-Sync: CC Called Away
 

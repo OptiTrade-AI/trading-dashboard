@@ -714,11 +714,11 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
                 </div>
                 <div className="flex justify-between">
                   <span>Premium received:</span>
-                  <span>-${(call.premiumCollected / (call.contracts * 100)).toFixed(2)}/share</span>
+                  <span>+${(call.premiumCollected / (call.contracts * 100)).toFixed(2)}/share</span>
                 </div>
                 <div className="flex justify-between border-t border-blue-500/20 pt-1 font-medium">
-                  <span>Effective cost basis:</span>
-                  <span>${(call.strike - call.premiumCollected / (call.contracts * 100)).toFixed(2)}/share</span>
+                  <span>Effective sale price:</span>
+                  <span>${(call.strike + call.premiumCollected / (call.contracts * 100)).toFixed(2)}/share</span>
                 </div>
               </div>
             </div>

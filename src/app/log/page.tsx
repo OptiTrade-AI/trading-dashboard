@@ -40,12 +40,14 @@ export default function TradeLog() {
     if (closeModalTrade) {
       closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason);
       if (exitReason === 'assigned') {
+        const shares = closeModalTrade.contracts * 100;
+        const premiumPerShare = closeModalTrade.premiumCollected / shares;
         addHolding({
           ticker: closeModalTrade.ticker,
-          shares: closeModalTrade.contracts * 100,
-          costBasisPerShare: closeModalTrade.strike,
+          shares,
+          costBasisPerShare: closeModalTrade.strike - premiumPerShare,
           acquiredDate: exitDate,
-          notes: `Auto: ${closeModalTrade.ticker} $${closeModalTrade.strike}P assigned`,
+          notes: `Auto: ${closeModalTrade.ticker} $${closeModalTrade.strike}P assigned (premium $${premiumPerShare.toFixed(2)}/sh)`,
         });
       }
       setCloseModalTrade(null);
@@ -63,12 +65,14 @@ export default function TradeLog() {
     if (closeModalTrade) {
       partialCloseTrade(closeModalTrade.id, contractsToClose, exitPrice, exitDate, exitReason);
       if (exitReason === 'assigned') {
+        const shares = contractsToClose * 100;
+        const premiumPerShare = closeModalTrade.premiumCollected / (closeModalTrade.contracts * 100);
         addHolding({
           ticker: closeModalTrade.ticker,
-          shares: contractsToClose * 100,
-          costBasisPerShare: closeModalTrade.strike,
+          shares,
+          costBasisPerShare: closeModalTrade.strike - premiumPerShare,
           acquiredDate: exitDate,
-          notes: `Auto: ${closeModalTrade.ticker} $${closeModalTrade.strike}P partially assigned (${contractsToClose} contracts)`,
+          notes: `Auto: ${closeModalTrade.ticker} $${closeModalTrade.strike}P partially assigned (${contractsToClose} contracts, premium $${premiumPerShare.toFixed(2)}/sh)`,
         });
       }
       setCloseModalTrade(null);

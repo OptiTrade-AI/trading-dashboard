@@ -41,6 +41,7 @@ export default function Analytics() {
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const [strategyTab, setStrategyTab] = useState<StrategyTab>('all');
   const [showBenchmark, setShowBenchmark] = useState(false);
+  const [strategyTradesModal, setStrategyTradesModal] = useState<string | null>(null);
   const [annotationInput, setAnnotationInput] = useState<{ date: string; label: string } | null>(null);
   const { formatCurrency, privacyMode } = useFormatters();
   const { allBars: spyBars } = useStockAggregates(showBenchmark ? ['SPY'] : []);
@@ -150,7 +151,7 @@ export default function Analytics() {
       {/* ── Hero Stats Row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <HeroStat
-          label="Total P/L"
+          label={timeRange === 'ALL' ? 'Total P/L' : `P/L (${timeRange})`}
           value={privacyMode ? '$***' : `${analytics.totalPL >= 0 ? '+' : ''}${formatCurrency(analytics.totalPL)}`}
           variant={analytics.totalPL >= 0 ? 'profit' : 'loss'}
           sub={privacyMode ? '**% return' : `${analytics.returnOnAccount >= 0 ? '+' : ''}${analytics.returnOnAccount.toFixed(1)}% return`}
@@ -263,7 +264,7 @@ export default function Analytics() {
         <div className="lg:col-span-2 glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">P/L by Strategy</h3>
           <ChartBlur active={privacyMode}>
-            <StrategyDonutChart data={analytics.strategyPL} centerLabel="Total P/L" />
+            <StrategyDonutChart data={analytics.strategyPL} centerLabel="Total P/L" onSliceClick={setStrategyTradesModal} />
           </ChartBlur>
         </div>
       </div>
@@ -481,6 +482,16 @@ export default function Analytics() {
 
       {/* ── Behavioral Patterns (AI) ── */}
       <BehavioralPatterns />
+
+      {/* ── Strategy Trades Modal ── */}
+      {strategyTradesModal && analytics.strategyTrades[strategyTradesModal] && (
+        <StrategyTradesModal
+          name={strategyTradesModal}
+          trades={analytics.strategyTrades[strategyTradesModal]}
+          color={analytics.strategyPL.find(s => s.name === strategyTradesModal)?.color || '#10b981'}
+          onClose={() => setStrategyTradesModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -529,7 +540,7 @@ function HeroStat({ label, value, variant, sub }: { label: string; value: string
 // ─── Time Range Selector ───
 
 function TimeRangeSelector({ value, onChange }: { value: TimeRange; onChange: (v: TimeRange) => void }) {
-  const ranges: TimeRange[] = ['1M', '3M', '6M', 'YTD', 'ALL'];
+  const ranges: TimeRange[] = ['1W', '1M', '3M', '6M', 'YTD', 'ALL'];
   return (
     <div className="flex items-center gap-1 p-1 bg-card-solid/50 rounded-xl border border-border">
       {ranges.map((r) => (
@@ -636,6 +647,37 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
             avgDays={analytics.spreadAvgDaysHeld}
             extra={`Return: ${analytics.spreadTotalReturn >= 0 ? '+' : ''}${analytics.spreadTotalReturn.toFixed(1)}%`}
           />
+        )}
+        {analytics.stockCount > 0 && (
+          <div className="bg-card-solid/30 rounded-xl p-5 border border-border/30 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-500/10">
+                <span className="font-bold text-sm text-teal-400">$</span>
+              </div>
+              <div>
+                <span className="font-semibold text-foreground">Stock Capital Gains</span>
+                <div className="text-xs text-muted">{analytics.stockCount} sales</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs text-muted mb-1">Total P/L</div>
+                <div className={cn('text-2xl font-bold', analytics.stockTotalPL >= 0 ? 'text-profit' : 'text-loss')}>
+                  {analytics.stockTotalPL >= 0 ? '+' : ''}{rawFormatCurrency(analytics.stockTotalPL)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted mb-1">Win Rate</div>
+                <div className="text-2xl font-bold text-foreground">{analytics.stockWinRate.toFixed(0)}%</div>
+              </div>
+            </div>
+            {analytics.stockBestEvent && (
+              <div className="flex items-center justify-between text-sm text-muted pt-3 border-t border-border/20">
+                <span>Largest gain</span>
+                <span className="text-profit">{analytics.stockBestEvent.ticker} +{rawFormatCurrency(analytics.stockBestEvent.realizedPL)}</span>
+              </div>
+            )}
+          </div>
         )}
       </div>
     );
@@ -793,6 +835,127 @@ function BestWorstCard({ type, trade, formatDetails, iconBg, iconColor }: {
         <span className={cn('text-xl font-bold', isPositive ? 'text-profit' : 'text-loss')}>
           {isPositive ? '+' : ''}{rawFormatCurrency(trade.pl)}
         </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Strategy Trades Modal ───
+
+function StrategyTradesModal({ name, trades, color, onClose }: {
+  name: string; trades: TradeWithPL[]; color: string; onClose: () => void;
+}) {
+  const [sortBy, setSortBy] = useState<'pl' | 'date' | 'ticker'>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: 'pl' | 'date' | 'ticker') => {
+    if (sortBy === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(key);
+      setSortDir(key === 'ticker' ? 'asc' : 'desc');
+    }
+  };
+
+  const sorted = [...trades].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortBy === 'pl') return (a.pl - b.pl) * dir;
+    if (sortBy === 'ticker') return a.ticker.localeCompare(b.ticker) * dir;
+    return ((a.exitDate || '').localeCompare(b.exitDate || '')) * dir;
+  });
+
+  const totalPL = trades.reduce((s, t) => s + t.pl, 0);
+  const wins = trades.filter(t => t.pl > 0).length;
+  const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+
+  const SortBtn = ({ label, field }: { label: string; field: 'pl' | 'date' | 'ticker' }) => (
+    <button
+      onClick={() => handleSort(field)}
+      className={cn('text-left stat-label cursor-pointer hover:text-foreground transition-colors', sortBy === field && 'text-accent')}
+    >
+      {label} {sortBy === field && (sortDir === 'asc' ? '↑' : '↓')}
+    </button>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-2xl max-h-[80vh] bg-card-solid rounded-2xl border border-border/50 shadow-2xl flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-border/30">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+            <h2 className="text-lg font-semibold text-foreground">{name}</h2>
+            <span className="text-xs text-muted bg-background/50 px-2 py-0.5 rounded-full">{trades.length} trades</span>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Summary */}
+        <div className="grid grid-cols-3 gap-4 p-5 border-b border-border/30">
+          <div>
+            <div className="stat-label mb-1">Total P/L</div>
+            <div className={cn('text-xl font-bold', totalPL >= 0 ? 'text-profit' : 'text-loss')}>
+              {totalPL >= 0 ? '+' : ''}{rawFormatCurrency(totalPL)}
+            </div>
+          </div>
+          <div>
+            <div className="stat-label mb-1">Win Rate</div>
+            <div className="text-xl font-bold text-foreground">{winRate.toFixed(0)}%</div>
+          </div>
+          <div>
+            <div className="stat-label mb-1">Avg P/L</div>
+            <div className={cn('text-xl font-bold', totalPL >= 0 ? 'text-profit' : 'text-loss')}>
+              {trades.length > 0 ? rawFormatCurrency(totalPL / trades.length) : '$0'}
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-y-auto flex-1 p-5">
+          <table className="w-full">
+            <thead>
+              <tr className="text-xs">
+                <th className="pb-2 pr-3"><SortBtn label="Ticker" field="ticker" /></th>
+                <th className="pb-2 pr-3 text-left stat-label">Details</th>
+                <th className="pb-2 pr-3"><SortBtn label="Exit Date" field="date" /></th>
+                <th className="pb-2 pr-3 text-left stat-label">Days</th>
+                <th className="pb-2 text-right"><SortBtn label="P/L" field="pl" /></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/20">
+              {sorted.map((t, i) => (
+                <tr key={i} className="hover:bg-background/20 transition-colors">
+                  <td className="py-2.5 pr-3">
+                    <span className="font-medium text-foreground text-sm">{t.ticker}</span>
+                  </td>
+                  <td className="py-2.5 pr-3 text-xs text-muted">
+                    {t.strike != null && `$${t.strike}`}
+                    {t.optionType === 'call' ? 'C' : t.optionType === 'put' ? 'P' : t.strike != null ? (t.type === 'cc' ? 'C' : 'P') : ''}
+                    {t.longStrike != null && t.shortStrike != null && ` $${t.longStrike}/$${t.shortStrike}`}
+                    {t.contracts != null && t.contracts > 0 && ` x${t.contracts}`}
+                  </td>
+                  <td className="py-2.5 pr-3 text-xs text-muted">
+                    {t.exitDate ? new Date(t.exitDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                  </td>
+                  <td className="py-2.5 pr-3 text-xs text-muted">
+                    {t.daysHeld > 0 ? `${t.daysHeld}d` : '—'}
+                  </td>
+                  <td className={cn('py-2.5 text-right text-sm font-semibold', t.pl >= 0 ? 'text-profit' : 'text-loss')}>
+                    {t.pl >= 0 ? '+' : ''}{rawFormatCurrency(t.pl)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
