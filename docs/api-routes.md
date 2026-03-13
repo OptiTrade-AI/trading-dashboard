@@ -29,7 +29,7 @@ Requires the `ANTHROPIC_API_KEY` environment variable.
 | `/api/ai/roll-advisor` | POST | Haiku 4.5 | Roll recommendations with live options chain data |
 | `/api/ai/events-check` | GET | Haiku 4.5 | Earnings/events detection for open position tickers |
 | `/api/ai/daily-summary` | GET | Haiku 4.5 | 1-2 sentence portfolio summary (24h cache) |
-| `/api/ai/usage` | GET | N/A | AI usage stats and cost tracking |
+| `/api/ai/usage` | GET | N/A | AI usage stats: today/yesterday/week/month/all-time costs, 30-day daily breakdown by model, per-feature token splits, recent calls |
 | `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | Conversational AI: GET lists conversations, POST sends message (streaming), PATCH renames, DELETE removes |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
 
