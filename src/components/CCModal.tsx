@@ -10,14 +10,24 @@ import { AIRollAdvisor } from './AIRollAdvisor';
 import { TickerAutocomplete } from './shared/TickerAutocomplete';
 import type { RollRecommendation } from '@/types';
 
+export interface AddCCInitialValues {
+  ticker?: string;
+  strike?: number;
+  contracts?: number;
+  expiration?: string;
+  premiumPerShare?: number;
+  costBasis?: number;
+}
+
 interface AddCCModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (call: Omit<CoveredCall, 'id' | 'dteAtEntry' | 'sharesHeld' | 'status'>) => void;
   getCostBasis?: (ticker: string, sharesNeeded: number) => number | null;
+  initialValues?: AddCCInitialValues;
 }
 
-export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCModalProps) {
+export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis, initialValues }: AddCCModalProps) {
   const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [strike, setStrike] = useState('');
@@ -28,6 +38,17 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [commission, setCommission] = useState('');
   const [autoFilled, setAutoFilled] = useState(false);
+
+  // Apply initial values from optimizer
+  useEffect(() => {
+    if (!initialValues || !isOpen) return;
+    if (initialValues.ticker) setTicker(initialValues.ticker);
+    if (initialValues.strike) setStrike(initialValues.strike.toString());
+    if (initialValues.contracts) setContracts(initialValues.contracts.toString());
+    if (initialValues.expiration) setExpiration(initialValues.expiration);
+    if (initialValues.premiumPerShare) setPremium(initialValues.premiumPerShare.toFixed(2));
+    if (initialValues.costBasis) setCostBasis(initialValues.costBasis.toFixed(2));
+  }, [initialValues, isOpen]);
 
   // Auto-fill cost basis from holdings
   useEffect(() => {

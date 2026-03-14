@@ -9,9 +9,9 @@ Visual guide to the OptiTrade Dashboard architecture.
 ```mermaid
 graph TB
     subgraph Client["Browser (React)"]
-        Pages["Pages<br/>Dashboard · Logs · Analytics · AI Chat"]
+        Pages["Pages<br/>Dashboard · Logs · Analytics · Optimizer · AI Chat"]
         Components["Components<br/>Modals · Cards · Charts"]
-        Hooks["SWR Hooks<br/>useTrades · useOptionQuotes · useSmartAlerts<br/>usePortfolioPositions · useAnalyticsData"]
+        Hooks["SWR Hooks<br/>useTrades · useOptionQuotes · useSmartAlerts<br/>usePortfolioPositions · useAnalyticsData · useCallOptimizer"]
         Contexts["Contexts<br/>Privacy · Toast"]
     end
 
@@ -25,6 +25,7 @@ graph TB
         MongoDB[(MongoDB)]
         Polygon["Polygon.io API"]
         Anthropic["Anthropic Claude API"]
+        Tavily["Tavily Web Search"]
     end
 
     Pages --> Components
@@ -38,6 +39,7 @@ graph TB
     AIAPI -->|REST| Anthropic
     AIAPI -->|portfolio data| MongoDB
     AIAPI -->|options chain| Polygon
+    AIAPI -->|web search| Tavily
 ```
 
 ---
@@ -134,6 +136,7 @@ graph LR
         H["/holdings"]
         SE["/stock Events"]
         AN["/analytics"]
+        OPT["/optimizer CC Optimizer"]
         AI["/analysis AI Chat"]
     end
 
@@ -158,6 +161,7 @@ graph LR
     H --- Nav
     SE --- Nav
     AN --- Nav
+    OPT --- Nav
     AI --- Nav
 ```
 
@@ -264,6 +268,19 @@ erDiagram
         string createdAt
     }
 
+    AGENT_TRACES {
+        string id PK
+        string createdAt
+        array tickers
+        string mode
+        json steps
+        number totalDurationMs
+        number totalInputTokens
+        number totalOutputTokens
+        number costUsd
+        json result
+    }
+
     ACCOUNT_SETTINGS {
         number accountValue
         number maxHeatPercent
@@ -297,6 +314,7 @@ graph TB
     subgraph Analysis["Deep Analysis"]
         BP["Behavioral Patterns<br/>evolution tracking"]
         CH["AI Chat<br/>multi-turn conversations"]
+        CO["CC Optimizer Agent<br/>tool_use + web search"]
     end
 
     subgraph Infra["Infrastructure"]
@@ -307,6 +325,7 @@ graph TB
     TC -->|"Discuss in Chat"| CH
     EC -->|"Discuss in Chat"| CH
     BP -->|"Discuss in Chat"| CH
+    CO -->|"Write This Call"| AddCC["AddCCModal"]
     EC -->|"verdict: ROLL"| RA
 
     SA -.->|"polls 5 min"| SA
@@ -320,6 +339,7 @@ graph TB
     BP -.->|tracks| CT
     CH -.->|tracks| CT
     EW -.->|tracks| CT
+    CO -.->|tracks| CT
     DS -.->|tracks| CT
 ```
 
@@ -400,4 +420,5 @@ graph TD
 | **API** | Next.js App Router | Server-side routes, no auth layer |
 | **Data** | MongoDB | Document store for all trade and AI data |
 | **Market** | Polygon.io | Stock prices, option quotes, aggregates, events |
-| **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis) |
+| **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis + CC Optimizer agent) |
+| **Search** | Tavily | Web search for AI agent (analyst targets, earnings, news) |

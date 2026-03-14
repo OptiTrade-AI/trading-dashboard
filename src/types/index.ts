@@ -281,7 +281,7 @@ export interface StarterPrompt {
 }
 
 // AI Features
-export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario' | 'daily-summary';
+export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario' | 'daily-summary' | 'cc-optimizer';
 
 export interface AIUsageRecord {
   timestamp: string; // ISO date
@@ -420,4 +420,105 @@ export interface PatternAnalysisRecord {
   tradeCount: number;
   totalPL: number;
   winRate: number;
+}
+
+// Covered Call Optimizer
+export interface OptimizerRow {
+  symbol: string;           // O:AAPL260417C00150000
+  strike: number;
+  expiration: string;       // YYYY-MM-DD
+  dte: number;
+  bid: number;
+  ask: number;
+  midpoint: number;
+  delta: number | null;
+  theta: number | null;
+  iv: number | null;
+  openInterest: number;
+  volume: number;
+  // Computed metrics
+  premiumPerShare: number;
+  totalPremium: number;
+  annualizedReturn: number;
+  returnOnCostBasis: number;
+  distanceFromPrice: number;
+  distanceFromCostBasis: number;
+  breakevenPerShare: number;
+  calledAwayPL: number;
+  weeksToBreakeven: number;
+  bidAskSpread: number;
+}
+
+export type OptimizerPreset = 'conservative' | 'moderate' | 'aggressive' | 'recovery' | 'custom';
+
+export interface OptimizerParams {
+  minDelta: number;
+  maxDelta: number;
+  minDTE: number;
+  maxDTE: number;
+  minPremium: number;
+  maxLossIfCalled: number;
+  preset: OptimizerPreset;
+}
+
+export interface OptimizerResult {
+  ticker: string;
+  stockPrice: number;
+  costBasisPerShare: number;
+  totalShares: number;
+  availableContracts: number;
+  coveredContracts: number;
+  historicalCCPremium: number;
+  chain: OptimizerRow[];
+}
+
+// Agent Trace (full decision path)
+export interface AgentTraceStep {
+  stepIndex: number;
+  timestamp: string;
+  type: 'tool_call' | 'tool_result' | 'thinking' | 'final_answer';
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  toolResult?: unknown;
+  thinking?: string;           // agent's reasoning text before/after tool calls
+  durationMs?: number;
+  tokens?: { input: number; output: number };
+}
+
+export interface AgentTrace {
+  id: string;
+  createdAt: string;
+  tickers: string[];
+  mode: 'single' | 'portfolio';
+  steps: AgentTraceStep[];
+  totalDurationMs: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  costUsd: number;
+  result?: OptimizerAIAnalysis[];
+}
+
+export interface OptimizerAIAnalysis {
+  ticker: string;
+  topPick: {
+    symbol: string;
+    strike: number;
+    expiration: string;
+    reasoning: string;
+  };
+  alternates: {
+    strike: number;
+    expiration: string;
+    label: string;
+  }[];
+  analystConsensus?: string;
+  earningsDate?: string;
+  ivContext?: string;
+  keyRisks: string[];
+  strategyAdvice: string;
+  recoveryProjection: {
+    weeksEstimate: number;
+    assumedWeeklyPremium: number;
+    cumulativePremiumNeeded: number;
+  };
 }

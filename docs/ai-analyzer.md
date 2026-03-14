@@ -23,6 +23,7 @@ All AI features degrade gracefully when the API key is not configured — UI ele
 | **Earnings Watchdog** | Auto (4 hr refresh) | Haiku 4.5 | Upcoming earnings/events for open position tickers |
 | **Daily Summary** | Auto (dashboard hero, 24h cache) | Haiku 4.5 | 1-2 sentence portfolio summary |
 | **Conversational Coach** | `/analysis` page | Sonnet 4.6 | Multi-turn chat with full portfolio context |
+| **CC Optimizer Agent** | `/optimizer` page → per-ticker or portfolio-wide | Sonnet 4.6 | Agentic tool-use loop with 6 tools + Tavily web search for CC recommendations |
 | **AI Cost Tracker** | Navigation bar button → centered modal | N/A | Rich usage dashboard with charts and breakdowns |
 
 ---
@@ -97,6 +98,32 @@ Navigation bar button that opens a centered modal dialog (max-width 3xl, portale
 
 Data comes from `/api/ai/usage` which aggregates all `AIUsageRecord` documents in a single pass computing daily breakdowns, feature/model splits, and token totals.
 
+### CC Optimizer Agent
+The first **agentic** AI feature — uses Claude's `tool_use` capability in a multi-step reasoning loop (up to 30 iterations) rather than a single prompt-response call.
+
+**Architecture:** SSE streaming from `/api/ai/cc-optimizer`. The agent has access to 6 tools:
+- `get_options_chain` — Live call options from Polygon.io
+- `get_stock_price` — Current price from Polygon snapshot
+- `get_historical_prices` — Daily OHLC for support/resistance analysis
+- `get_holdings_data` — User's cost basis and share lots from MongoDB
+- `get_cc_history` — Past covered call trades and total premium earned
+- `web_search` — Tavily web search for analyst price targets, earnings dates, news
+
+**Output per ticker:**
+- Top pick with specific strike/expiration and reasoning
+- Alternate strikes (higher premium / safer)
+- Analyst consensus and earnings date from web search
+- IV context and key risks
+- Recovery projection (weeks to breakeven via premium collection)
+
+**Agent Trace Viewer:** Every tool call, result, and thinking step is captured as an `AgentTraceStep` and streamed to the client in real-time. The trace viewer uses React Flow (`@xyflow/react`) to render a visual node graph of the agent's decision path. Completed traces are saved to the `agentTraces` MongoDB collection and can be replayed from the Trace History Drawer.
+
+**Modes:**
+- **Single ticker** — Analyze one holding's CC opportunities
+- **Portfolio-wide** — Analyze all uncovered holdings with priority ranking
+
+**Integration:** "Write This Call" button in the optimizer chain table pre-fills the AddCCModal with strike, expiration, premium, and contracts for one-click CC creation.
+
 ### Chat Integration
 "Discuss in Chat" links appear on Exit Coach results, Trade Check results, and Pattern cards:
 - Creates a new conversation with pre-loaded context
@@ -118,17 +145,22 @@ Data comes from `/api/ai/usage` which aggregates all `AIUsageRecord` documents i
 | `/api/ai/daily-summary` | GET | Haiku 4.5 | Cached daily summary |
 | `/api/ai/usage` | GET | N/A | Usage stats and costs |
 | `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | GET: list conversations; POST: send message (streaming); PATCH: rename; DELETE: remove |
+| `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization with tool_use (SSE streaming) |
+| `/api/cc-optimizer` | GET | N/A | Options chain with computed optimizer metrics |
+| `/api/agent-traces` | GET | N/A | List or fetch saved agent traces |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
 
 ---
 
 ## Architecture
 
-All AI features follow the same pattern — no agents, no tool use, no multi-step loops:
+Most AI features follow a simple single-call pattern:
 
 ```
 Gather data server-side (MongoDB + Polygon) → Construct focused prompt → Single Claude API call → Return response
 ```
+
+**Exception: CC Optimizer Agent** uses an agentic tool-use loop (up to 30 iterations). The agent autonomously decides which tools to call (options chain, stock price, web search, etc.) and reasons across multiple steps before producing a final recommendation. This is the only multi-step AI feature.
 
 - **Usage tracking is automatic** — Every call goes through `aiCall()` or `aiStream()` which auto-track tokens and cost
 - **Retry with backoff** — `aiCall()` and `aiStream()` automatically retry up to 3 times on 529 (overloaded) responses with exponential backoff
@@ -151,4 +183,6 @@ Gather data server-side (MongoDB + Polygon) → Construct focused prompt → Sin
 | Daily Summary | 1/day | Negligible |
 | Chat | Varies | ~$0.02/msg |
 
-**Estimated monthly cost:** $8-18/mo depending on usage intensity.
+| CC Optimizer | On-demand | ~$0.10–0.30/run |
+
+**Estimated monthly cost:** $8-18/mo depending on usage intensity (excluding CC Optimizer agent runs).

@@ -19,6 +19,7 @@ const tradePages = [
 const topNav = [
   { href: '/', label: 'Dashboard' },
   { href: '/analytics', label: 'Analytics' },
+  { href: '/optimizer', label: 'Optimizer' },
   { href: '/analysis', label: 'Analyzer' },
 ];
 

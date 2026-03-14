@@ -1,6 +1,6 @@
 import { Collection } from 'mongodb';
 import { getDb } from './mongodb';
-import type { Trade, CoveredCall, DirectionalTrade, SpreadTrade, AccountSettings, StockEvent, TradeAnalysis, StockHolding, PLAnnotation, Conversation, AIUsageRecord, PatternAnalysisRecord, DailySummary } from '@/types';
+import type { Trade, CoveredCall, DirectionalTrade, SpreadTrade, AccountSettings, StockEvent, TradeAnalysis, StockHolding, PLAnnotation, Conversation, AIUsageRecord, PatternAnalysisRecord, DailySummary, AgentTrace } from '@/types';
 
 export async function getCspTradesCollection(): Promise<Collection<Trade>> {
   const db = await getDb();
@@ -65,4 +65,9 @@ export async function getPatternAnalysesCollection(): Promise<Collection<Pattern
 export async function getDailySummaryCollection(): Promise<Collection<DailySummary>> {
   const db = await getDb();
   return db.collection<DailySummary>('dailySummary');
+}
+
+export async function getAgentTracesCollection(): Promise<Collection<AgentTrace>> {
+  const db = await getDb();
+  return db.collection<AgentTrace>('agentTraces');
 }

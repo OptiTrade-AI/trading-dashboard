@@ -153,3 +153,44 @@ input[type="number"] {
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out;
 }
+
+/* xyflow / React Flow dark theme overrides */
+.react-flow__background {
+  background-color: transparent !important;
+}
+.react-flow__minimap {
+  background-color: rgba(24, 24, 27, 0.9) !important;
+  border: 1px solid rgba(63, 63, 70, 0.5) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+.react-flow__controls {
+  background: rgba(24, 24, 27, 0.9) !important;
+  border: 1px solid rgba(63, 63, 70, 0.5) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: transparent !important;
+  border-color: rgba(63, 63, 70, 0.3) !important;
+  color: #71717a !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.react-flow__controls-button:hover {
+  background: rgba(63, 63, 70, 0.3) !important;
+  color: #fafafa !important;
+}
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+}
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+.react-flow__handle {
+  opacity: 0;
+}
+.react-flow__node:hover .react-flow__handle {
+  opacity: 1;
+  transition: opacity 0.2s;
+}

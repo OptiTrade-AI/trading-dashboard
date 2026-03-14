@@ -158,10 +158,10 @@ export function UncoveredHoldingsCard({
         </div>
         {uncoveredTickers.length > 0 && (
           <Link
-            href="/cc"
+            href="/optimizer"
             className="btn-primary text-sm flex items-center gap-1.5"
           >
-            Write Calls
+            Optimize Calls
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
@@ -353,22 +353,30 @@ export function UncoveredHoldingsCard({
                   </div>
                 </div>
 
-                {/* Available contracts badge */}
-                <div className="w-24 text-right flex-shrink-0">
+                {/* Available contracts badge + optimize link */}
+                <div className="w-32 text-right flex-shrink-0 flex items-center justify-end gap-2">
                   {t.availableContracts > 0 ? (
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold',
-                        isFullyUncovered
-                          ? 'bg-red-500/10 text-red-400'
-                          : 'bg-amber-500/10 text-amber-400'
-                      )}
-                    >
-                      {privacyMode ? '***' : `${t.availableContracts}`}
-                      <span className="font-normal text-[10px] opacity-70">
-                        {t.availableContracts === 1 ? 'lot' : 'lots'}
+                    <>
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold',
+                          isFullyUncovered
+                            ? 'bg-red-500/10 text-red-400'
+                            : 'bg-amber-500/10 text-amber-400'
+                        )}
+                      >
+                        {privacyMode ? '***' : `${t.availableContracts}`}
+                        <span className="font-normal text-[10px] opacity-70">
+                          {t.availableContracts === 1 ? 'lot' : 'lots'}
+                        </span>
                       </span>
-                    </span>
+                      <Link
+                        href={`/optimizer?ticker=${t.ticker}`}
+                        className="px-2 py-1 rounded-lg text-[10px] font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+                      >
+                        Optimize
+                      </Link>
+                    </>
                   ) : isFullyCovered ? (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400">
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
