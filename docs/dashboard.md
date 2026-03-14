@@ -79,7 +79,7 @@ Three-tab modal opened by clicking any position in the Timeline or Pressure Card
 - **Risk Metrics** — Additional risk context per position
 
 ### Uncovered Holdings Card
-Shows stock holdings that don't have active covered calls written against them. Suggests income opportunities by highlighting shares available for call writing.
+Shows stock holdings that don't have active covered calls written against them. Each uncovered ticker has an "Optimize" link to `/optimizer?ticker=XXX` for AI-powered call selection. The header "Optimize Calls" button links to the full Optimizer page.
 
 ### Capital Allocation Card
 Segmented bar showing deployed capital across strategies (CSP collateral, CC shares, Directional cost, Spreads at-risk) with total utilization percentage relative to account value.
