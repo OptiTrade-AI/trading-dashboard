@@ -4,10 +4,10 @@
 
 Edit modals allow updating any field on an open or closed trade:
 
-- **CSP Edit Modal** — Edit ticker, strike, contracts, expiration, premium, entry date, notes
-- **CC Edit Modal** — Edit ticker, strike, contracts, shares held, cost basis, expiration, premium, entry date, notes
-
-Directional trades and vertical spreads do not currently have edit modals (add and close only).
+- **CSP Edit Modal** — Edit ticker, strike, contracts, expiration, premium, entry date, commission, notes
+- **CC Edit Modal** — Edit ticker, strike, contracts, shares held, cost basis, expiration, premium, entry date, commission, notes
+- **Directional Edit Modal** — Edit ticker, option type, strike, contracts, entry price, expiration, entry date, commission, notes
+- **Spread Edit Modal** — Edit ticker, spread type, long/short strikes, long/short prices, contracts, expiration, entry date, commission, notes
 
 ## Roll Tracking
 

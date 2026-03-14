@@ -15,14 +15,15 @@ const useDirBase = createTradeHook<DirectionalTrade>({
     costAtOpen: (input.entryPrice as number) * 100 * (input.contracts as number),
     status: 'open',
   } as DirectionalTrade),
-  prepareClose: (item, exitPrice, exitDate, exitReason) => ({
+  prepareClose: (item, exitPrice, exitDate, exitReason, closeCommission) => ({
     status: 'closed' as const,
     exitPrice: exitPrice as number,
     exitDate: exitDate as string,
     exitReason: exitReason as DirectionalExitReason,
     creditAtClose: (exitPrice as number) * 100 * item.contracts,
+    ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
   }),
-  preparePartialClose: (item, contractsToClose, exitPrice, exitDate, exitReason) => {
+  preparePartialClose: (item, contractsToClose, exitPrice, exitDate, exitReason, closeCommission) => {
     const ratio = contractsToClose / item.contracts;
     const remaining = item.contracts - contractsToClose;
     return {
@@ -33,6 +34,7 @@ const useDirBase = createTradeHook<DirectionalTrade>({
         exitDate: exitDate as string,
         exitReason: exitReason as DirectionalExitReason,
         creditAtClose: (exitPrice as number) * 100 * contractsToClose,
+        ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
       },
       remainingUpdates: {
         contracts: remaining,
@@ -51,9 +53,9 @@ export function useDirectionalTrades() {
   }, [base]);
 
   const closeTrade = useCallback((
-    id: string, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason
+    id: string, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason, closeCommission?: number
   ) => {
-    base.closeItem(id, exitPrice, exitDate, exitReason);
+    base.closeItem(id, exitPrice, exitDate, exitReason, closeCommission);
   }, [base]);
 
   const deleteTrade = useCallback((id: string) => {
@@ -68,9 +70,9 @@ export function useDirectionalTrades() {
   }, [base]);
 
   const partialCloseTrade = useCallback((
-    id: string, contractsToClose: number, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason
+    id: string, contractsToClose: number, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason, closeCommission?: number
   ) => {
-    return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason);
+    return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason, closeCommission);
   }, [base]);
 
   const editTrade = useCallback((id: string, updates: Partial<DirectionalTrade>) => {

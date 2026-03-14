@@ -24,6 +24,7 @@ export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps)
   const [expiration, setExpiration] = useState('');
   const [premium, setPremium] = useState('');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [commission, setCommission] = useState('');
   const numContracts = parseInt(contracts) || 1;
   const collateral = strike ? calculateCollateral(parseFloat(strike), numContracts) : 0;
   const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;
@@ -39,6 +40,7 @@ export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps)
       expiration,
       entryDate,
       premiumCollected: parseFloat(premium),
+      commission: commission ? parseFloat(commission) : undefined,
     });
 
     setTicker('');
@@ -46,6 +48,7 @@ export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps)
     setContracts('1');
     setExpiration('');
     setPremium('');
+    setCommission('');
     setEntryDate(format(new Date(), 'yyyy-MM-dd'));
     onClose();
   };
@@ -134,6 +137,19 @@ export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps)
             </div>
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           {/* Calculated values */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -191,6 +207,7 @@ export function EditTradeModal({ isOpen, trade, onClose, onSubmit }: EditTradeMo
   const [expiration, setExpiration] = useState('');
   const [premium, setPremium] = useState('');
   const [entryDate, setEntryDate] = useState('');
+  const [commission, setCommission] = useState('');
 
   useEffect(() => {
     if (trade) {
@@ -200,6 +217,7 @@ export function EditTradeModal({ isOpen, trade, onClose, onSubmit }: EditTradeMo
       setExpiration(trade.expiration);
       setPremium(trade.premiumCollected.toString());
       setEntryDate(trade.entryDate);
+      setCommission(trade.commission?.toString() || '');
     }
   }, [trade]);
 
@@ -220,6 +238,7 @@ export function EditTradeModal({ isOpen, trade, onClose, onSubmit }: EditTradeMo
       premiumCollected: parseFloat(premium),
       dteAtEntry: dte,
       collateral,
+      commission: commission ? parseFloat(commission) : undefined,
     });
     onClose();
   };
@@ -319,6 +338,19 @@ export function EditTradeModal({ isOpen, trade, onClose, onSubmit }: EditTradeMo
             </div>
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-muted">Collateral Required</span>
@@ -351,9 +383,9 @@ interface CloseTradeModalProps {
   isOpen: boolean;
   trade: Trade | null;
   onClose: () => void;
-  onSubmit: (exitPrice: number, exitDate: string, exitReason: ExitReason) => void;
+  onSubmit: (exitPrice: number, exitDate: string, exitReason: ExitReason, closeCommission?: number) => void;
   onRoll?: (exitPrice: number, exitDate: string, newTrade: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status' | 'rollChainId' | 'rollNumber'>) => void;
-  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason) => void;
+  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason, closeCommission?: number) => void;
 }
 
 type CSPCloseMode = 'close' | 'partial' | 'roll' | 'assigned';
@@ -365,6 +397,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
   const [exitDate, setExitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [exitReason, setExitReason] = useState<ExitReason>('50% profit');
   const [contractsToClose, setContractsToClose] = useState('1');
+  const [closeCommission, setCloseCommission] = useState('');
 
   // Roll fields
   const [newStrike, setNewStrike] = useState('');
@@ -399,10 +432,11 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
     e.preventDefault();
     if (!exitPrice) return;
 
+    const commissionVal = closeCommission ? parseFloat(closeCommission) : undefined;
     if (mode === 'partial' && onPartialClose && trade) {
       const numToClose = parseInt(contractsToClose);
       if (!numToClose || numToClose < 1 || numToClose >= trade.contracts) return;
-      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason);
+      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason, commissionVal);
     } else if (mode === 'roll' && onRoll && trade) {
       if (!newStrike || !newExpiration || !newPremium) return;
       onRoll(parseFloat(exitPrice), exitDate, {
@@ -414,7 +448,7 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
         premiumCollected: parseFloat(newPremium),
       });
     } else {
-      onSubmit(parseFloat(exitPrice), exitDate, exitReason);
+      onSubmit(parseFloat(exitPrice), exitDate, exitReason, commissionVal);
     }
     onClose();
   };
@@ -591,6 +625,19 @@ export function CloseTradeModal({ isOpen, trade, onClose, onSubmit, onRoll, onPa
               onChange={(e) => setExitDate(e.target.value)}
               className="input-field"
               required
+            />
+          </div>
+
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={closeCommission}
+              onChange={(e) => setCloseCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
             />
           </div>
 

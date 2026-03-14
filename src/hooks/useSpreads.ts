@@ -51,13 +51,14 @@ const useSpreadBase = createTradeHook<SpreadTrade>({
       status: 'open',
     } as SpreadTrade;
   },
-  prepareClose: (_item, closeNetCredit, exitDate, exitReason) => ({
+  prepareClose: (_item, closeNetCredit, exitDate, exitReason, closeCommission) => ({
     status: 'closed' as const,
     closeNetCredit: closeNetCredit as number,
     exitDate: exitDate as string,
     exitReason: exitReason as SpreadExitReason,
+    ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
   }),
-  preparePartialClose: (rawItem, contractsToClose, closeNetCredit, exitDate, exitReason) => {
+  preparePartialClose: (rawItem, contractsToClose, closeNetCredit, exitDate, exitReason, closeCommission) => {
     // Normalize in case legs were entered in wrong order
     const item = normalizeSpreadLegs(rawItem);
     const remaining = item.contracts - contractsToClose;
@@ -94,6 +95,7 @@ const useSpreadBase = createTradeHook<SpreadTrade>({
         closeNetCredit: closeNetCredit as number,
         exitDate: exitDate as string,
         exitReason: exitReason as SpreadExitReason,
+        ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
       },
       remainingUpdates: {
         longStrike: item.longStrike,
@@ -123,9 +125,9 @@ export function useSpreads() {
   }, [base]);
 
   const closeSpread = useCallback((
-    id: string, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason
+    id: string, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason, closeCommission?: number
   ) => {
-    base.closeItem(id, closeNetCredit, exitDate, exitReason);
+    base.closeItem(id, closeNetCredit, exitDate, exitReason, closeCommission);
   }, [base]);
 
   const deleteSpread = useCallback((id: string) => {
@@ -140,9 +142,9 @@ export function useSpreads() {
   }, [base]);
 
   const partialCloseSpread = useCallback((
-    id: string, contractsToClose: number, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason
+    id: string, contractsToClose: number, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason, closeCommission?: number
   ) => {
-    return base.partialCloseItem(id, contractsToClose, closeNetCredit, exitDate, exitReason);
+    return base.partialCloseItem(id, contractsToClose, closeNetCredit, exitDate, exitReason, closeCommission);
   }, [base]);
 
   const editSpread = useCallback((id: string, updates: Partial<SpreadTrade>) => {

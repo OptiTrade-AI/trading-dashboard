@@ -26,6 +26,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
   const [premium, setPremium] = useState('');
   const [costBasis, setCostBasis] = useState('');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [commission, setCommission] = useState('');
   const [autoFilled, setAutoFilled] = useState(false);
 
   // Auto-fill cost basis from holdings
@@ -67,6 +68,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
       entryDate,
       premiumCollected: totalPremium,
       costBasis: totalCostBasis,
+      commission: commission ? parseFloat(commission) : undefined,
     });
 
     setTicker('');
@@ -76,6 +78,7 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
     setPremium('');
     setCostBasis('');
     setAutoFilled(false);
+    setCommission('');
     setEntryDate(format(new Date(), 'yyyy-MM-dd'));
     onClose();
   };
@@ -178,6 +181,19 @@ export function AddCCModal({ isOpen, onClose, onSubmit, getCostBasis }: AddCCMod
             </div>
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           {/* Calculated values */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -242,6 +258,7 @@ export function EditCCModal({ isOpen, call, onClose, onSubmit }: EditCCModalProp
   const [premium, setPremium] = useState('');
   const [costBasis, setCostBasis] = useState('');
   const [entryDate, setEntryDate] = useState('');
+  const [commission, setCommission] = useState('');
 
   useEffect(() => {
     if (call) {
@@ -252,6 +269,7 @@ export function EditCCModal({ isOpen, call, onClose, onSubmit }: EditCCModalProp
       setPremium(call.premiumCollected.toString());
       setCostBasis(call.costBasis.toString());
       setEntryDate(call.entryDate);
+      setCommission(call.commission?.toString() || '');
     }
   }, [call]);
 
@@ -278,6 +296,7 @@ export function EditCCModal({ isOpen, call, onClose, onSubmit }: EditCCModalProp
       premiumCollected: totalPremium,
       costBasis: totalCostBasis,
       dteAtEntry: dte,
+      commission: commission ? parseFloat(commission) : undefined,
     });
     onClose();
   };
@@ -389,6 +408,19 @@ export function EditCCModal({ isOpen, call, onClose, onSubmit }: EditCCModalProp
             </div>
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-muted">Shares Covered</span>
@@ -419,9 +451,9 @@ interface CloseCCModalProps {
   isOpen: boolean;
   call: CoveredCall | null;
   onClose: () => void;
-  onSubmit: (exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean) => void;
+  onSubmit: (exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean, closeCommission?: number) => void;
   onRoll?: (exitPrice: number, exitDate: string, newCall: Omit<CoveredCall, 'id' | 'dteAtEntry' | 'sharesHeld' | 'status' | 'rollChainId' | 'rollNumber'>) => void;
-  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean) => void;
+  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean, closeCommission?: number) => void;
 }
 
 type CloseMode = 'close' | 'partial' | 'roll' | 'called';
@@ -433,6 +465,7 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
   const [exitDate, setExitDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [exitReason, setExitReason] = useState<CCExitReason>('50% profit');
   const [contractsToClose, setContractsToClose] = useState('1');
+  const [closeCommission, setCloseCommission] = useState('');
 
   // Roll fields
   const [newStrike, setNewStrike] = useState('');
@@ -464,11 +497,12 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (exitPrice === '' || !call) return;
+    const commissionVal = closeCommission ? parseFloat(closeCommission) : undefined;
 
     if (mode === 'partial' && onPartialClose) {
       const numToClose = parseInt(contractsToClose);
       if (!numToClose || numToClose < 1 || numToClose >= call.contracts) return;
-      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason, false);
+      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason, false, commissionVal);
     } else if (mode === 'roll' && onRoll) {
       if (!newStrike || !newExpiration || !newPremium) return;
       onRoll(parseFloat(exitPrice), exitDate, {
@@ -481,7 +515,7 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
         costBasis: call.costBasis,
       });
     } else {
-      onSubmit(parseFloat(exitPrice), exitDate, exitReason, mode === 'called');
+      onSubmit(parseFloat(exitPrice), exitDate, exitReason, mode === 'called', commissionVal);
     }
     onClose();
   };
@@ -634,6 +668,19 @@ export function CloseCCModal({ isOpen, call, onClose, onSubmit, onRoll, onPartia
               </select>
             </div>
           )}
+
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={closeCommission}
+              onChange={(e) => setCloseCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
 
           {/* Roll: new position fields */}
           {mode === 'roll' && (

@@ -33,9 +33,9 @@ export default function DirectionalPage() {
     addTrade(trade);
   };
 
-  const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: DirectionalExitReason) => {
+  const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: DirectionalExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason);
+      closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason, closeCommission);
       setCloseModalTrade(null);
     }
   };
@@ -47,9 +47,9 @@ export default function DirectionalPage() {
     }
   };
 
-  const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason) => {
+  const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      partialCloseTrade(closeModalTrade.id, contractsToClose, exitPrice, exitDate, exitReason);
+      partialCloseTrade(closeModalTrade.id, contractsToClose, exitPrice, exitDate, exitReason, closeCommission);
       setCloseModalTrade(null);
     }
   };

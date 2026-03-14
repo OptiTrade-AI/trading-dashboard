@@ -267,7 +267,7 @@ export function StrategyDonutChart({ data, centerLabel, onSliceClick }: { data: 
             dataKey="value"
             strokeWidth={0}
             className={onSliceClick ? 'cursor-pointer' : ''}
-            onClick={onSliceClick ? (_: any, index: number) => onSliceClick(data[index].name) : undefined}
+            onClick={onSliceClick ? (entry: any) => onSliceClick(entry.name) : undefined}
           >
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.color} fillOpacity={0.85} />

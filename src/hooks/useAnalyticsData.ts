@@ -30,6 +30,7 @@ export interface TradeWithPL {
   optionType?: string;
   longStrike?: number;
   shortStrike?: number;
+  maxProfit?: number;
 }
 
 export interface AnalyticsData {
@@ -40,6 +41,7 @@ export interface AnalyticsData {
   avgPLPerTrade: number;
   totalPremiumCollected: number;
   returnOnAccount: number;
+  avgPremiumCaptured: number;
   cumulativeWithDrawdown: { date: string; total: number; drawdown: number; trade: string }[];
   cspTotalPL: number;
   cspWinRate: number;
@@ -48,6 +50,7 @@ export interface AnalyticsData {
   cspBestTrade: TradeWithPL | null;
   cspWorstTrade: TradeWithPL | null;
   cspCount: number;
+  cspAvgPremiumCaptured: number;
   ccTotalPL: number;
   ccWinRate: number;
   ccCalledAway: number;
@@ -55,6 +58,7 @@ export interface AnalyticsData {
   ccBestTrade: TradeWithPL | null;
   ccWorstTrade: TradeWithPL | null;
   ccCount: number;
+  ccAvgPremiumCaptured: number;
   dirTotalPL: number;
   dirWinRate: number;
   dirTotalReturn: number;
@@ -71,6 +75,7 @@ export interface AnalyticsData {
   spreadBestTrade: TradeWithPL | null;
   spreadWorstTrade: TradeWithPL | null;
   spreadCount: number;
+  spreadAvgPremiumCaptured: number;
   plByTicker: { ticker: string; pl: number }[];
   monthlyStacked: { month: string; csp: number; cc: number; directional: number; spreads: number }[];
   tradeFrequency: { month: string; count: number }[];
@@ -172,6 +177,11 @@ export function useAnalyticsData(
       ? cspWithPL.reduce((sum, t) => sum + t.daysHeld, 0) / cspWithPL.length
       : 0;
 
+    const cspTotalPremium = filteredCSP.reduce((sum, t) => sum + t.premiumCollected, 0);
+    const cspAvgPremiumCaptured = cspTotalPremium > 0
+      ? (cspTotalPL / cspTotalPremium) * 100
+      : 0;
+
     const sortedCSP = [...cspWithPL].sort((a, b) => b.pl - a.pl);
     const cspBestTrade = sortedCSP[0] || null;
     const cspWorstTrade = sortedCSP[sortedCSP.length - 1] || null;
@@ -191,6 +201,11 @@ export function useAnalyticsData(
     const ccCalledAway = filteredCC.filter((c) => c.status === 'called').length;
     const ccAvgDaysHeld = ccWithPL.length > 0
       ? ccWithPL.reduce((sum, c) => sum + c.daysHeld, 0) / ccWithPL.length
+      : 0;
+
+    const ccTotalPremium = filteredCC.reduce((sum, t) => sum + t.premiumCollected, 0);
+    const ccAvgPremiumCaptured = ccTotalPremium > 0
+      ? (ccTotalPL / ccTotalPremium) * 100
       : 0;
 
     const sortedCC = [...ccWithPL].sort((a, b) => b.pl - a.pl);
@@ -233,6 +248,10 @@ export function useAnalyticsData(
     const spreadWinRate = spreadWithPL.length > 0 ? (spreadWinning / spreadWithPL.length) * 100 : 0;
     const spreadCapitalAtRisk = filteredSpreads.reduce((sum, t) => sum + t.maxLoss, 0);
     const spreadTotalReturn = spreadCapitalAtRisk > 0 ? (spreadTotalPL / spreadCapitalAtRisk) * 100 : 0;
+    const spreadTotalMaxProfit = filteredSpreads.reduce((sum, t) => sum + t.maxProfit, 0);
+    const spreadAvgPremiumCaptured = spreadTotalMaxProfit > 0
+      ? (spreadTotalPL / spreadTotalMaxProfit) * 100
+      : 0;
     const spreadAvgDaysHeld = spreadWithPL.length > 0
       ? spreadWithPL.reduce((sum, t) => sum + t.daysHeld, 0) / spreadWithPL.length
       : 0;
@@ -264,9 +283,14 @@ export function useAnalyticsData(
       .reduce((sum, t) => sum + t.pl, 0) + allStockPL;
 
     const avgPLPerTrade = totalTrades > 0 ? (cspTotalPL + ccTotalPL + dirTotalPL + spreadTotalPL) / totalTrades : 0;
-    const totalPremiumCollected = [...filteredCSP, ...filteredCC].reduce(
-      (sum, t) => sum + t.premiumCollected, 0
-    );
+
+    const totalPremiumCollected = cspTotalPremium + ccTotalPremium;
+    // Overall premium captured: total P/L from premium strategies ÷ total max premium
+    const totalMaxPremium = totalPremiumCollected + spreadTotalMaxProfit;
+    const totalPremiumPL = cspTotalPL + ccTotalPL + spreadTotalPL;
+    const avgPremiumCaptured = totalMaxPremium > 0
+      ? (totalPremiumPL / totalMaxPremium) * 100
+      : 0;
     const returnOnAccount = accountValue > 0
       ? ((cspTotalPL + ccTotalPL + dirTotalPL + spreadTotalPL + filteredStockPL) / accountValue) * 100
       : 0;
@@ -499,6 +523,7 @@ export function useAnalyticsData(
       avgPLPerTrade,
       totalPremiumCollected,
       returnOnAccount,
+      avgPremiumCaptured,
       cumulativeWithDrawdown,
       cspTotalPL,
       cspWinRate,
@@ -507,6 +532,7 @@ export function useAnalyticsData(
       cspBestTrade,
       cspWorstTrade,
       cspCount: filteredCSP.length,
+      cspAvgPremiumCaptured,
       ccTotalPL,
       ccWinRate,
       ccCalledAway,
@@ -514,6 +540,7 @@ export function useAnalyticsData(
       ccBestTrade,
       ccWorstTrade,
       ccCount: filteredCC.length,
+      ccAvgPremiumCaptured,
       dirTotalPL,
       dirWinRate,
       dirTotalReturn,
@@ -530,6 +557,7 @@ export function useAnalyticsData(
       spreadBestTrade,
       spreadWorstTrade,
       spreadCount: filteredSpreads.length,
+      spreadAvgPremiumCaptured,
       plByTicker,
       monthlyStacked,
       tradeFrequency,

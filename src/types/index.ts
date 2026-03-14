@@ -9,6 +9,8 @@ export interface BaseTrade {
   dteAtEntry: number;
   status: string;
   notes?: string;
+  commission?: number; // opening commission/fees
+  closeCommission?: number; // closing commission/fees
   rollChainId?: string; // links rolled positions together
   rollNumber?: number; // position in roll chain (1 = original, 2 = first roll, etc.)
   originalContracts?: number; // tracks original qty before partial close
