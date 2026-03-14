@@ -115,10 +115,10 @@ function AnalysisCard({ analysis, privacyMode }: { analysis: OptimizerAIAnalysis
               <p className="text-xs text-zinc-300">
                 <span className="text-foreground font-semibold">~{analysis.recoveryProjection.weeksEstimate} weeks</span>
                 {analysis.recoveryProjection.assumedWeeklyPremium != null && (
-                  <span className="text-muted"> at {mask(`$${analysis.recoveryProjection.assumedWeeklyPremium.toFixed(2)}`)}/wk</span>
+                  <span className="text-muted"> at {mask(`$${Number(analysis.recoveryProjection.assumedWeeklyPremium).toFixed(2)}`)}/wk</span>
                 )}
                 {analysis.recoveryProjection.cumulativePremiumNeeded != null && (
-                  <span className="text-muted"> ({mask(`$${analysis.recoveryProjection.cumulativePremiumNeeded.toFixed(2)}`)} total needed)</span>
+                  <span className="text-muted"> ({mask(`$${Number(analysis.recoveryProjection.cumulativePremiumNeeded).toFixed(2)}`)} total needed)</span>
                 )}
               </p>
             </div>

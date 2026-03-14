@@ -266,15 +266,16 @@ const SYSTEM_PROMPT = `You are an expert options strategist specializing in cove
 
 SITUATION: The user has stock positions that were assigned from cash-secured puts. These positions are underwater — the stock price is below their cost basis. They need to sell covered calls below cost basis to collect premium while waiting for recovery.
 
-YOUR TASK: For each ticker requested, research it thoroughly using the available tools, then provide a specific covered call recommendation.
+YOUR TASK: Research the ticker thoroughly using the available tools, then provide a specific covered call recommendation.
 
-RESEARCH PROCESS (for each ticker):
-1. Use get_holdings_data to understand cost basis and shares
-2. Use get_stock_price for current price
-3. Use get_options_chain to see available calls (minDTE 7, maxDTE 60)
-4. Use get_cc_history to see past covered call activity
-5. Use web_search for: "{ticker} analyst price target" and "{ticker} earnings date 2026"
-6. Use get_historical_prices if you need support/resistance levels
+RESEARCH PROCESS — BE EFFICIENT:
+Call multiple tools simultaneously when possible (e.g., get_holdings_data and get_stock_price together).
+
+1. Get holdings data + stock price simultaneously
+2. Get options chain (minDTE 7, maxDTE 60)
+3. Web search for analyst price target AND earnings date (2 searches max)
+4. Get CC history if useful; get_historical_prices only if needed for support/resistance
+5. Produce final JSON output — do NOT continue researching after step 4
 
 ANALYSIS FRAMEWORK:
 - Calculate how far underwater the position is (cost basis vs current price)
@@ -285,7 +286,7 @@ ANALYSIS FRAMEWORK:
 - Assess liquidity: open interest, volume, bid-ask spread width
 - Calculate recovery timeline: how many weeks/months of premium collection to close the gap
 
-OUTPUT FORMAT: Return a JSON array of OptimizerAIAnalysis objects:
+OUTPUT FORMAT: Return a JSON array with one OptimizerAIAnalysis object:
 [
   {
     "ticker": "AAPL",
@@ -318,6 +319,187 @@ IMPORTANT RULES:
 - If a ticker has no options or very thin liquidity, say so clearly
 - Be specific about earnings dates and whether they fall within the recommended expiration
 - For deeply underwater positions (>40%), focus on pure premium harvesting rather than trying to sell near cost basis`;
+
+// ── Per-ticker agent loop ──
+// Runs a focused agent for a single ticker with its own small context.
+// Called in parallel for portfolio mode, or once for single-ticker mode.
+async function runTickerAnalysis(args: {
+  client: Anthropic;
+  ticker: string;
+  portfolioSummary: string;
+  tickerHistory: string;
+  send: (event: { type: string; message?: string; data?: unknown }) => void;
+  traceStart: number;
+  stepCounter: { value: number };
+}): Promise<{
+  analysis: OptimizerAIAnalysis | null;
+  steps: AgentTraceStep[];
+  inputTokens: number;
+  outputTokens: number;
+}> {
+  const { client, ticker, portfolioSummary, tickerHistory, send, traceStart, stepCounter } = args;
+
+  const userMessage = `Analyze covered call opportunity for: ${ticker}
+
+${portfolioSummary}
+${tickerHistory ? `\nTrade history:\n${tickerHistory}` : ''}
+
+Research this ticker thoroughly using the tools, then return your analysis as JSON.`;
+
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userMessage }];
+  let inputTokens = 0;
+  let outputTokens = 0;
+  const steps: AgentTraceStep[] = [];
+  const maxIter = 8;
+  let analysis: OptimizerAIAnalysis | null = null;
+
+  for (let i = 0; i < maxIter; i++) {
+    const iterStart = Date.now();
+    const elapsed = Date.now() - traceStart;
+    const forceFinish = i >= maxIter - 1 || elapsed > 3 * 60 * 1000;
+
+    // Progress: ticker-specific with running token totals
+    send({
+      type: 'progress',
+      message: forceFinish
+        ? `${ticker}: generating analysis...`
+        : i === 0
+          ? `${ticker}: researching...`
+          : `${ticker}: iteration ${i + 1}...`,
+      data: { ticker, iteration: i + 1, elapsedMs: elapsed, totalInputTokens: inputTokens, totalOutputTokens: outputTokens },
+    });
+
+    // Nudge to finish when approaching limits — append to last user message
+    // to avoid consecutive user messages (which the Anthropic API rejects)
+    const nudge = forceFinish
+      ? 'Produce your final JSON analysis now with the data you have. Do not call more tools.'
+      : i >= 5
+        ? 'You have enough data. Produce your final JSON analysis now.'
+        : null;
+    if (nudge) {
+      const last = messages[messages.length - 1];
+      if (last?.role === 'user') {
+        // Append to existing user message (e.g., tool results)
+        if (typeof last.content === 'string') {
+          last.content += `\n\n${nudge}`;
+        } else {
+          // tool_result array — add text block
+          (last.content as Anthropic.ToolResultBlockParam[]).push({ type: 'text', text: nudge } as unknown as Anthropic.ToolResultBlockParam);
+        }
+      } else {
+        messages.push({ role: 'user', content: nudge });
+      }
+    }
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8192,
+      system: SYSTEM_PROMPT,
+      tools: forceFinish ? undefined : agentTools,
+      messages,
+    });
+
+    inputTokens += response.usage.input_tokens;
+    outputTokens += response.usage.output_tokens;
+
+    // Handle text blocks
+    const textBlocks = response.content.filter((b): b is Anthropic.TextBlock => b.type === 'text');
+    if (textBlocks.length > 0) {
+      const text = textBlocks.map(b => b.text).join('');
+      steps.push({
+        stepIndex: stepCounter.value++,
+        timestamp: new Date().toISOString(),
+        type: 'thinking',
+        thinking: text,
+        durationMs: Date.now() - iterStart,
+        tokens: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+      });
+      send({ type: 'trace_step', data: steps[steps.length - 1] });
+
+      if (response.stop_reason === 'end_turn') {
+        try {
+          const parsed = extractJSON<OptimizerAIAnalysis | OptimizerAIAnalysis[]>(text);
+          analysis = Array.isArray(parsed) ? parsed[0] : parsed;
+          if (analysis && !analysis.ticker) analysis.ticker = ticker;
+          steps.push({
+            stepIndex: stepCounter.value++,
+            timestamp: new Date().toISOString(),
+            type: 'final_answer',
+            thinking: `${ticker}: analysis complete`,
+          });
+          send({ type: 'trace_step', data: steps[steps.length - 1] });
+        } catch {
+          steps.push({
+            stepIndex: stepCounter.value++,
+            timestamp: new Date().toISOString(),
+            type: 'final_answer',
+            thinking: `${ticker}: could not parse analysis JSON`,
+          });
+          send({ type: 'trace_step', data: steps[steps.length - 1] });
+        }
+        break;
+      }
+    }
+
+    // Handle tool use
+    const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+
+    if (toolUseBlocks.length === 0 && response.stop_reason === 'end_turn') break;
+
+    // Handle max_tokens truncation
+    if (response.stop_reason === 'max_tokens' && toolUseBlocks.length === 0) {
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: 'Your response was truncated. Continue from where you left off and complete the JSON.' });
+      continue;
+    }
+
+    if (toolUseBlocks.length > 0) {
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (toolCall) => {
+          const toolInput = toolCall.input as Record<string, unknown>;
+          const toolStart = Date.now();
+
+          const callStep: AgentTraceStep = {
+            stepIndex: stepCounter.value++,
+            timestamp: new Date().toISOString(),
+            type: 'tool_call',
+            toolName: toolCall.name,
+            toolInput,
+          };
+          steps.push(callStep);
+          send({ type: 'trace_step', data: callStep });
+
+          const label = (toolInput.ticker || toolInput.query || '') as string;
+          send({ type: 'progress', message: `${ticker}: ${toolCall.name}${label ? ` ${label}` : ''}`, data: { ticker, elapsedMs: Date.now() - traceStart } });
+
+          const result = await executeAgentTool(toolCall.name, toolInput);
+
+          const resultStep: AgentTraceStep = {
+            stepIndex: stepCounter.value++,
+            timestamp: new Date().toISOString(),
+            type: 'tool_result',
+            toolName: toolCall.name,
+            toolResult: result,
+            durationMs: Date.now() - toolStart,
+          };
+          steps.push(resultStep);
+          send({ type: 'trace_step', data: resultStep });
+
+          return {
+            type: 'tool_result' as const,
+            tool_use_id: toolCall.id,
+            content: JSON.stringify(result),
+          };
+        }),
+      );
+
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: toolResults });
+    }
+  }
+
+  return { analysis, steps, inputTokens, outputTokens };
+}
 
 export async function POST(request: NextRequest) {
   const client = getAnthropicClient();
@@ -352,23 +534,7 @@ export async function POST(request: NextRequest) {
     `account value $${portfolioData.accountValue.toFixed(0)}, ` +
     `${portfolioData.holdings.length} stock holdings`;
 
-  // Build the user message
   const tickerList = tickers.map(t => t.toUpperCase());
-  const tickerHistories = tickerList.map(t => {
-    const history = getClosedTradesForTicker(portfolioData, t);
-    if (history.length === 0) return '';
-    return `${t}: ${history.length} past trades, total P/L $${history.reduce((s, h) => s + h.pl, 0).toFixed(0)}`;
-  }).filter(Boolean);
-
-  const userMessage = `Analyze covered call opportunities for: ${tickerList.join(', ')}
-
-${portfolioSummary}
-
-${tickerHistories.length > 0 ? 'Trade history:\n' + tickerHistories.join('\n') : ''}
-
-${mode === 'portfolio' ? 'After analyzing each ticker individually, provide a PRIORITY RANKING of which tickers to write calls on first, considering IV attractiveness, liquidity, earnings safety, and premium yield.' : ''}
-
-Research each ticker thoroughly using the tools, then return your analysis as JSON.`;
 
   // Create SSE stream
   const encoder = new TextEncoder();
@@ -379,147 +545,84 @@ Research each ticker thoroughly using the tools, then return your analysis as JS
       };
 
       try {
-        send({ type: 'progress', message: `Starting analysis of ${tickerList.join(', ')}...` });
-
-        const messages: Anthropic.MessageParam[] = [
-          { role: 'user', content: userMessage },
-        ];
-
+        const traceStart = Date.now();
+        const stepCounter = { value: 0 };
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
-        const maxIterations = 30;
-        const traceSteps: AgentTraceStep[] = [];
-        let stepIndex = 0;
-        const traceStart = Date.now();
-        let finalResult: OptimizerAIAnalysis[] | undefined;
+        const allSteps: AgentTraceStep[] = [];
+        const allAnalyses: OptimizerAIAnalysis[] = [];
 
-        for (let i = 0; i < maxIterations; i++) {
-          const iterStart = Date.now();
+        if (mode === 'portfolio' && tickerList.length > 1) {
+          // ── Portfolio mode: parallel per-ticker agents ──
+          send({ type: 'progress', message: `Analyzing ${tickerList.length} tickers in parallel...` });
 
-          // Send progress update with iteration info and running totals
-          const hasToolCalls = i > 0; // First iteration is always thinking
-          send({
-            type: 'progress',
-            message: hasToolCalls ? `Reasoning (iteration ${i + 1})...` : `Starting analysis of ${tickerList.join(', ')}...`,
-            data: { iteration: i + 1, elapsedMs: Date.now() - traceStart, totalInputTokens, totalOutputTokens },
-          });
+          const tickerPromises = tickerList.map(async (ticker) => {
+            const history = getClosedTradesForTicker(portfolioData, ticker);
+            const tickerHistory = history.length > 0
+              ? `${ticker}: ${history.length} past trades, total P/L $${history.reduce((s, h) => s + h.pl, 0).toFixed(0)}`
+              : '';
 
-          const response = await client.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 16384,
-            system: SYSTEM_PROMPT,
-            tools: agentTools,
-            messages,
-          });
+            try {
+              const result = await runTickerAnalysis({
+                client,
+                ticker,
+                portfolioSummary,
+                tickerHistory,
+                send,
+                traceStart,
+                stepCounter,
+              });
 
-          totalInputTokens += response.usage.input_tokens;
-          totalOutputTokens += response.usage.output_tokens;
-
-          // Capture any thinking/text from the agent
-          const textBlocks = response.content.filter(
-            (b): b is Anthropic.TextBlock => b.type === 'text'
-          );
-          if (textBlocks.length > 0) {
-            const text = textBlocks.map(b => b.text).join('');
-            traceSteps.push({
-              stepIndex: stepIndex++,
-              timestamp: new Date().toISOString(),
-              type: 'thinking',
-              thinking: text,
-              durationMs: Date.now() - iterStart,
-              tokens: { input: response.usage.input_tokens, output: response.usage.output_tokens },
-            });
-            send({ type: 'trace_step', data: traceSteps[traceSteps.length - 1] });
-
-            if (response.stop_reason === 'end_turn') {
-              send({ type: 'progress', message: 'Compiling final analysis...', data: { iteration: i + 1, elapsedMs: Date.now() - traceStart, totalInputTokens, totalOutputTokens } });
-              try {
-                const analysis = extractJSON<OptimizerAIAnalysis[]>(text);
-                finalResult = analysis;
-                traceSteps.push({
-                  stepIndex: stepIndex++,
-                  timestamp: new Date().toISOString(),
-                  type: 'final_answer',
-                  thinking: `Produced ${Array.isArray(analysis) ? analysis.length : 1} analysis result(s)`,
-                });
-                send({ type: 'trace_step', data: traceSteps[traceSteps.length - 1] });
-
-                if (mode === 'single' && Array.isArray(analysis) && analysis.length > 0) {
-                  send({ type: 'analysis', data: analysis[0] });
-                } else {
-                  send({ type: 'analyses', data: analysis });
-                }
-              } catch {
-                send({ type: 'text_analysis', data: text });
+              // Stream result as soon as this ticker completes
+              if (result.analysis) {
+                send({ type: 'analysis', data: result.analysis });
+                send({ type: 'progress', message: `${ticker}: done`, data: { ticker, elapsedMs: Date.now() - traceStart } });
               }
-              break;
+
+              return result;
+            } catch (err) {
+              send({ type: 'progress', message: `${ticker}: failed — ${err instanceof Error ? err.message : 'unknown error'}` });
+              return { analysis: null, steps: [] as AgentTraceStep[], inputTokens: 0, outputTokens: 0 };
+            }
+          });
+
+          const results = await Promise.allSettled(tickerPromises);
+          for (const r of results) {
+            if (r.status === 'fulfilled') {
+              allSteps.push(...r.value.steps);
+              totalInputTokens += r.value.inputTokens;
+              totalOutputTokens += r.value.outputTokens;
+              if (r.value.analysis) allAnalyses.push(r.value.analysis);
             }
           }
 
-          // Handle tool use
-          const toolUseBlocks = response.content.filter(
-            (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-          );
+        } else {
+          // ── Single ticker mode ──
+          const ticker = tickerList[0];
+          send({ type: 'progress', message: `Starting analysis of ${ticker}...` });
 
-          if (toolUseBlocks.length === 0 && response.stop_reason === 'end_turn') {
-            break;
-          }
+          const history = getClosedTradesForTicker(portfolioData, ticker);
+          const tickerHistory = history.length > 0
+            ? `${ticker}: ${history.length} past trades, total P/L $${history.reduce((s, h) => s + h.pl, 0).toFixed(0)}`
+            : '';
 
-          // Handle max_tokens — model ran out of output space
-          if (response.stop_reason === 'max_tokens' && toolUseBlocks.length === 0) {
-            send({ type: 'progress', message: 'Response was truncated — retrying with continuation...', data: { iteration: i + 1, elapsedMs: Date.now() - traceStart, totalInputTokens, totalOutputTokens } });
-            // Push the partial response and ask to continue
-            messages.push({ role: 'assistant', content: response.content });
-            messages.push({ role: 'user', content: 'Your response was truncated. Please continue from where you left off and complete the JSON array.' });
-            continue;
-          }
+          const result = await runTickerAnalysis({
+            client,
+            ticker,
+            portfolioSummary,
+            tickerHistory,
+            send,
+            traceStart,
+            stepCounter,
+          });
 
-          if (toolUseBlocks.length > 0) {
-            // Execute all tool calls in parallel with timing
-            const toolResults = await Promise.all(
-              toolUseBlocks.map(async (toolCall) => {
-                const toolInput = toolCall.input as Record<string, unknown>;
-                const toolStart = Date.now();
+          allSteps.push(...result.steps);
+          totalInputTokens += result.inputTokens;
+          totalOutputTokens += result.outputTokens;
 
-                // Record tool_call step
-                const callStep: AgentTraceStep = {
-                  stepIndex: stepIndex++,
-                  timestamp: new Date().toISOString(),
-                  type: 'tool_call',
-                  toolName: toolCall.name,
-                  toolInput: toolInput,
-                };
-                traceSteps.push(callStep);
-                send({ type: 'trace_step', data: callStep });
-
-                const label = toolInput.ticker || toolInput.query || '';
-                send({ type: 'progress', message: `${toolCall.name}: ${label}`, data: { iteration: i + 1, elapsedMs: Date.now() - traceStart, totalInputTokens, totalOutputTokens } });
-
-                const result = await executeAgentTool(toolCall.name, toolInput);
-                const toolDuration = Date.now() - toolStart;
-
-                // Record tool_result step
-                const resultStep: AgentTraceStep = {
-                  stepIndex: stepIndex++,
-                  timestamp: new Date().toISOString(),
-                  type: 'tool_result',
-                  toolName: toolCall.name,
-                  toolResult: result,
-                  durationMs: toolDuration,
-                };
-                traceSteps.push(resultStep);
-                send({ type: 'trace_step', data: resultStep });
-
-                return {
-                  type: 'tool_result' as const,
-                  tool_use_id: toolCall.id,
-                  content: JSON.stringify(result),
-                };
-              }),
-            );
-
-            messages.push({ role: 'assistant', content: response.content });
-            messages.push({ role: 'user', content: toolResults });
+          if (result.analysis) {
+            allAnalyses.push(result.analysis);
+            send({ type: 'analysis', data: result.analysis });
           }
         }
 
@@ -533,12 +636,12 @@ Research each ticker thoroughly using the tools, then return your analysis as JS
           createdAt: new Date().toISOString(),
           tickers: tickerList,
           mode,
-          steps: traceSteps,
+          steps: allSteps.sort((a, b) => a.stepIndex - b.stepIndex),
           totalDurationMs: Date.now() - traceStart,
           totalInputTokens,
           totalOutputTokens,
           costUsd: calculateCost('claude-sonnet-4-6', totalInputTokens, totalOutputTokens),
-          result: finalResult,
+          result: allAnalyses.length > 0 ? allAnalyses : undefined,
         };
 
         try {
@@ -548,7 +651,7 @@ Research each ticker thoroughly using the tools, then return your analysis as JS
           // Don't fail if trace save fails
         }
 
-        send({ type: 'trace_complete', data: { traceId, totalSteps: traceSteps.length, durationMs: trace.totalDurationMs, costUsd: trace.costUsd } });
+        send({ type: 'trace_complete', data: { traceId, totalSteps: allSteps.length, durationMs: trace.totalDurationMs, costUsd: trace.costUsd } });
         send({ type: 'done', message: 'Analysis complete' });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();

@@ -99,7 +99,7 @@ Navigation bar button that opens a centered modal dialog (max-width 3xl, portale
 Data comes from `/api/ai/usage` which aggregates all `AIUsageRecord` documents in a single pass computing daily breakdowns, feature/model splits, and token totals.
 
 ### CC Optimizer Agent
-The first **agentic** AI feature — uses Claude's `tool_use` capability in a multi-step reasoning loop (up to 30 iterations) rather than a single prompt-response call.
+The first **agentic** AI feature — uses Claude's `tool_use` capability in a multi-step reasoning loop (up to 8 iterations per ticker) rather than a single prompt-response call.
 
 **Architecture:** SSE streaming from `/api/ai/cc-optimizer`. The agent has access to 6 tools:
 - `get_options_chain` — Live call options from Polygon.io
@@ -119,8 +119,8 @@ The first **agentic** AI feature — uses Claude's `tool_use` capability in a mu
 **Agent Trace Viewer:** Every tool call, result, and thinking step is captured as an `AgentTraceStep` and streamed to the client in real-time. The trace viewer uses React Flow (`@xyflow/react`) to render a visual node graph of the agent's decision path. Completed traces are saved to the `agentTraces` MongoDB collection and can be replayed from the Trace History Drawer.
 
 **Modes:**
-- **Single ticker** — Analyze one holding's CC opportunities
-- **Portfolio-wide** — Analyze all uncovered holdings with priority ranking
+- **Single ticker** — Runs one focused agent for the selected holding
+- **Portfolio-wide** — Runs parallel per-ticker agents concurrently for all uncovered holdings, streaming results as each completes
 
 **Integration:** "Write This Call" button in the optimizer chain table pre-fills the AddCCModal with strike, expiration, premium, and contracts for one-click CC creation.
 
@@ -145,7 +145,7 @@ The first **agentic** AI feature — uses Claude's `tool_use` capability in a mu
 | `/api/ai/daily-summary` | GET | Haiku 4.5 | Cached daily summary |
 | `/api/ai/usage` | GET | N/A | Usage stats and costs |
 | `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | GET: list conversations; POST: send message (streaming); PATCH: rename; DELETE: remove |
-| `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization with tool_use (SSE streaming) |
+| `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization with parallel per-ticker tool_use loops (SSE streaming) |
 | `/api/cc-optimizer` | GET | N/A | Options chain with computed optimizer metrics |
 | `/api/agent-traces` | GET | N/A | List or fetch saved agent traces |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
@@ -160,7 +160,7 @@ Most AI features follow a simple single-call pattern:
 Gather data server-side (MongoDB + Polygon) → Construct focused prompt → Single Claude API call → Return response
 ```
 
-**Exception: CC Optimizer Agent** uses an agentic tool-use loop (up to 30 iterations). The agent autonomously decides which tools to call (options chain, stock price, web search, etc.) and reasons across multiple steps before producing a final recommendation. This is the only multi-step AI feature.
+**Exception: CC Optimizer Agent** uses per-ticker agentic tool-use loops (up to 8 iterations each). In portfolio mode, tickers are analyzed in parallel. Each agent autonomously decides which tools to call (options chain, stock price, web search, etc.) and reasons across multiple steps before producing a final recommendation. This is the only multi-step AI feature.
 
 - **Usage tracking is automatic** — Every call goes through `aiCall()` or `aiStream()` which auto-track tokens and cost
 - **Retry with backoff** — `aiCall()` and `aiStream()` automatically retry up to 3 times on 529 (overloaded) responses with exponential backoff

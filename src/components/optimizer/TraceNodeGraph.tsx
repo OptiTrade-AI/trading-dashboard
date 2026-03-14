@@ -38,7 +38,7 @@ interface TraceNodeGraphProps {
 function TraceGraph({ steps, tickers, traceMeta, loading, privacyMode }: TraceNodeGraphProps) {
   const { fitView } = useReactFlow();
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const prevStepCount = useRef(0);
+  const prevNodeCount = useRef(0);
   const hasFitOnce = useRef(false);
 
   const { nodes, edges } = useMemo(
@@ -46,21 +46,25 @@ function TraceGraph({ steps, tickers, traceMeta, loading, privacyMode }: TraceNo
     [steps, tickers, privacyMode, traceMeta],
   );
 
-  // Auto fit on first render and when streaming completes
+  // Auto fit when nodes change during streaming, and on completion
   useEffect(() => {
-    if (nodes.length > 0 && !hasFitOnce.current) {
-      setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 100);
+    if (nodes.length === 0) return;
+    const isNewContent = nodes.length !== prevNodeCount.current;
+    if (isNewContent) {
+      // Re-fit as new nodes stream in, and once more when loading completes
+      const delay = hasFitOnce.current ? 150 : 100;
+      setTimeout(() => fitView({ padding: 0.15, duration: hasFitOnce.current ? 300 : 400 }), delay);
       hasFitOnce.current = true;
+      prevNodeCount.current = nodes.length;
     }
   }, [nodes.length, fitView]);
 
-  // Fit view when streaming completes
+  // Final fit when streaming completes
   useEffect(() => {
-    if (!loading && prevStepCount.current > 0 && steps.length > prevStepCount.current) {
+    if (!loading && hasFitOnce.current) {
       setTimeout(() => fitView({ padding: 0.15, duration: 600 }), 200);
     }
-    prevStepCount.current = steps.length;
-  }, [loading, steps.length, fitView]);
+  }, [loading, fitView]);
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
     setSelectedNode(prev => prev?.id === node.id ? null : node);

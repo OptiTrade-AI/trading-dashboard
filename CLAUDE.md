@@ -184,7 +184,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/ai/usage` | GET | AI usage stats and costs |
 | `/api/analysis` | GET, POST, DELETE | Trade analysis debrief with streaming and history |
 | `/api/chat` | GET, POST, PATCH, DELETE | Multi-turn conversational AI with history management |
-| `/api/ai/cc-optimizer` | POST | Streaming AI agent for CC optimization — uses Claude tool_use with 6 tools (options chain, stock price, historical prices, holdings, CC history, web search) and Tavily; returns SSE with progress, analysis, and agent trace |
+| `/api/ai/cc-optimizer` | POST | Streaming AI agent for CC optimization — parallel per-ticker tool_use loops (up to 8 iterations each) with 6 tools (options chain, stock price, historical prices, holdings, CC history, web search) and Tavily; returns SSE with progress, analysis, and agent trace |
 | `/api/cc-optimizer` | GET | Options chain data with computed optimizer metrics (annualized return, distance from cost basis, recovery weeks, called-away P/L) for a ticker |
 | `/api/chat/context` | POST | Create conversation with pre-loaded context |
 
