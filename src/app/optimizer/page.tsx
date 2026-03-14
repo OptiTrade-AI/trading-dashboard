@@ -162,8 +162,6 @@ function OptimizerPage() {
               if (event.type === 'progress') {
                 setPortfolioAiProgress(event.message);
                 if (event.data) setPortfolioProgressData(event.data);
-              } else if (event.type === 'analyses') {
-                setPortfolioAnalyses(event.data);
               } else if (event.type === 'analysis') {
                 setPortfolioAnalyses(prev => [...prev, event.data]);
               } else if (event.type === 'error') {
@@ -251,7 +249,7 @@ function OptimizerPage() {
       />
 
       {/* Portfolio-wide AI Analysis (shown when "Analyze All" runs) */}
-      {(portfolioAiLoading || portfolioAiError || portfolioAnalyses.length > 0) && (
+      {!savedTrace && (portfolioAiLoading || portfolioAiError || portfolioAnalyses.length > 0) && (
         <>
           <OptimizerAIPanel
             analysis={null}
@@ -273,8 +271,34 @@ function OptimizerPage() {
         </>
       )}
 
+      {/* Saved trace rendering */}
+      {savedTrace && (
+        <>
+          <OptimizerAIPanel
+            analysis={null}
+            analyses={savedTrace.result || []}
+            loading={false}
+            error={null}
+            progress=""
+            privacyMode={privacyMode}
+          />
+          <OptimizerTraceViewer
+            steps={savedTrace.steps}
+            tickers={savedTrace.tickers}
+            traceMeta={{
+              traceId: savedTrace.id,
+              totalSteps: savedTrace.steps.length,
+              durationMs: savedTrace.totalDurationMs,
+              costUsd: savedTrace.costUsd,
+            }}
+            loading={false}
+            privacyMode={privacyMode}
+          />
+        </>
+      )}
+
       {/* Selected Ticker Content */}
-      {selectedTicker && (
+      {!savedTrace && selectedTicker && (
         <>
           {/* Loading state */}
           {optimizer.isLoading && (
@@ -372,7 +396,7 @@ function OptimizerPage() {
       )}
 
       {/* Empty state */}
-      {!selectedTicker && portfolioAnalyses.length === 0 && !portfolioAiLoading && (
+      {!savedTrace && !selectedTicker && portfolioAnalyses.length === 0 && !portfolioAiLoading && (
         <div className="glass-card p-12 text-center">
           <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
@@ -385,32 +409,6 @@ function OptimizerPage() {
             or click &quot;AI Analyze All&quot; for a full portfolio scan with AI-powered recommendations.
           </p>
         </div>
-      )}
-
-      {/* Saved trace rendering */}
-      {savedTrace && (
-        <>
-          <OptimizerAIPanel
-            analysis={null}
-            analyses={savedTrace.result || []}
-            loading={false}
-            error={null}
-            progress=""
-            privacyMode={privacyMode}
-          />
-          <OptimizerTraceViewer
-            steps={savedTrace.steps}
-            tickers={savedTrace.tickers}
-            traceMeta={{
-              traceId: savedTrace.id,
-              totalSteps: savedTrace.steps.length,
-              durationMs: savedTrace.totalDurationMs,
-              costUsd: savedTrace.costUsd,
-            }}
-            loading={false}
-            privacyMode={privacyMode}
-          />
-        </>
       )}
 
       {/* Add CC Modal */}

@@ -32,7 +32,7 @@ Requires the `ANTHROPIC_API_KEY` environment variable.
 | `/api/ai/daily-summary` | GET | Haiku 4.5 | 1-2 sentence portfolio summary (24h cache) |
 | `/api/ai/usage` | GET | N/A | AI usage stats: today/yesterday/week/month/all-time costs, 30-day daily breakdown by model, per-feature token splits, recent calls |
 | `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | Conversational AI: GET lists conversations, POST sends message (streaming), PATCH renames, DELETE removes |
-| `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization — tool_use loop (up to 30 iterations) with 6 tools + Tavily web search. SSE streaming with progress, analysis, and agent trace steps |
+| `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization — parallel per-ticker tool_use loops (up to 8 iterations each) with 6 tools + Tavily web search. SSE streaming with progress, analysis, and agent trace steps |
 | `/api/cc-optimizer` | GET | N/A | Options chain with computed CC optimizer metrics (annualized return, distance from cost basis, recovery weeks, called-away P/L). Query: `?ticker=AAPL&minDTE=7&maxDTE=60` |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
 
