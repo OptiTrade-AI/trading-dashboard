@@ -107,20 +107,41 @@ The first **agentic** AI feature — uses Claude's `tool_use` capability in a mu
 - `get_historical_prices` — Daily OHLC for support/resistance analysis
 - `get_holdings_data` — User's cost basis and share lots from MongoDB
 - `get_cc_history` — Past covered call trades and total premium earned
-- `web_search` — Tavily web search for analyst price targets, earnings dates, news
+- `web_search` — Tavily web search for analyst price targets, earnings dates, catalysts, news
+
+**Position Detection:** The agent auto-detects whether each position is underwater (stock < cost basis) or above-water (stock >= cost basis) and adjusts its analysis accordingly.
+
+**Strategy Lanes — Underwater Positions:**
+- **Breakeven Path** — Finds strike where strike + premium >= cost basis. Reports "not viable" for deeply underwater positions.
+- **Balanced** — Delta 0.20-0.30, best risk-adjusted pick. Usually the recommended lane.
+- **Income Harvest** — Higher delta (0.30-0.45), shorter DTE for maximum premium. Includes dedicated catalyst checking to limit event risk.
+
+**Yield Options — Above-Water Positions:**
+User sets a target monthly return % (premium / cost basis) via the `OptimizerTargetReturn` selector. The agent presents 3 options at different DTEs:
+- **Weekly (7 DTE)** — Fastest cycle, may fall short of target
+- **Bi-Weekly (14 DTE)** — Often the sweet spot for hitting the target
+- **Monthly (30 DTE)** — Higher total premium, lower annualized return
+
+**Every lane/option includes:** strike, premium, delta, OI, OTM%, called-away P/L (per share), monthly return %, and annualized return %.
+
+**Catalyst Analysis:** The agent always searches for upcoming catalysts (earnings, FDA dates, product launches, analyst revisions) and includes them in a dedicated `catalysts` array. For income/aggressive strategies, the agent verifies recommended expirations clear all known catalysts.
 
 **Output per ticker:**
-- Top pick with specific strike/expiration and reasoning
-- Alternate strikes (higher premium / safer)
+- Position type (underwater / above-water)
+- Strategy lanes array with per-lane picks and viability flags
+- Catalyst list with dates
 - Analyst consensus and earnings date from web search
 - IV context and key risks
 - Recovery projection (weeks to breakeven via premium collection)
+- Backward-compatible `topPick` + `alternates` for old UI paths
 
 **Agent Trace Viewer:** Every tool call, result, and thinking step is captured as an `AgentTraceStep` and streamed to the client in real-time. The trace viewer uses React Flow (`@xyflow/react`) to render a visual node graph of the agent's decision path. Completed traces are saved to the `agentTraces` MongoDB collection and can be replayed from the Trace History Drawer.
 
 **Modes:**
 - **Single ticker** — Runs one focused agent for the selected holding
-- **Portfolio-wide** — Runs parallel per-ticker agents concurrently for all uncovered holdings, streaming results as each completes
+- **Portfolio-wide** — Runs parallel per-ticker agents concurrently for all uncovered holdings, streaming results as each completes. Each ticker auto-detects its own underwater/above-water mode.
+
+**Request accepts:** `{ tickers, mode, targetReturnPct? }` — the optional `targetReturnPct` (e.g., 4.0 for 4%) drives yield mode for above-water positions.
 
 **Integration:** "Write This Call" button in the optimizer chain table pre-fills the AddCCModal with strike, expiration, premium, and contracts for one-click CC creation.
 

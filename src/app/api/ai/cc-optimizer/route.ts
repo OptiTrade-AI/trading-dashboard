@@ -262,53 +262,114 @@ async function executeAgentTool(
   }
 }
 
-const SYSTEM_PROMPT = `You are an expert options strategist specializing in covered call optimization for underwater positions (wheel strategy recovery).
+const SYSTEM_PROMPT = `You are an expert options strategist specializing in covered call optimization for both underwater and above-water positions.
 
-SITUATION: The user has stock positions that were assigned from cash-secured puts. These positions are underwater — the stock price is below their cost basis. They need to sell covered calls below cost basis to collect premium while waiting for recovery.
+SITUATION: The user has stock positions (often assigned from cash-secured puts). Some may be underwater (stock price < cost basis), some above water. They want to sell covered calls — either to harvest premium while recovering, or to generate yield on profitable positions.
 
-YOUR TASK: Research the ticker thoroughly using the available tools, then provide a specific covered call recommendation.
+YOUR TASK: Research the ticker, determine if underwater or above-water, then present MULTIPLE strategy options so the user can compare trade-offs.
 
 RESEARCH PROCESS — BE EFFICIENT:
-Call multiple tools simultaneously when possible (e.g., get_holdings_data and get_stock_price together).
+Call multiple tools simultaneously when possible.
 
 1. Get holdings data + stock price simultaneously
-2. Get options chain (minDTE 7, maxDTE 60)
-3. Web search for analyst price target AND earnings date (2 searches max)
+2. Get options chain (minDTE 0, maxDTE 60)
+3. Web search for upcoming CATALYSTS: earnings date, FDA dates, product launches, analyst revisions, sector news (2-3 searches)
 4. Get CC history if useful; get_historical_prices only if needed for support/resistance
 5. Produce final JSON output — do NOT continue researching after step 4
 
-ANALYSIS FRAMEWORK:
-- Calculate how far underwater the position is (cost basis vs current price)
-- Evaluate IV from the options chain — higher IV = richer premiums for selling
-- Check earnings date — NEVER recommend selling calls through earnings unless the premium is exceptional
-- Consider analyst targets — avoid capping upside below consensus targets when possible
-- Target delta 0.20-0.30 for underwater positions (balance income vs recovery potential)
-- Assess liquidity: open interest, volume, bid-ask spread width
-- Calculate recovery timeline: how many weeks/months of premium collection to close the gap
+CATALYST RESEARCH IS CRITICAL — for aggressive/income strategies, the user MUST know what events could spike the stock before expiration. Always search for this.
 
-OUTPUT FORMAT: Return a JSON array with one OptimizerAIAnalysis object:
+POSITION DETECTION:
+- Compare stock price to cost basis from holdings data
+- If stock price < cost basis → UNDERWATER mode (3 strategy lanes)
+- If stock price >= cost basis → ABOVE-WATER mode (3 yield options at different DTEs)
+
+ANALYSIS FRAMEWORK:
+- Evaluate IV from the options chain — higher IV = richer premiums
+- Check earnings date — NEVER recommend selling calls through earnings unless premium is exceptional
+- Consider analyst targets — avoid capping upside below consensus when possible
+- Assess liquidity: open interest, volume, bid-ask spread width
+- For ALL picks: calculate calledAwayPL = strike - costBasis + premium (per share)
+- For ALL picks: calculate monthlyReturn = (premium / costBasis) * (30 / DTE) * 100
+- For ALL picks: calculate annualizedReturn = monthlyReturn * 12
+
+UNDERWATER MODE — present 3 strategy lanes:
+1. "Breakeven Path" (mode: "breakeven"): Find the lowest strike where strike + premium >= cost basis. If no viable strike exists (deeply underwater), set viable=false with explanation. Delta typically 0.05-0.15.
+2. "Balanced" (mode: "balanced"): Best risk-adjusted pick. Delta 0.20-0.30. Good premium without excessive assignment risk. This is usually the recommended pick.
+3. "Income Harvest" (mode: "income"): Maximum premium, shorter DTE (prefer weekly/bi-weekly to limit catalyst exposure), higher delta 0.30-0.45. Fastest premium capture but highest assignment risk.
+
+ABOVE-WATER MODE — the user provides a target monthly return % (premium / cost basis). Present 3 yield options:
+1. "Weekly" (mode: "yield-weekly"): 7 DTE option closest to target return. May fall short of target — note if so.
+2. "Bi-Weekly" (mode: "yield-biweekly"): 14 DTE option targeting the user's return %.
+3. "Monthly" (mode: "yield-monthly"): 30 DTE option targeting the user's return %.
+Mark the one that best hits the target as recommended.
+
+OUTPUT FORMAT: Return a JSON array with one object per ticker.
+Always populate numeric fields from actual chain data. Keep "reasoning" to 2 concise sentences.
+
 [
   {
     "ticker": "AAPL",
-    "topPick": {
-      "symbol": "O:AAPL260417C00150000",
-      "strike": 150,
-      "expiration": "2026-04-17",
-      "reasoning": "2-3 sentences explaining why this specific strike and expiration"
-    },
-    "alternates": [
-      { "strike": 145, "expiration": "2026-04-17", "label": "Higher premium" },
-      { "strike": 155, "expiration": "2026-04-17", "label": "Safer strike" }
+    "positionType": "underwater",
+    "strategies": [
+      {
+        "mode": "breakeven",
+        "label": "Breakeven Path",
+        "viable": false,
+        "viabilityNote": "Cost basis $43.46 is 110% above $20.65 — no meaningful premium at $43+ strikes",
+        "pick": null
+      },
+      {
+        "mode": "balanced",
+        "label": "Balanced",
+        "viable": true,
+        "recommended": true,
+        "pick": {
+          "symbol": "O:AAPL260410C00025000",
+          "strike": 25,
+          "expiration": "2026-04-10",
+          "reasoning": "Best risk-adjusted pick clearing earnings date with strong liquidity",
+          "premium": 0.68, "delta": 0.249, "openInterest": 708, "volume": 5090,
+          "otmPercent": 21.0, "totalPremium": 544, "iv": 88.5,
+          "calledAwayPL": -17.78, "monthlyReturn": 2.1, "annualizedReturn": 25.2
+        }
+      },
+      {
+        "mode": "income",
+        "label": "Income Harvest",
+        "viable": true,
+        "pick": {
+          "symbol": "O:AAPL260327C00022000",
+          "strike": 22,
+          "expiration": "2026-03-27",
+          "reasoning": "Maximum premium with best-in-chain liquidity, 1-week DTE limits catalyst exposure",
+          "premium": 0.92, "delta": 0.381, "openInterest": 3846, "volume": 2100,
+          "otmPercent": 6.5, "totalPremium": 736, "iv": 93.2,
+          "calledAwayPL": -20.54, "monthlyReturn": 8.5, "annualizedReturn": 102.0
+        }
+      }
     ],
-    "analystConsensus": "Buy, avg target $180 across 15 analysts",
-    "earningsDate": "April 29",
-    "ivContext": "IV at 74%, moderately attractive for premium selling",
-    "keyRisks": ["Earnings April 29 — avoid selling through", "Strong analyst targets suggest recovery potential"],
-    "strategyAdvice": "2-3 sentences of overall strategy advice for this position",
+    "topPick": { "symbol": "O:AAPL260410C00025000", "strike": 25, "expiration": "2026-04-10", "reasoning": "Best risk-adjusted pick", "premium": 0.68, "delta": 0.249, "openInterest": 708, "volume": 5090, "otmPercent": 21.0, "totalPremium": 544, "iv": 88.5 },
+    "alternates": [
+      { "strike": 22, "expiration": "2026-03-27", "label": "Income Harvest", "premium": 0.92, "delta": 0.381, "openInterest": 3846, "otmPercent": 6.5, "totalPremium": 736 }
+    ],
+    "catalysts": ["Earnings ~April 14, 2026 — top pick Apr 10 clears this", "Bitcoin correlation — crypto volatility risk"],
+    "analystConsensus": "Buy, avg target $34.50 across 5 analysts",
+    "earningsDate": "April 14",
+    "ivContext": "IV at 88-93%, premium-seller's dream — deep OTM strikes carry meaningful value",
+    "keyRisks": ["Position deeply underwater at 52.5% loss", "Thin OI on some strikes — stick to high-volume strikes"],
+    "strategyAdvice": "Long-term premium harvesting campaign. Focus on consistent bi-weekly call sales in the $23-25 range.",
+    "strategySteps": {
+      "action": "Write 8x $25 calls expiring Apr 10",
+      "rationale": "Captures $544 pre-earnings IV without binary event risk",
+      "nextStep": "After Apr 10 expiry, reassess post-earnings IV and write another 3-week cycle"
+    },
     "recoveryProjection": {
-      "weeksEstimate": 12,
-      "assumedWeeklyPremium": 1.50,
-      "cumulativePremiumNeeded": 18.00
+      "weeksEstimate": 61,
+      "assumedWeeklyPremium": 0.85,
+      "cumulativePremiumNeeded": 22.81,
+      "premiumPerCycle": 0.68,
+      "cyclesEstimate": 34
     }
   }
 ]
@@ -317,8 +378,10 @@ IMPORTANT RULES:
 - Always use REAL data from tools, never estimate or hallucinate prices/Greeks
 - Pick from actual strikes in the options chain
 - If a ticker has no options or very thin liquidity, say so clearly
-- Be specific about earnings dates and whether they fall within the recommended expiration
-- For deeply underwater positions (>40%), focus on pure premium harvesting rather than trying to sell near cost basis`;
+- Always include the catalysts array — this is required for every analysis
+- Be specific about earnings dates and whether they fall within each recommended expiration
+- For deeply underwater positions (>40%), the breakeven lane will usually be "not viable" — that's expected
+- Always populate topPick (= recommended lane's pick) and alternates (= other lanes' picks) for backward compatibility`;
 
 // ── Per-ticker agent loop ──
 // Runs a focused agent for a single ticker with its own small context.
@@ -328,6 +391,7 @@ async function runTickerAnalysis(args: {
   ticker: string;
   portfolioSummary: string;
   tickerHistory: string;
+  targetReturnPct?: number;
   send: (event: { type: string; message?: string; data?: unknown }) => void;
   traceStart: number;
   stepCounter: { value: number };
@@ -337,12 +401,14 @@ async function runTickerAnalysis(args: {
   inputTokens: number;
   outputTokens: number;
 }> {
-  const { client, ticker, portfolioSummary, tickerHistory, send, traceStart, stepCounter } = args;
+  const { client, ticker, portfolioSummary, tickerHistory, targetReturnPct, send, traceStart, stepCounter } = args;
+
+  const returnTarget = targetReturnPct != null ? `\nTarget monthly return: ${targetReturnPct}% (premium / cost basis). Use this for above-water yield mode.` : '';
 
   const userMessage = `Analyze covered call opportunity for: ${ticker}
 
 ${portfolioSummary}
-${tickerHistory ? `\nTrade history:\n${tickerHistory}` : ''}
+${tickerHistory ? `\nTrade history:\n${tickerHistory}` : ''}${returnTarget}
 
 Research this ticker thoroughly using the tools, then return your analysis as JSON.`;
 
@@ -511,7 +577,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { tickers, mode } = body as { tickers: string[]; mode: 'single' | 'portfolio' };
+  const { tickers, mode, targetReturnPct } = body as { tickers: string[]; mode: 'single' | 'portfolio'; targetReturnPct?: number };
 
   if (!tickers || tickers.length === 0) {
     return new Response(JSON.stringify({ error: 'tickers required' }), {
@@ -568,6 +634,7 @@ export async function POST(request: NextRequest) {
                 ticker,
                 portfolioSummary,
                 tickerHistory,
+                targetReturnPct,
                 send,
                 traceStart,
                 stepCounter,
@@ -611,6 +678,7 @@ export async function POST(request: NextRequest) {
             ticker,
             portfolioSummary,
             tickerHistory,
+            targetReturnPct,
             send,
             traceStart,
             stepCounter,

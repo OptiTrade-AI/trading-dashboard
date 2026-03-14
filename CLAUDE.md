@@ -51,7 +51,7 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap, lot grouping by ticker |
 | Stock Events | `/stock` | Realized stock P/L and tax loss harvest ledger |
 | Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations, interactive strategy drill-down, stock capital gains |
-| Optimizer | `/optimizer` | Covered call optimizer for underwater positions — AI agent with web search, options chain analysis, recovery projections, trace viewer, and one-click CC writing |
+| Optimizer | `/optimizer` | Covered call optimizer for underwater and above-water positions — AI agent with strategy lanes (breakeven/balanced/income for underwater, yield-weekly/biweekly/monthly for above-water), target return %, catalyst analysis, web search, options chain analysis, recovery projections, trace viewer, and one-click CC writing |
 | AI Chat | `/analysis` | Conversational AI trading coach with saved history and "Discuss in Chat" integration |
 
 ### Trade Types
@@ -88,7 +88,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, avg premium captured, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets, stock capital gains, strategy trade drill-down) with time range filter (1W/1M/3M/6M/YTD/ALL) |
 | `useTableSortFilter` | Generic table sort/filter state: sorting by any key with custom extractors, filtering by status/ticker/date range. Used by all trade log tables |
 | `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
-| `useCallOptimizer` | CC optimizer: fetches options chain via `/api/cc-optimizer`, client-side param filtering (delta/DTE/premium/loss), sorting, preset strategies (conservative/moderate/aggressive/recovery), and AI analysis via streaming `/api/ai/cc-optimizer` with agent trace |
+| `useCallOptimizer` | CC optimizer: fetches options chain via `/api/cc-optimizer`, client-side param filtering (delta/DTE/premium/loss/targetReturnPct), sorting, preset strategies (conservative/moderate/aggressive/recovery), target monthly return %, and AI analysis via streaming `/api/ai/cc-optimizer` with strategy lanes and agent trace |
 
 ### Dashboard Components
 
@@ -117,17 +117,18 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | TickerAutocomplete | `src/components/shared/TickerAutocomplete.tsx` | Reusable ticker search input with autocomplete dropdown, used in all trade add/edit modals |
 | OptimizerTickerStrip | `src/components/optimizer/OptimizerTickerStrip.tsx` | Horizontal ticker cards for uncovered holdings with coverage status, "AI Analyze All" button |
 | OptimizerHoldingSummary | `src/components/optimizer/OptimizerHoldingSummary.tsx` | Selected ticker summary: cost basis, shares, stock price, underwater %, historical CC premium |
-| OptimizerParamControls | `src/components/optimizer/OptimizerParamControls.tsx` | Filter controls with preset strategies (conservative/moderate/aggressive/recovery) and custom sliders for delta/DTE/premium/loss |
+| OptimizerParamControls | `src/components/optimizer/OptimizerParamControls.tsx` | Preset strategy selector (conservative/moderate/aggressive/recovery) with active param chips and match count |
 | OptimizerChainTable | `src/components/optimizer/OptimizerChainTable.tsx` | Sortable options chain table with strike, premium, annualized return, distance metrics, "Write This Call" action |
 | OptimizerRecoveryChart | `src/components/optimizer/OptimizerRecoveryChart.tsx` | Recharts chart showing premium income vs cost basis gap for recovery projection |
 | OptimizerScatterChart | `src/components/optimizer/OptimizerScatterChart.tsx` | Recharts scatter plot of annualized return vs delta for strike comparison |
-| OptimizerAIPanel | `src/components/optimizer/OptimizerAIPanel.tsx` | AI analysis results: top pick, alternates, analyst consensus, earnings date, IV context, risks, strategy advice, recovery timeline |
+| OptimizerTargetReturn | `src/components/optimizer/OptimizerTargetReturn.tsx` | Monthly return target selector with quick presets (1%/2%/4%/6%) and custom slider, context line showing per-share premium needed |
+| OptimizerAIPanel | `src/components/optimizer/OptimizerAIPanel.tsx` | AI analysis with strategy lane cards (breakeven/balanced/income or yield-weekly/biweekly/monthly), catalyst banner, position type detection, metrics strips with called-away P/L and monthly/annualized returns. Falls back to top pick + alternates for old traces |
 | OptimizerTraceViewer | `src/components/optimizer/OptimizerTraceViewer.tsx` | Visual agent trace: step-by-step tool calls, thinking, results with timing and cost. Uses React Flow for node graph |
 | TraceHistoryDrawer | `src/components/optimizer/TraceHistoryDrawer.tsx` | Slide-out drawer listing past AI agent traces from MongoDB, click to replay |
 
 ### Key Files
 
-- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation
+- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation, StrategyLane, OptimizerAIAnalysis
 - `src/lib/utils.ts` — P/L calculations, formatting, CSV export, `cn()` class helper
 - `src/lib/mongodb.ts` — MongoDB connection with dev-mode global caching
 - `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection (including annotations)
@@ -184,7 +185,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/ai/usage` | GET | AI usage stats and costs |
 | `/api/analysis` | GET, POST, DELETE | Trade analysis debrief with streaming and history |
 | `/api/chat` | GET, POST, PATCH, DELETE | Multi-turn conversational AI with history management |
-| `/api/ai/cc-optimizer` | POST | Streaming AI agent for CC optimization — parallel per-ticker tool_use loops (up to 8 iterations each) with 6 tools (options chain, stock price, historical prices, holdings, CC history, web search) and Tavily; returns SSE with progress, analysis, and agent trace |
+| `/api/ai/cc-optimizer` | POST | Streaming AI agent for CC optimization — auto-detects underwater vs above-water positions, parallel per-ticker tool_use loops (up to 8 iterations each) with 6 tools (options chain, stock price, historical prices, holdings, CC history, web search) and Tavily; accepts `targetReturnPct` for yield mode; returns SSE with strategy lanes, catalysts, progress, analysis, and agent trace |
 | `/api/cc-optimizer` | GET | Options chain data with computed optimizer metrics (annualized return, distance from cost basis, recovery weeks, called-away P/L) for a ticker |
 | `/api/chat/context` | POST | Create conversation with pre-loaded context |
 

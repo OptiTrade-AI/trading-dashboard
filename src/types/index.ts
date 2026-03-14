@@ -459,6 +459,7 @@ export interface OptimizerParams {
   minPremium: number;
   maxLossIfCalled: number;
   preset: OptimizerPreset;
+  targetReturnPct: number;
 }
 
 export interface OptimizerResult {
@@ -498,6 +499,32 @@ export interface AgentTrace {
   result?: OptimizerAIAnalysis[];
 }
 
+export type StrategyMode = 'breakeven' | 'balanced' | 'income' | 'yield-weekly' | 'yield-biweekly' | 'yield-monthly';
+
+export interface StrategyLane {
+  mode: StrategyMode;
+  label: string;
+  viable: boolean;
+  viabilityNote?: string;
+  recommended?: boolean;
+  pick: {
+    symbol: string;
+    strike: number;
+    expiration: string;
+    reasoning: string;
+    premium?: number;
+    delta?: number;
+    openInterest?: number;
+    volume?: number;
+    otmPercent?: number;
+    totalPremium?: number;
+    iv?: number;
+    calledAwayPL?: number;
+    monthlyReturn?: number;
+    annualizedReturn?: number;
+  } | null;
+}
+
 export interface OptimizerAIAnalysis {
   ticker: string;
   topPick: {
@@ -505,20 +532,43 @@ export interface OptimizerAIAnalysis {
     strike: number;
     expiration: string;
     reasoning: string;
+    premium?: number;
+    delta?: number;
+    openInterest?: number;
+    volume?: number;
+    otmPercent?: number;
+    totalPremium?: number;
+    iv?: number;
   };
   alternates: {
     strike: number;
     expiration: string;
     label: string;
+    premium?: number;
+    delta?: number;
+    openInterest?: number;
+    otmPercent?: number;
+    totalPremium?: number;
   }[];
   analystConsensus?: string;
   earningsDate?: string;
   ivContext?: string;
   keyRisks: string[];
   strategyAdvice: string;
+  strategySteps?: {
+    action: string;
+    rationale: string;
+    nextStep: string;
+  };
   recoveryProjection: {
     weeksEstimate: number;
     assumedWeeklyPremium: number;
     cumulativePremiumNeeded: number;
+    premiumPerCycle?: number;
+    cyclesEstimate?: number;
   };
+  positionType?: 'underwater' | 'above-water';
+  targetReturnPct?: number;
+  strategies?: StrategyLane[];
+  catalysts?: string[];
 }

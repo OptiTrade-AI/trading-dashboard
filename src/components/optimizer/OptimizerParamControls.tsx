@@ -2,7 +2,6 @@
 
 import { cn } from '@/lib/utils';
 import type { OptimizerParams, OptimizerPreset } from '@/types';
-import { useState } from 'react';
 
 interface PresetDef {
   key: OptimizerPreset;
@@ -68,7 +67,6 @@ const COLOR_MAP: Record<string, { active: string; ring: string; tag: string; dot
 interface OptimizerParamControlsProps {
   params: OptimizerParams;
   onPreset: (preset: OptimizerPreset) => void;
-  onUpdate: <K extends keyof OptimizerParams>(key: K, value: OptimizerParams[K]) => void;
   totalResults: number;
   filteredResults: number;
 }
@@ -76,13 +74,10 @@ interface OptimizerParamControlsProps {
 export function OptimizerParamControls({
   params,
   onPreset,
-  onUpdate,
   totalResults,
   filteredResults,
 }: OptimizerParamControlsProps) {
-  const [showCustom, setShowCustom] = useState(false);
   const activePreset = PRESETS.find(p => p.key === params.preset);
-  const isCustom = params.preset === 'custom';
 
   return (
     <div className="space-y-3">
@@ -137,83 +132,24 @@ export function OptimizerParamControls({
         })}
       </div>
 
-      {/* Active params strip + customize toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {/* Active param summary chips */}
-          <div className="flex items-center gap-1.5 p-1 bg-card-solid/50 rounded-xl border border-border">
-            <ParamChip label="δ" value={`${params.minDelta.toFixed(2)}–${params.maxDelta.toFixed(2)}`} />
-            <div className="w-px h-4 bg-border" />
-            <ParamChip label="DTE" value={`${params.minDTE}–${params.maxDTE}d`} />
-            <div className="w-px h-4 bg-border" />
-            <ParamChip label="Min $" value={params.minPremium > 0 ? `$${params.minPremium.toFixed(2)}` : 'any'} />
-          </div>
-
-          <span className="text-xs text-muted">
-            {filteredResults}<span className="opacity-50">/{totalResults}</span> matches
-          </span>
+      {/* Active params strip */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 p-1 bg-card-solid/50 rounded-xl border border-border">
+          <ParamChip label="δ" value={`${params.minDelta.toFixed(2)}–${params.maxDelta.toFixed(2)}`} />
+          <div className="w-px h-4 bg-border" />
+          <ParamChip label="DTE" value={`${params.minDTE}–${params.maxDTE}d`} />
+          <div className="w-px h-4 bg-border" />
+          <ParamChip label="Min $" value={params.minPremium > 0 ? `$${params.minPremium.toFixed(2)}` : 'any'} />
         </div>
 
-        <button
-          onClick={() => { setShowCustom(!showCustom); if (!showCustom) onPreset('custom'); }}
-          className={cn(
-            'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
-            showCustom || isCustom
-              ? 'bg-accent/10 text-accent border-accent/30'
-              : 'text-muted border-border/50 hover:text-foreground hover:border-zinc-600',
-          )}
-        >
-          {showCustom ? 'Hide Tuning' : 'Fine Tune'}
-        </button>
+        <span className="text-xs text-muted">
+          {filteredResults}<span className="opacity-50">/{totalResults}</span> matches
+        </span>
       </div>
 
       {/* Philosophy blurb for active preset */}
-      {activePreset && !showCustom && (
+      {activePreset && (
         <p className="text-xs text-muted/70 italic pl-1">{activePreset.philosophy}</p>
-      )}
-
-      {/* Custom tuning panel */}
-      {(showCustom || isCustom) && (
-        <div className="glass-card p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <RangeControl
-              label="Delta Range"
-              minVal={params.minDelta}
-              maxVal={params.maxDelta}
-              min={0.05} max={0.50} step={0.05}
-              format={(v) => v.toFixed(2)}
-              onMinChange={(v) => onUpdate('minDelta', v)}
-              onMaxChange={(v) => onUpdate('maxDelta', v)}
-            />
-            <RangeControl
-              label="Days to Expiration"
-              minVal={params.minDTE}
-              maxVal={params.maxDTE}
-              min={0} max={90} step={1}
-              format={(v) => `${v}d`}
-              onMinChange={(v) => onUpdate('minDTE', v)}
-              onMaxChange={(v) => onUpdate('maxDTE', v)}
-            />
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted font-medium">Min Premium</span>
-                <span className="text-xs font-semibold text-foreground tabular-nums">
-                  ${params.minPremium.toFixed(2)}
-                </span>
-              </div>
-              <input
-                type="range" min={0} max={5} step={0.05}
-                value={params.minPremium}
-                onChange={e => onUpdate('minPremium', parseFloat(e.target.value))}
-                className="w-full accent-accent h-1.5 rounded-full appearance-none bg-zinc-800 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(16,185,129,0.4)]"
-              />
-              <div className="flex justify-between text-[10px] text-muted/50 mt-1">
-                <span>$0</span>
-                <span>$5</span>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -226,54 +162,6 @@ function ParamChip({ label, value }: { label: string; value: string }) {
     <div className="px-2.5 py-1 text-xs flex items-center gap-1.5">
       <span className="text-muted/60 font-medium">{label}</span>
       <span className="text-foreground font-semibold tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-function RangeControl({
-  label, minVal, maxVal, min, max, step, format, onMinChange, onMaxChange,
-}: {
-  label: string;
-  minVal: number; maxVal: number;
-  min: number; max: number; step: number;
-  format: (v: number) => string;
-  onMinChange: (v: number) => void;
-  onMaxChange: (v: number) => void;
-}) {
-  const sliderClass = "flex-1 accent-accent h-1.5 rounded-full appearance-none bg-zinc-800 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(16,185,129,0.4)]";
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-muted font-medium">{label}</span>
-        <span className="text-xs font-semibold text-foreground tabular-nums">
-          {format(minVal)} – {format(maxVal)}
-        </span>
-      </div>
-      <div className="flex gap-3 items-center">
-        <input
-          type="range" min={min} max={max} step={step}
-          value={minVal}
-          onChange={e => {
-            const v = parseFloat(e.target.value);
-            onMinChange(Math.min(v, maxVal - step));
-          }}
-          className={sliderClass}
-        />
-        <input
-          type="range" min={min} max={max} step={step}
-          value={maxVal}
-          onChange={e => {
-            const v = parseFloat(e.target.value);
-            onMaxChange(Math.max(v, minVal + step));
-          }}
-          className={sliderClass}
-        />
-      </div>
-      <div className="flex justify-between text-[10px] text-muted/50 mt-1">
-        <span>{format(min)}</span>
-        <span>{format(max)}</span>
-      </div>
     </div>
   );
 }
