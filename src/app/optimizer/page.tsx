@@ -10,6 +10,7 @@ import { usePrivacy } from '@/contexts/PrivacyContext';
 import { OptimizerTickerStrip } from '@/components/optimizer/OptimizerTickerStrip';
 import { OptimizerHoldingSummary } from '@/components/optimizer/OptimizerHoldingSummary';
 import { OptimizerParamControls } from '@/components/optimizer/OptimizerParamControls';
+import { OptimizerTargetReturn } from '@/components/optimizer/OptimizerTargetReturn';
 import { OptimizerChainTable } from '@/components/optimizer/OptimizerChainTable';
 import { OptimizerRecoveryChart } from '@/components/optimizer/OptimizerRecoveryChart';
 import { OptimizerScatterChart } from '@/components/optimizer/OptimizerScatterChart';
@@ -134,7 +135,7 @@ function OptimizerPage() {
       const res = await fetch('/api/ai/cc-optimizer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers: uncoveredTickers, mode: 'portfolio' }),
+        body: JSON.stringify({ tickers: uncoveredTickers, mode: 'portfolio', targetReturnPct: optimizer.params.targetReturnPct }),
       });
 
       if (!res.ok) throw new Error('AI analysis failed');
@@ -184,7 +185,7 @@ function OptimizerPage() {
       setPortfolioAiProgress('');
       setPortfolioProgressData(null);
     }
-  }, [holdings, openCalls]);
+  }, [holdings, openCalls, optimizer.params.targetReturnPct]);
 
   // CC modal submit handler
   const handleCCSubmit = useCallback((call: Parameters<typeof addCall>[0]) => {
@@ -328,12 +329,21 @@ function OptimizerPage() {
             />
           )}
 
+          {/* Target Return */}
+          {optimizer.data && (
+            <OptimizerTargetReturn
+              value={optimizer.params.targetReturnPct}
+              onChange={(v) => optimizer.updateParam('targetReturnPct', v)}
+              costBasis={optimizer.data.costBasisPerShare}
+              privacyMode={privacyMode}
+            />
+          )}
+
           {/* Param Controls */}
           {optimizer.data && (
             <OptimizerParamControls
               params={optimizer.params}
               onPreset={optimizer.applyPreset}
-              onUpdate={optimizer.updateParam}
               totalResults={optimizer.unfilteredCount}
               filteredResults={optimizer.chain.length}
             />

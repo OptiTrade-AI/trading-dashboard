@@ -5,10 +5,10 @@ import type { OptimizerResult, OptimizerRow, OptimizerParams, OptimizerPreset, O
 import type { ProgressData } from '@/components/optimizer/OptimizerAIPanel';
 
 const PRESETS: Record<Exclude<OptimizerPreset, 'custom'>, Omit<OptimizerParams, 'preset'>> = {
-  conservative: { minDelta: 0.10, maxDelta: 0.20, minDTE: 21, maxDTE: 60, minPremium: 0.10, maxLossIfCalled: 0 },
-  moderate:     { minDelta: 0.15, maxDelta: 0.30, minDTE: 7,  maxDTE: 45, minPremium: 0.10, maxLossIfCalled: 0 },
-  aggressive:   { minDelta: 0.25, maxDelta: 0.40, minDTE: 0,  maxDTE: 21, minPremium: 0,    maxLossIfCalled: 0 },
-  recovery:     { minDelta: 0.10, maxDelta: 0.40, minDTE: 0,  maxDTE: 90, minPremium: 0,    maxLossIfCalled: 0 },
+  conservative: { minDelta: 0.10, maxDelta: 0.20, minDTE: 21, maxDTE: 60, minPremium: 0.10, maxLossIfCalled: 0, targetReturnPct: 1 },
+  moderate:     { minDelta: 0.15, maxDelta: 0.30, minDTE: 7,  maxDTE: 45, minPremium: 0.10, maxLossIfCalled: 0, targetReturnPct: 2 },
+  aggressive:   { minDelta: 0.25, maxDelta: 0.40, minDTE: 0,  maxDTE: 21, minPremium: 0,    maxLossIfCalled: 0, targetReturnPct: 4 },
+  recovery:     { minDelta: 0.10, maxDelta: 0.40, minDTE: 0,  maxDTE: 90, minPremium: 0,    maxLossIfCalled: 0, targetReturnPct: 2 },
 };
 
 const DEFAULT_PARAMS: OptimizerParams = {
@@ -113,7 +113,7 @@ export function useCallOptimizer(ticker: string | null) {
       const res = await fetch('/api/ai/cc-optimizer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers: [t], mode: 'single' }),
+        body: JSON.stringify({ tickers: [t], mode: 'single', targetReturnPct: params.targetReturnPct }),
       });
 
       if (!res.ok) throw new Error('AI analysis failed');
@@ -165,7 +165,7 @@ export function useCallOptimizer(ticker: string | null) {
       setAiProgress('');
       setAiProgressData(null);
     }
-  }, [ticker]);
+  }, [ticker, params.targetReturnPct]);
 
   return {
     // Data
