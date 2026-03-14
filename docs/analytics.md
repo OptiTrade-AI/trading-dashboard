@@ -35,9 +35,11 @@ Add dated notes to your P/L chart for context:
 
 ## Strategy Trades Drill-Down
 Click any slice on the Strategy Donut chart to open a modal showing all trades for that strategy:
-- Summary stats (total P/L, win rate, avg P/L)
+- Summary stats: total P/L, win rate, avg P/L, best/worst trade
+- Filter tabs: All, Wins, Losses (with counts)
 - Sortable table (by P/L, date, ticker)
-- Per-trade details (ticker, strike/type, exit date, days held, P/L)
+- Per-trade details: ticker, strike/type, exit date, days held, P/L with percentage and premium-captured progress bar
+- Escape key closes the modal
 
 ## Stock Capital Gains
 The strategy breakdown section includes a Stock Capital Gains card when stock sale events exist:
@@ -45,5 +47,18 @@ The strategy breakdown section includes a Stock Capital Gains card when stock sa
 - Win rate and stock count
 - Largest gain ticker highlighted
 - Included as a fifth segment (teal) in the Strategy Donut chart
+
+## Average Premium Captured
+
+Each premium-selling strategy (CSPs, CCs, Spreads) displays an **Avg Captured** metric showing the average percentage of maximum profit realized per trade:
+- **CSPs / CCs**: `P/L ÷ premiumCollected × 100` — what fraction of collected premium was kept
+- **Spreads**: `P/L ÷ maxProfit × 100` — what fraction of theoretical max profit was captured
+
+Shown in three places:
+- **Hero row** — 5th hero stat with an SVG ring chart showing portfolio-wide avg captured % (green ≥ 50%, red < 50%)
+- **Strategy mini cards** — per-strategy captured % below a gradient divider
+- **Strategy detail tabs** — in the stats row
+
+The drill-down modal's per-trade progress bar also uses this ratio (P/L vs premium/max profit) instead of a relative scale.
 
 All charts respect [Privacy Mode](privacy-mode.md) — they blur with a "Hidden" overlay when active.

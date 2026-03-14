@@ -92,9 +92,9 @@ export default function Dashboard() {
   const [quickAddType, setQuickAddType] = useState<'csp' | 'cc' | 'directional' | 'spread' | null>(null);
   const [showImport, setShowImport] = useState(false);
 
-  const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: ExitReason) => {
+  const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: ExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason);
+      closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason, closeCommission);
       setCloseModalTrade(null);
     }
   };

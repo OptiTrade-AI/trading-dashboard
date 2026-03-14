@@ -28,6 +28,7 @@ export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProp
   const [expiration, setExpiration] = useState('');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
+  const [commission, setCommission] = useState('');
   const numContracts = parseInt(contracts) || 1;
   const lPrice = parseFloat(longPrice) || 0;
   const sPrice = parseFloat(shortPrice) || 0;
@@ -72,6 +73,7 @@ export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProp
       expiration,
       entryDate,
       notes: notes || undefined,
+      commission: commission ? parseFloat(commission) : undefined,
     });
 
     setTicker('');
@@ -84,6 +86,7 @@ export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProp
     setExpiration('');
     setEntryDate(format(new Date(), 'yyyy-MM-dd'));
     setNotes('');
+    setCommission('');
     onClose();
   };
 
@@ -235,6 +238,19 @@ export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProp
             />
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           {/* Calculated values */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -304,6 +320,7 @@ export function EditSpreadModal({ isOpen, trade, onClose, onSubmit }: EditSpread
   const [expiration, setExpiration] = useState('');
   const [entryDate, setEntryDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [commission, setCommission] = useState('');
 
   useEffect(() => {
     if (trade) {
@@ -317,6 +334,7 @@ export function EditSpreadModal({ isOpen, trade, onClose, onSubmit }: EditSpread
       setExpiration(trade.expiration);
       setEntryDate(trade.entryDate);
       setNotes(trade.notes || '');
+      setCommission(trade.commission?.toString() || '');
     }
   }, [trade]);
 
@@ -358,6 +376,7 @@ export function EditSpreadModal({ isOpen, trade, onClose, onSubmit }: EditSpread
       maxProfit,
       maxLoss,
       notes: notes || undefined,
+      commission: commission ? parseFloat(commission) : undefined,
     });
     onClose();
   };
@@ -515,6 +534,19 @@ export function EditSpreadModal({ isOpen, trade, onClose, onSubmit }: EditSpread
             />
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           {/* Calculated values */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -548,8 +580,8 @@ interface CloseSpreadModalProps {
   isOpen: boolean;
   trade: SpreadTrade | null;
   onClose: () => void;
-  onSubmit: (closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason) => void;
-  onPartialClose?: (contractsToClose: number, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason) => void;
+  onSubmit: (closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason, closeCommission?: number) => void;
+  onPartialClose?: (contractsToClose: number, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason, closeCommission?: number) => void;
   onRoll?: (closeNetCredit: number, exitDate: string, newSpread: Omit<SpreadTrade, 'id' | 'dteAtEntry' | 'netDebit' | 'maxProfit' | 'maxLoss' | 'status' | 'rollChainId' | 'rollNumber'>) => void;
 }
 
@@ -561,6 +593,7 @@ export function CloseSpreadModal({ isOpen, trade, onClose, onSubmit, onPartialCl
   const [isPartialClose, setIsPartialClose] = useState(false);
   const [contractsToClose, setContractsToClose] = useState('1');
   const [isRolling, setIsRolling] = useState(false);
+  const [closeCommission, setCloseCommission] = useState('');
 
   // Roll fields
   const [newSpreadType, setNewSpreadType] = useState<SpreadType>('call_debit');
@@ -590,11 +623,12 @@ export function CloseSpreadModal({ isOpen, trade, onClose, onSubmit, onPartialCl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const commissionVal = closeCommission ? parseFloat(closeCommission) : undefined;
     if (closeNetCredit === '') return;
     if (isPartialClose && onPartialClose && trade) {
       const numToClose = parseInt(contractsToClose);
       if (!numToClose || numToClose < 1 || numToClose >= trade.contracts) return;
-      onPartialClose(numToClose, parseFloat(closeNetCredit), exitDate, exitReason);
+      onPartialClose(numToClose, parseFloat(closeNetCredit), exitDate, exitReason, commissionVal);
     } else if (isRolling && onRoll && trade) {
       if (!newLongStrike || !newShortStrike || !newLongPrice || !newShortPrice || !newExpiration) return;
       onRoll(parseFloat(closeNetCredit), exitDate, {
@@ -609,7 +643,7 @@ export function CloseSpreadModal({ isOpen, trade, onClose, onSubmit, onPartialCl
         entryDate: exitDate,
       });
     } else {
-      onSubmit(parseFloat(closeNetCredit), exitDate, exitReason);
+      onSubmit(parseFloat(closeNetCredit), exitDate, exitReason, commissionVal);
     }
     onClose();
   };
@@ -769,6 +803,19 @@ export function CloseSpreadModal({ isOpen, trade, onClose, onSubmit, onPartialCl
               </select>
             </div>
           )}
+
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={closeCommission}
+              onChange={(e) => setCloseCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
 
           {/* Roll fields */}
           {isRolling && (

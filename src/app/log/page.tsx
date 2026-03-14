@@ -36,9 +36,9 @@ export default function TradeLog() {
     addTrade(trade);
   };
 
-  const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: ExitReason) => {
+  const handleCloseTrade = (exitPrice: number, exitDate: string, exitReason: ExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason);
+      closeTrade(closeModalTrade.id, exitPrice, exitDate, exitReason, closeCommission);
       if (exitReason === 'assigned') {
         const shares = closeModalTrade.contracts * 100;
         const premiumPerShare = closeModalTrade.premiumCollected / shares;
@@ -61,9 +61,9 @@ export default function TradeLog() {
     }
   };
 
-  const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason) => {
+  const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: ExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      partialCloseTrade(closeModalTrade.id, contractsToClose, exitPrice, exitDate, exitReason);
+      partialCloseTrade(closeModalTrade.id, contractsToClose, exitPrice, exitDate, exitReason, closeCommission);
       if (exitReason === 'assigned') {
         const shares = contractsToClose * 100;
         const premiumPerShare = closeModalTrade.premiumCollected / (closeModalTrade.contracts * 100);

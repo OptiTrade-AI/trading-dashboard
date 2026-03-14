@@ -13,20 +13,24 @@ OptiTrade supports five independent trade types, each with its own dedicated pag
 | **Stock Holdings** | `/holdings` | Current share inventory with cost basis per lot |
 
 ### Cash-Secured Puts (`/log`)
-Fields: ticker, strike, contracts, expiration, premium collected, entry date, notes. Auto-calculates collateral, DTE at entry, ROC%, and annualized return.
+Fields: ticker, strike, contracts, expiration, premium collected, entry date, commission, notes. Auto-calculates collateral, DTE at entry, ROC%, and annualized return.
 
 Exit reasons: `50% profit`, `early profit`, `time stop`, `rolled`, `support broke`, `assigned`, `expired worthless`, `other`.
 
 ### Covered Calls (`/cc`)
-Fields: ticker, strike, contracts, shares held, cost basis, expiration, premium collected, entry date, notes. Links to holdings for cost basis lookups.
+Fields: ticker, strike, contracts, shares held, cost basis, expiration, premium collected, entry date, commission, notes. Links to holdings for cost basis lookups.
 
 Exit reasons: `50% profit`, `early profit`, `time stop`, `rolled`, `called away`, `expired`, `other`.
 
 ### Directional Trades (`/directional`)
-Fields: ticker, option type (call/put), strike, contracts, entry price, expiration, entry date, notes. Tracks cost at open and credit at close.
+Fields: ticker, option type (call/put), strike, contracts, entry price, expiration, entry date, commission, notes. Tracks cost at open and credit at close.
 
 ### Vertical Spreads (`/spreads`)
-Four spread types: call debit, call credit, put debit, put credit. Fields: ticker, long/short strikes, long/short prices, contracts, expiration, entry date, notes. Auto-calculates net debit/credit, max profit, and max loss.
+Four spread types: call debit, call credit, put debit, put credit. Fields: ticker, long/short strikes, long/short prices, contracts, expiration, entry date, commission, notes. Auto-calculates net debit/credit, max profit, and max loss.
+
+### Commission/Fee Tracking
+
+All four option trade types support optional `commission` (at entry) and `closeCommission` (at exit) fields on `BaseTrade`. Commission inputs appear in Add, Edit, and Close modals.
 
 ## Stock Events
 

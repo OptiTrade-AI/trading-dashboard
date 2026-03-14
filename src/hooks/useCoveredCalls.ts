@@ -15,13 +15,14 @@ const useCCBase = createTradeHook<CoveredCall>({
     sharesHeld: (input.contracts as number) * 100,
     status: 'open',
   } as CoveredCall),
-  prepareClose: (_item, exitPrice, exitDate, exitReason, wasCalled) => ({
+  prepareClose: (_item, exitPrice, exitDate, exitReason, wasCalled, closeCommission) => ({
     status: (wasCalled ? 'called' : 'closed') as CoveredCall['status'],
     exitPrice: exitPrice as number,
     exitDate: exitDate as string,
     exitReason: exitReason as CoveredCall['exitReason'],
+    ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
   }),
-  preparePartialClose: (item, contractsToClose, exitPrice, exitDate, exitReason, wasCalled) => {
+  preparePartialClose: (item, contractsToClose, exitPrice, exitDate, exitReason, wasCalled, closeCommission) => {
     const ratio = contractsToClose / item.contracts;
     const remaining = item.contracts - contractsToClose;
     return {
@@ -33,6 +34,7 @@ const useCCBase = createTradeHook<CoveredCall>({
         exitPrice: (exitPrice as number) * ratio,
         exitDate: exitDate as string,
         exitReason: exitReason as CoveredCall['exitReason'],
+        ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
       },
       remainingUpdates: {
         contracts: remaining,
@@ -58,9 +60,9 @@ export function useCoveredCalls() {
 
   const closeCall = useCallback((
     id: string, exitPrice: number, exitDate: string,
-    exitReason: CoveredCall['exitReason'], wasCalled: boolean = false
+    exitReason: CoveredCall['exitReason'], wasCalled: boolean = false, closeCommission?: number
   ) => {
-    base.closeItem(id, exitPrice, exitDate, exitReason, wasCalled);
+    base.closeItem(id, exitPrice, exitDate, exitReason, wasCalled, closeCommission);
   }, [base]);
 
   const deleteCall = useCallback((id: string) => {
@@ -76,9 +78,9 @@ export function useCoveredCalls() {
 
   const partialCloseCall = useCallback((
     id: string, contractsToClose: number, exitPrice: number, exitDate: string,
-    exitReason: CoveredCall['exitReason'], wasCalled: boolean = false
+    exitReason: CoveredCall['exitReason'], wasCalled: boolean = false, closeCommission?: number
   ) => {
-    return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason, wasCalled);
+    return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason, wasCalled, closeCommission);
   }, [base]);
 
   return {

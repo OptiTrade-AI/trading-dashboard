@@ -33,9 +33,9 @@ export default function SpreadsPage() {
     addSpread(trade);
   };
 
-  const handleCloseSpread = (closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason) => {
+  const handleCloseSpread = (closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      closeSpread(closeModalTrade.id, closeNetCredit, exitDate, exitReason);
+      closeSpread(closeModalTrade.id, closeNetCredit, exitDate, exitReason, closeCommission);
       setCloseModalTrade(null);
     }
   };
@@ -47,9 +47,9 @@ export default function SpreadsPage() {
     }
   };
 
-  const handlePartialClose = (contractsToClose: number, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason) => {
+  const handlePartialClose = (contractsToClose: number, closeNetCredit: number, exitDate: string, exitReason: SpreadExitReason, closeCommission?: number) => {
     if (closeModalTrade) {
-      partialCloseSpread(closeModalTrade.id, contractsToClose, closeNetCredit, exitDate, exitReason);
+      partialCloseSpread(closeModalTrade.id, contractsToClose, closeNetCredit, exitDate, exitReason, closeCommission);
       setCloseModalTrade(null);
     }
   };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTrades } from '@/hooks/useTrades';
 import { useCoveredCalls } from '@/hooks/useCoveredCalls';
 import { useDirectionalTrades } from '@/hooks/useDirectionalTrades';
@@ -149,7 +149,7 @@ export default function Analytics() {
       </div>
 
       {/* ── Hero Stats Row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <HeroStat
           label={timeRange === 'ALL' ? 'Total P/L' : `P/L (${timeRange})`}
           value={privacyMode ? '$***' : `${analytics.totalPL >= 0 ? '+' : ''}${formatCurrency(analytics.totalPL)}`}
@@ -192,6 +192,28 @@ export default function Analytics() {
                 <RollingPLSparkline data={analytics.rollingPLData} value={analytics.rolling30DayPL} />
               </div>
             )}
+          </div>
+        </div>
+        <div className="glass-card p-5 flex items-center gap-4">
+          <div className="relative w-16 h-16 flex-shrink-0">
+            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(63,63,70,0.25)" strokeWidth="7" />
+              <circle
+                cx="50" cy="50" r="40" fill="none"
+                stroke={analytics.avgPremiumCaptured >= 50 ? COLORS.profit : COLORS.loss}
+                strokeWidth="7" strokeLinecap="round"
+                strokeDasharray={`${(Math.min(Math.max(analytics.avgPremiumCaptured, 0), 100) / 100) * 2 * Math.PI * 40} ${2 * Math.PI * 40}`}
+                style={{ filter: `drop-shadow(0 0 6px ${analytics.avgPremiumCaptured >= 50 ? COLORS.profit : COLORS.loss}40)` }}
+                className="transition-all duration-700"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-lg font-bold text-foreground">{privacyMode ? '**%' : `${analytics.avgPremiumCaptured.toFixed(0)}%`}</span>
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className="stat-label mb-1">Avg Captured</div>
+            <div className="text-sm text-muted">of max premium</div>
           </div>
         </div>
       </div>
@@ -522,6 +544,8 @@ function ChartBlur({ active, children }: { active: boolean; children: React.Reac
 
 const COLORS = {
   accent: '#10b981',
+  profit: '#22c55e',
+  loss: '#ef4444',
 };
 
 function HeroStat({ label, value, variant, sub }: { label: string; value: string; variant: 'profit' | 'loss'; sub?: string }) {
@@ -606,7 +630,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
             winRate={analytics.cspWinRate}
             count={analytics.cspCount}
             avgDays={analytics.cspAvgDaysHeld}
-            extra={`Avg return: ${analytics.cspAvgReturn.toFixed(2)}%`}
+            captured={analytics.cspAvgPremiumCaptured}
           />
         )}
         {analytics.ccCount > 0 && (
@@ -619,7 +643,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
             winRate={analytics.ccWinRate}
             count={analytics.ccCount}
             avgDays={analytics.ccAvgDaysHeld}
-            extra={`Called away: ${analytics.ccCalledAway}`}
+            captured={analytics.ccAvgPremiumCaptured}
           />
         )}
         {analytics.dirCount > 0 && (
@@ -632,7 +656,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
             winRate={analytics.dirWinRate}
             count={analytics.dirCount}
             avgDays={analytics.dirAvgDaysHeld}
-            extra={`Return: ${analytics.dirTotalReturn >= 0 ? '+' : ''}${analytics.dirTotalReturn.toFixed(1)}%`}
+            captured={undefined}
           />
         )}
         {analytics.spreadCount > 0 && (
@@ -645,7 +669,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
             winRate={analytics.spreadWinRate}
             count={analytics.spreadCount}
             avgDays={analytics.spreadAvgDaysHeld}
-            extra={`Return: ${analytics.spreadTotalReturn >= 0 ? '+' : ''}${analytics.spreadTotalReturn.toFixed(1)}%`}
+            captured={analytics.spreadAvgPremiumCaptured}
           />
         )}
         {analytics.stockCount > 0 && (
@@ -693,7 +717,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       stats: [
         { label: 'Total P/L', value: `${analytics.cspTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.cspTotalPL)}`, variant: analytics.cspTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.cspWinRate.toFixed(0)}%` },
-        { label: 'Avg Return', value: `${analytics.cspAvgReturn.toFixed(2)}%` },
+        { label: 'Avg Captured', value: `${analytics.cspAvgPremiumCaptured.toFixed(0)}%` },
         { label: 'Avg Hold', value: `${analytics.cspAvgDaysHeld.toFixed(0)}d` },
       ],
     },
@@ -705,7 +729,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       stats: [
         { label: 'Total P/L', value: `${analytics.ccTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.ccTotalPL)}`, variant: analytics.ccTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.ccWinRate.toFixed(0)}%` },
-        { label: 'Called Away', value: `${analytics.ccCalledAway}` },
+        { label: 'Avg Captured', value: `${analytics.ccAvgPremiumCaptured.toFixed(0)}%` },
         { label: 'Avg Hold', value: `${analytics.ccAvgDaysHeld.toFixed(0)}d` },
       ],
     },
@@ -729,7 +753,7 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
       stats: [
         { label: 'Total P/L', value: `${analytics.spreadTotalPL >= 0 ? '+' : ''}${rawFormatCurrency(analytics.spreadTotalPL)}`, variant: analytics.spreadTotalPL >= 0 },
         { label: 'Win Rate', value: `${analytics.spreadWinRate.toFixed(0)}%` },
-        { label: 'Total Return', value: `${analytics.spreadTotalReturn >= 0 ? '+' : ''}${analytics.spreadTotalReturn.toFixed(1)}%` },
+        { label: 'Avg Captured', value: `${analytics.spreadAvgPremiumCaptured.toFixed(0)}%` },
         { label: 'Avg Hold', value: `${analytics.spreadAvgDaysHeld.toFixed(0)}d` },
       ],
     },
@@ -770,12 +794,12 @@ function StrategyBreakdownContent({ tab, analytics }: { tab: StrategyTab; analyt
   );
 }
 
-function StrategyMiniCard({ label, icon, iconBg, iconColor, pl, winRate, count, avgDays, extra }: {
+function StrategyMiniCard({ label, icon, iconBg, iconColor, pl, winRate, count, avgDays, captured }: {
   label: string; icon: string; iconBg: string; iconColor: string;
-  pl: number; winRate: number; count: number; avgDays: number; extra?: string;
+  pl: number; winRate: number; count: number; avgDays: number; captured?: number;
 }) {
   return (
-    <div className="bg-card-solid/30 rounded-xl p-5 border border-border/30 space-y-4">
+    <div className="bg-card-solid/30 rounded-xl p-6 border border-border/30 space-y-5">
       <div className="flex items-center gap-3">
         <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', iconBg)}>
           <span className={cn('font-bold text-sm', iconColor)}>{icon}</span>
@@ -797,9 +821,18 @@ function StrategyMiniCard({ label, icon, iconBg, iconColor, pl, winRate, count, 
           <div className="text-2xl font-bold text-foreground">{winRate.toFixed(0)}%</div>
         </div>
       </div>
-      <div className="flex items-center justify-between text-sm text-muted pt-3 border-t border-border/20">
-        <span>Avg {avgDays.toFixed(0)}d hold</span>
-        {extra && <span>{extra}</span>}
+      <div className="h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+      <div className="flex justify-between items-center">
+        {captured != null ? (
+          <div>
+            <span className={cn('font-semibold', captured >= 50 ? 'text-profit' : 'text-loss')}>
+              {captured.toFixed(0)}% captured
+            </span>
+          </div>
+        ) : <div />}
+        <div className="text-sm text-muted">
+          Avg {avgDays.toFixed(0)}d hold
+        </div>
       </div>
     </div>
   );
@@ -847,6 +880,14 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
 }) {
   const [sortBy, setSortBy] = useState<'pl' | 'date' | 'ticker'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [plFilter, setPLFilter] = useState<'all' | 'wins' | 'losses'>('all');
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
 
   const handleSort = (key: 'pl' | 'date' | 'ticker') => {
     if (sortBy === key) {
@@ -857,7 +898,11 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
     }
   };
 
-  const sorted = [...trades].sort((a, b) => {
+  const filteredTrades = plFilter === 'all' ? trades
+    : plFilter === 'wins' ? trades.filter(t => t.pl > 0)
+    : trades.filter(t => t.pl <= 0);
+
+  const sorted = [...filteredTrades].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortBy === 'pl') return (a.pl - b.pl) * dir;
     if (sortBy === 'ticker') return a.ticker.localeCompare(b.ticker) * dir;
@@ -866,7 +911,16 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
 
   const totalPL = trades.reduce((s, t) => s + t.pl, 0);
   const wins = trades.filter(t => t.pl > 0).length;
+  const losses = trades.length - wins;
   const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+  const avgPL = trades.length > 0 ? totalPL / trades.length : 0;
+  const getBarPercent = (t: TradeWithPL) => {
+    const premium = t.premiumCollected ?? t.maxProfit;
+    if (premium && premium > 0) return Math.min(Math.abs(t.pl) / premium * 100, 100);
+    return Math.min(Math.abs(t.plPercent), 100);
+  };
+  const bestTrade = trades.length > 0 ? trades.reduce((b, t) => t.pl > b.pl ? t : b) : null;
+  const worstTrade = trades.length > 0 ? trades.reduce((w, t) => t.pl < w.pl ? t : w) : null;
 
   const SortBtn = ({ label, field }: { label: string; field: 'pl' | 'date' | 'ticker' }) => (
     <button
@@ -899,7 +953,7 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-4 p-5 border-b border-border/30">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-5 border-b border-border/30">
           <div>
             <div className="stat-label mb-1">Total P/L</div>
             <div className={cn('text-xl font-bold', totalPL >= 0 ? 'text-profit' : 'text-loss')}>
@@ -912,14 +966,38 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
           </div>
           <div>
             <div className="stat-label mb-1">Avg P/L</div>
-            <div className={cn('text-xl font-bold', totalPL >= 0 ? 'text-profit' : 'text-loss')}>
-              {trades.length > 0 ? rawFormatCurrency(totalPL / trades.length) : '$0'}
+            <div className={cn('text-xl font-bold', avgPL >= 0 ? 'text-profit' : 'text-loss')}>
+              {avgPL >= 0 ? '+' : ''}{rawFormatCurrency(avgPL)}
+            </div>
+          </div>
+          <div>
+            <div className="stat-label mb-1">Best / Worst</div>
+            <div className="text-sm">
+              <span className="text-profit font-semibold">{bestTrade ? `${bestTrade.pl >= 0 ? '+' : ''}${rawFormatCurrency(bestTrade.pl)}` : '—'}</span>
+              <span className="text-muted mx-1">/</span>
+              <span className="text-loss font-semibold">{worstTrade ? `${worstTrade.pl >= 0 ? '+' : ''}${rawFormatCurrency(worstTrade.pl)}` : '—'}</span>
             </div>
           </div>
         </div>
 
+        {/* Filter tabs */}
+        <div className="flex items-center gap-1 px-5 pt-4 pb-2">
+          {([['all', `All (${trades.length})`], ['wins', `Wins (${wins})`], ['losses', `Losses (${losses})`]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setPLFilter(key)}
+              className={cn(
+                'px-3 py-1 rounded-lg text-xs font-medium transition-colors',
+                plFilter === key ? 'bg-accent/10 text-accent' : 'text-muted hover:text-foreground'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Table */}
-        <div className="overflow-y-auto flex-1 p-5">
+        <div className="overflow-y-auto flex-1 px-5 pb-5">
           <table className="w-full">
             <thead>
               <tr className="text-xs">
@@ -927,12 +1005,12 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
                 <th className="pb-2 pr-3 text-left stat-label">Details</th>
                 <th className="pb-2 pr-3"><SortBtn label="Exit Date" field="date" /></th>
                 <th className="pb-2 pr-3 text-left stat-label">Days</th>
-                <th className="pb-2 text-right"><SortBtn label="P/L" field="pl" /></th>
+                <th className="pb-2 text-right" colSpan={2}><SortBtn label="P/L" field="pl" /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/20">
               {sorted.map((t, i) => (
-                <tr key={i} className="hover:bg-background/20 transition-colors">
+                <tr key={i} className="hover:bg-background/20 transition-colors group">
                   <td className="py-2.5 pr-3">
                     <span className="font-medium text-foreground text-sm">{t.ticker}</span>
                   </td>
@@ -948,13 +1026,29 @@ function StrategyTradesModal({ name, trades, color, onClose }: {
                   <td className="py-2.5 pr-3 text-xs text-muted">
                     {t.daysHeld > 0 ? `${t.daysHeld}d` : '—'}
                   </td>
-                  <td className={cn('py-2.5 text-right text-sm font-semibold', t.pl >= 0 ? 'text-profit' : 'text-loss')}>
+                  <td className={cn('py-2.5 text-right text-sm font-semibold whitespace-nowrap', t.pl >= 0 ? 'text-profit' : 'text-loss')}>
                     {t.pl >= 0 ? '+' : ''}{rawFormatCurrency(t.pl)}
+                    {t.plPercent !== 0 && (
+                      <span className="text-[10px] font-normal text-muted ml-1">
+                        ({t.plPercent >= 0 ? '+' : ''}{t.plPercent.toFixed(1)}%)
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 pl-2 w-16">
+                    <div className="h-1.5 rounded-full bg-border/20 overflow-hidden">
+                      <div
+                        className={cn('h-full rounded-full transition-all', t.pl >= 0 ? 'bg-profit/60' : 'bg-loss/60')}
+                        style={{ width: `${getBarPercent(t)}%` }}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {sorted.length === 0 && (
+            <div className="text-center py-6 text-muted text-sm">No {plFilter === 'wins' ? 'winning' : 'losing'} trades</div>
+          )}
         </div>
       </div>
     </div>

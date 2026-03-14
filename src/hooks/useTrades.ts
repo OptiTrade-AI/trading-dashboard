@@ -21,13 +21,14 @@ const useTradeBase = createTradeHook<Trade>({
     collateral: calculateCollateral(input.strike as number, input.contracts as number),
     status: 'open',
   } as Trade),
-  prepareClose: (_item, exitPrice, exitDate, exitReason) => ({
+  prepareClose: (_item, exitPrice, exitDate, exitReason, closeCommission) => ({
     status: 'closed' as const,
     exitPrice: exitPrice as number,
     exitDate: exitDate as string,
     exitReason: exitReason as Trade['exitReason'],
+    ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
   }),
-  preparePartialClose: (item, contractsToClose, exitPrice, exitDate, exitReason) => {
+  preparePartialClose: (item, contractsToClose, exitPrice, exitDate, exitReason, closeCommission) => {
     const ratio = contractsToClose / item.contracts;
     const remaining = item.contracts - contractsToClose;
     return {
@@ -38,6 +39,7 @@ const useTradeBase = createTradeHook<Trade>({
         exitPrice: (exitPrice as number) * ratio,
         exitDate: exitDate as string,
         exitReason: exitReason as Trade['exitReason'],
+        ...(closeCommission != null ? { closeCommission: closeCommission as number } : {}),
       },
       remainingUpdates: {
         contracts: remaining,
@@ -80,8 +82,8 @@ export function useTrades() {
     base.editItem(id, updates);
   }, [base]);
 
-  const closeTrade = useCallback((id: string, exitPrice: number, exitDate: string, exitReason: Trade['exitReason']) => {
-    base.closeItem(id, exitPrice, exitDate, exitReason);
+  const closeTrade = useCallback((id: string, exitPrice: number, exitDate: string, exitReason: Trade['exitReason'], closeCommission?: number) => {
+    base.closeItem(id, exitPrice, exitDate, exitReason, closeCommission);
   }, [base]);
 
   const deleteTrade = useCallback((id: string) => {
@@ -102,9 +104,10 @@ export function useTrades() {
     contractsToClose: number,
     exitPrice: number,
     exitDate: string,
-    exitReason: Trade['exitReason']
+    exitReason: Trade['exitReason'],
+    closeCommission?: number
   ) => {
-    return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason);
+    return base.partialCloseItem(id, contractsToClose, exitPrice, exitDate, exitReason, closeCommission);
   }, [base]);
 
   const updateAccountValue = useCallback((value: number) => {

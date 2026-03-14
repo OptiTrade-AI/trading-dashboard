@@ -46,8 +46,8 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Dashboard | `/` | Aggregated overview: hero banner, AI daily summary, smart alerts, earnings watch, expiration alerts, strategy pulse, Greeks card, theta income, pressure card, positions timeline, capital allocation, recent activity, quick-add FAB, command palette, CSV import |
 | CSP Log | `/log` | Cash-secured puts table with add/edit/close/roll modals |
 | Covered Calls | `/cc` | Covered calls table with add/edit/close modals |
-| Directional | `/directional` | Long calls/puts table with add/close modals |
-| Spreads | `/spreads` | Vertical spreads table with add/close modals |
+| Directional | `/directional` | Long calls/puts table with add/edit/close modals |
+| Spreads | `/spreads` | Vertical spreads table with add/edit/close modals |
 | Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap, lot grouping by ticker |
 | Stock Events | `/stock` | Realized stock P/L and tax loss harvest ledger |
 | Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations, interactive strategy drill-down, stock capital gains |
@@ -84,7 +84,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | Hook | Purpose |
 |------|---------|
 | `usePortfolioPositions` | Master dashboard hook aggregating all trade hooks + market data into unified open positions, recent activity, capital allocation, strategy pulse, and unrealized P/L by strategy |
-| `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets, stock capital gains, strategy trade drill-down) with time range filter (1W/1M/3M/6M/YTD/ALL) |
+| `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, avg premium captured, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets, stock capital gains, strategy trade drill-down) with time range filter (1W/1M/3M/6M/YTD/ALL) |
 | `useTableSortFilter` | Generic table sort/filter state: sorting by any key with custom extractors, filtering by status/ticker/date range. Used by all trade log tables |
 | `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
 

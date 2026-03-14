@@ -39,9 +39,9 @@ export default function CoveredCallsPage() {
     addCall(call);
   };
 
-  const handleCloseCall = (exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean) => {
+  const handleCloseCall = (exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean, closeCommission?: number) => {
     if (closeModalCall) {
-      closeCall(closeModalCall.id, exitPrice, exitDate, exitReason, wasCalled);
+      closeCall(closeModalCall.id, exitPrice, exitDate, exitReason, wasCalled, closeCommission);
       if (wasCalled) {
         const shares = closeModalCall.contracts * 100;
         removeShares(closeModalCall.ticker, shares);
@@ -67,9 +67,9 @@ export default function CoveredCallsPage() {
     }
   };
 
-  const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean) => {
+  const handlePartialClose = (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: CCExitReason, wasCalled: boolean, closeCommission?: number) => {
     if (closeModalCall) {
-      partialCloseCall(closeModalCall.id, contractsToClose, exitPrice, exitDate, exitReason, wasCalled);
+      partialCloseCall(closeModalCall.id, contractsToClose, exitPrice, exitDate, exitReason, wasCalled, closeCommission);
       if (wasCalled) {
         const shares = contractsToClose * 100;
         removeShares(closeModalCall.ticker, shares);

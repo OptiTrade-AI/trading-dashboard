@@ -26,6 +26,7 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
   const [expiration, setExpiration] = useState('');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
+  const [commission, setCommission] = useState('');
   const numContracts = parseInt(contracts) || 1;
   const price = parseFloat(entryPrice) || 0;
   const totalCost = price * 100 * numContracts;
@@ -44,6 +45,7 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
       expiration,
       entryDate,
       notes: notes || undefined,
+      commission: commission ? parseFloat(commission) : undefined,
     });
 
     setTicker('');
@@ -54,6 +56,7 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
     setExpiration('');
     setEntryDate(format(new Date(), 'yyyy-MM-dd'));
     setNotes('');
+    setCommission('');
     onClose();
   };
 
@@ -186,6 +189,19 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
             />
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           {/* Calculated values */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -237,6 +253,7 @@ export function EditDirectionalModal({ isOpen, trade, onClose, onSubmit }: EditD
   const [expiration, setExpiration] = useState('');
   const [entryDate, setEntryDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [commission, setCommission] = useState('');
 
   useEffect(() => {
     if (trade) {
@@ -248,6 +265,7 @@ export function EditDirectionalModal({ isOpen, trade, onClose, onSubmit }: EditD
       setExpiration(trade.expiration);
       setEntryDate(trade.entryDate);
       setNotes(trade.notes || '');
+      setCommission(trade.commission?.toString() || '');
     }
   }, [trade]);
 
@@ -271,6 +289,7 @@ export function EditDirectionalModal({ isOpen, trade, onClose, onSubmit }: EditD
       dteAtEntry: dte,
       costAtOpen: price * 100 * numContracts,
       notes: notes || undefined,
+      commission: commission ? parseFloat(commission) : undefined,
     });
     onClose();
   };
@@ -409,6 +428,19 @@ export function EditDirectionalModal({ isOpen, trade, onClose, onSubmit }: EditD
             />
           </div>
 
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
+
           {/* Calculated values */}
           <div className="bg-background/30 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -434,8 +466,8 @@ interface CloseDirectionalModalProps {
   isOpen: boolean;
   trade: DirectionalTrade | null;
   onClose: () => void;
-  onSubmit: (exitPrice: number, exitDate: string, exitReason: DirectionalExitReason) => void;
-  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason) => void;
+  onSubmit: (exitPrice: number, exitDate: string, exitReason: DirectionalExitReason, closeCommission?: number) => void;
+  onPartialClose?: (contractsToClose: number, exitPrice: number, exitDate: string, exitReason: DirectionalExitReason, closeCommission?: number) => void;
   onRoll?: (exitPrice: number, exitDate: string, newTrade: Omit<DirectionalTrade, 'id' | 'dteAtEntry' | 'costAtOpen' | 'status' | 'rollChainId' | 'rollNumber'>) => void;
 }
 
@@ -447,6 +479,7 @@ export function CloseDirectionalModal({ isOpen, trade, onClose, onSubmit, onPart
   const [isPartialClose, setIsPartialClose] = useState(false);
   const [contractsToClose, setContractsToClose] = useState('1');
   const [isRolling, setIsRolling] = useState(false);
+  const [closeCommission, setCloseCommission] = useState('');
 
   // Roll fields
   const [newStrike, setNewStrike] = useState('');
@@ -470,11 +503,12 @@ export function CloseDirectionalModal({ isOpen, trade, onClose, onSubmit, onPart
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const commissionVal = closeCommission ? parseFloat(closeCommission) : undefined;
     if (exitPrice === '') return;
     if (isPartialClose && onPartialClose && trade) {
       const numToClose = parseInt(contractsToClose);
       if (!numToClose || numToClose < 1 || numToClose >= trade.contracts) return;
-      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason);
+      onPartialClose(numToClose, parseFloat(exitPrice), exitDate, exitReason, commissionVal);
     } else if (isRolling && onRoll && trade) {
       if (!newStrike || !newExpiration || !newEntryPrice) return;
       onRoll(parseFloat(exitPrice), exitDate, {
@@ -487,7 +521,7 @@ export function CloseDirectionalModal({ isOpen, trade, onClose, onSubmit, onPart
         entryDate: exitDate,
       });
     } else {
-      onSubmit(parseFloat(exitPrice), exitDate, exitReason);
+      onSubmit(parseFloat(exitPrice), exitDate, exitReason, commissionVal);
     }
     onClose();
   };
@@ -645,6 +679,19 @@ export function CloseDirectionalModal({ isOpen, trade, onClose, onSubmit, onPart
               </select>
             </div>
           )}
+
+          <div>
+            <label className="stat-label mb-2 block">Commission (optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={closeCommission}
+              onChange={(e) => setCloseCommission(e.target.value)}
+              className="input-field"
+              placeholder="0.65"
+            />
+          </div>
 
           {/* Roll fields */}
           {isRolling && (
