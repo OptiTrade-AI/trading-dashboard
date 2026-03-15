@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { SCREENER_COLORS } from '@/lib/screener-colors';
 import { usePipelineConfig } from '@/hooks/usePipelineConfig';
@@ -87,7 +88,6 @@ function CspPipelineConfigPopover({
   const [input, setInput] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
   const { config, updateConfig, resetConfig, activePreset, setPreset } = usePipelineConfig('CSP_SCREENER');
 
   useEffect(() => {
@@ -95,13 +95,11 @@ function CspPipelineConfigPopover({
   }, []);
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose();
-      }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
   const parsedTickers = input
@@ -116,16 +114,21 @@ function CspPipelineConfigPopover({
     }
   };
 
-  return (
-    <div
-      ref={popoverRef}
-      className="absolute top-full left-0 mt-2 z-50 glass-card p-3 shadow-xl border border-emerald-500/30"
-      style={{ width: showConfig ? 420 : 320 }}
-    >
-      {/* Tickers section */}
-      <label className="text-xs font-medium text-muted uppercase tracking-wider mb-1.5 block">
-        CSP Screener — Select Tickers
-      </label>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Modal */}
+      <div className="relative z-10 glass-card p-5 shadow-2xl border border-emerald-500/30 rounded-2xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-foreground">CSP Screener — Select Tickers</h3>
+          <button onClick={onClose} className="text-muted hover:text-foreground transition-colors p-1 -mr-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
       <input
         ref={inputRef}
         type="text"
@@ -235,14 +238,14 @@ function CspPipelineConfigPopover({
       )}
 
       {/* Run buttons */}
-      <div className="flex gap-2">
+      <div className="flex gap-3 mt-1">
         <button
           onClick={handleRunSelected}
           disabled={parsedTickers.length === 0}
           className={cn(
-            'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all',
+            'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all',
             parsedTickers.length > 0
-              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
               : 'bg-border text-muted cursor-not-allowed',
           )}
         >
@@ -250,12 +253,14 @@ function CspPipelineConfigPopover({
         </button>
         <button
           onClick={() => { onRunAll(config); onClose(); }}
-          className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-accent/15 text-accent hover:bg-accent/25 transition-all"
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-accent/15 text-accent hover:bg-accent/25 border border-accent/30 transition-all"
         >
           Run All (~4K)
         </button>
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
