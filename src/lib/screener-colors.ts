@@ -12,14 +12,6 @@ export const SCREENER_COLORS = {
     label: 'Cash-Secured Puts',
     shortLabel: 'CSP',
   },
-  pcs: {
-    text: 'text-purple-400',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/30',
-    hex: '#a855f7',
-    label: 'Put Credit Spreads',
-    shortLabel: 'PCS',
-  },
   aggressive: {
     text: 'text-amber-400',
     bg: 'bg-amber-500/10',
@@ -27,22 +19,6 @@ export const SCREENER_COLORS = {
     hex: '#f59e0b',
     label: 'Aggressive Options',
     shortLabel: 'AGG',
-  },
-  charts: {
-    text: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/30',
-    hex: '#3b82f6',
-    label: 'Chart Setups',
-    shortLabel: 'CHRT',
-  },
-  swing: {
-    text: 'text-cyan-400',
-    bg: 'bg-cyan-500/10',
-    border: 'border-cyan-500/30',
-    hex: '#06b6d4',
-    label: 'Swing Trades',
-    shortLabel: 'SWG',
   },
 } as const;
 

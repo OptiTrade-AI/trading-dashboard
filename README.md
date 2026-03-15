@@ -22,7 +22,7 @@ A professional-grade options trading journal built with **Next.js 16**, **MongoD
 | **Holdings Auto-Sync** | CSP assignment adds shares, CC called away removes | [docs/holdings-sync.md](docs/holdings-sync.md) |
 | **Privacy Mode** | One-click mask for all financial data | [docs/privacy-mode.md](docs/privacy-mode.md) |
 | **AI Features** | 11 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker, CC optimizer agent, CSP optimizer agent | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
-| **Screeners Hub** | 5-tab screener dashboard (CSP, PCS, Aggressive, Charts, Swing) with Python pipeline integration, real-time progress, and trade creation | — |
+| **Screeners Hub** | Screener dashboard (CSP, Aggressive) with Python pipeline integration, real-time progress, and trade creation | — |
 | **CSP Optimizer** | Hybrid pipeline + AI agent for cash-secured put optimization with 3 strategy lanes, position sizing, and assignment analysis | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
 | **Architecture** | System diagrams, data flow, component hierarchy | [docs/architecture.md](docs/architecture.md) |
 | **Performance** | SWR caching, optimistic mutations, deduplication | [docs/performance.md](docs/performance.md) |
@@ -113,7 +113,7 @@ src/
 │   ├── analytics/                  # Analytics suite
 │   ├── optimizer/                  # Covered Call Optimizer (AI agent)
 │   ├── csp-optimizer/              # CSP Optimizer (pipeline + AI agent)
-│   ├── screeners/                  # Screeners Hub (5 tabs)
+│   ├── screeners/                  # Screeners Hub (CSP, Aggressive)
 │   ├── pipelines/                  # Pipelines (redirects to screeners)
 │   ├── analysis/                   # AI Trading Coach (chat)
 │   └── api/                        # REST API routes

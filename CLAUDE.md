@@ -53,7 +53,7 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations, interactive strategy drill-down, stock capital gains |
 | CC Optimizer | `/optimizer` | Covered call optimizer for underwater and above-water positions — AI agent with strategy lanes (breakeven/balanced/income for underwater, yield-weekly/biweekly/monthly for above-water), target return %, catalyst analysis, web search, options chain analysis, recovery projections, trace viewer, and one-click CC writing |
 | CSP Optimizer | `/csp-optimizer` | Hybrid pipeline + agentic CSP optimizer — displays quantitative screener results from the Python CSP pipeline, lets user select candidates for AI deep analysis. AI agent with 7 tools (put options chain, stock price, historical prices, screener data, CSP history, portfolio exposure, web search) produces 3 strategy lanes (conservative/balanced/aggressive), assignment scenario, position sizing, catalyst research, and "Write This Put" trade creation |
-| Screeners Hub | `/screeners` | Unified screener dashboard with 5 tabs (CSP, PCS, Aggressive, Charts, Swing), pipeline management strip, filter presets, overview cards, and tab-specific result tables. Sub-routes `/screeners/csp`, `/screeners/pcs`, `/screeners/aggressive`, `/screeners/charts`, `/screeners/swing` redirect to tabs. `/pipelines` redirects here |
+| Screeners Hub | `/screeners` | Unified screener dashboard with 2 tabs (CSP, Aggressive), pipeline management strip with ticker selection for CSP Enhanced, filter presets, overview cards, and tab-specific result tables. `/pipelines` redirects here |
 | AI Chat | `/analysis` | Conversational AI trading coach with saved history and "Discuss in Chat" integration |
 | Login | `/login` | Google OAuth sign-in page (only page accessible without auth) |
 
@@ -93,8 +93,8 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
 | `useCallOptimizer` | CC optimizer: fetches options chain via `/api/cc-optimizer`, client-side param filtering (delta/DTE/premium/loss/targetReturnPct), sorting, preset strategies (conservative/moderate/aggressive/recovery), target monthly return %, and AI analysis via streaming `/api/ai/cc-optimizer` with strategy lanes and agent trace |
 | `useCspOptimizer` | CSP optimizer: combines pipeline screener data (via `useCspOpportunities`) with agentic AI analysis. Client-side filtering (delta/DTE/ROR/IV/OI/score/marketCap/sector), filter presets (conservative/balanced/aggressive/all), ticker selection with "Select Top N", streaming AI analysis via `/api/ai/csp-optimizer` with per-ticker progress, strategy lanes, and agent trace |
-| `useScreenerHub` | Master screener orchestrator: combines all screener hooks + pipeline progress. Returns per-tab data, counts, top picks, confluence tickers, pipeline health, and controls for running pipelines (single or "Run All" sequential queue) |
-| `useScreenerData` | Individual screener SWR hooks: `useCspOpportunities`, `usePcsOpportunities`, `useAggressiveOpportunities`, `useChartSetups`, `useSwingSignals`, `usePipelines`, `usePipelineHistory`. All cache 60s with 60s dedup |
+| `useScreenerHub` | Master screener orchestrator: combines CSP + Aggressive screener hooks + pipeline progress. Returns per-tab data, counts, top picks, pipeline health, and controls for running pipelines (single with optional ticker selection, or "Run All" sequential queue) |
+| `useScreenerData` | Individual screener SWR hooks: `useCspOpportunities`, `useAggressiveOpportunities`, `usePipelines`, `usePipelineHistory`. All cache 60s with 60s dedup |
 | `usePipelineProgress` | Opens EventSource to `/api/pipelines/events/[runId]` for real-time pipeline run progress (status, progress %, duration, opportunities, errors) |
 | `useCspScoreHistory` | Fetches CSP opportunity score history for selected tickers (up to 50) with trend analysis (up/down/stable/new) |
 | `useEarningsDates` | Fetches estimated next earnings dates for array of tickers via `/api/earnings-dates` (1h dedup) |
@@ -140,26 +140,24 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | CspOptimizerAIPanel | `src/components/csp-optimizer/CspOptimizerAIPanel.tsx` | AI analysis cards with 3 strategy lanes (conservative/balanced/aggressive), catalyst banner, "Why This Trade" thesis, assignment scenario (effective cost basis, quality assessment, CC opportunity), position sizing (contracts, capital, heat impact), IV/Bollinger/sector context, key risks, "Write This Put" per lane, "Discuss in Chat" integration |
 | CspOptimizerComparisonView | `src/components/csp-optimizer/CspOptimizerComparisonView.tsx` | Side-by-side ticker comparison table with strategy mode toggle, best-value highlighting, and per-metric ranking across analyzed tickers |
 | CspOptimizerPipelineStatus | `src/components/csp-optimizer/CspOptimizerPipelineStatus.tsx` | Pipeline run status banner with opportunity count, freshness indicator, progress bar, and "Run Pipeline" / "Run Again" actions |
-| ScreenerHub | `src/components/screeners/ScreenerHub.tsx` | Master screener component: manages active tab, filters, pipeline controls, and delegates to tab-specific result views |
-| ScreenerTabBar | `src/components/screeners/ScreenerTabBar.tsx` | 5 color-coded tabs (CSP, PCS, Aggressive, Charts, Swing) with per-tab opportunity counts |
-| ScreenerPipelineStrip | `src/components/screeners/ScreenerPipelineStrip.tsx` | Horizontal strip of pipeline cards with "Run All" button and overall pipeline status |
-| ScreenerOverviewCards | `src/components/screeners/ScreenerOverviewCards.tsx` | 4 summary cards: top CSP, top PCS, confluence tickers (swing), and pipeline health with total opportunity count |
+| ScreenerHub | `src/components/screeners/ScreenerHub.tsx` | Master screener component: manages active tab (CSP, Aggressive), filters, pipeline controls, and delegates to tab-specific result views |
+| ScreenerTabBar | `src/components/screeners/ScreenerTabBar.tsx` | Color-coded tabs (CSP, Aggressive) with per-tab opportunity counts |
+| ScreenerPipelineStrip | `src/components/screeners/ScreenerPipelineStrip.tsx` | Horizontal strip of pipeline chips with "Run All" button, overall pipeline status, and ticker selection popover for CSP Enhanced (run specific tickers or all ~4K) |
+| ScreenerOverviewCards | `src/components/screeners/ScreenerOverviewCards.tsx` | Summary cards: top CSP and pipeline health with total opportunity count |
 | ScreenerFilterBar | `src/components/screeners/ScreenerFilterBar.tsx` | Tab-aware filter controls with presets (Conservative/Balanced/Aggressive/All) and match count |
-| ScreenerResultsPanel | `src/components/screeners/ScreenerResultsPanel.tsx` | Delegates to tab-specific result component (CspResultsView, PcsResultsView, AggressiveResultsView, ChartSetupsResultsView, SwingResultsView) |
+| ScreenerResultsPanel | `src/components/screeners/ScreenerResultsPanel.tsx` | Delegates to tab-specific result component (CspResultsView, AggressiveResultsView) |
 | CspTable | `src/components/screeners/CspTable.tsx` | TanStack table for CSP opportunities: score badge, ticker, strike, DTE, ROR%, IV, OI, market cap, sector. Sortable, paginated, "Write Put" action |
-| PcsTable | `src/components/screeners/PcsTable.tsx` | TanStack table for put credit spread opportunities |
 | AggressiveCard | `src/components/screeners/AggressiveCard.tsx` | Card for individual aggressive call/put opportunity |
-| SwingSignalCard | `src/components/screeners/SwingSignalCard.tsx` | Card for individual swing trade signal (long/short) |
 | PipelineCard | `src/components/screeners/PipelineCard.tsx` | Card for single pipeline: status badge, last run time, duration, opportunity count, progress bar, "Run" button |
 | QuickTradeButton | `src/components/screeners/QuickTradeButton.tsx` | One-click "Write This Put/Call" action button for trade creation from screener results |
 | OpportunityScoreBadge | `src/components/screeners/OpportunityScoreBadge.tsx` | Reusable color-coded score display badge for CSP opportunity scores |
 
 ### Key Files
 
-- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation, StrategyLane, OptimizerAIAnalysis, CspStrategyLane, CspOptimizerAIAnalysis
+- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation, StrategyLane, OptimizerAIAnalysis, CspStrategyLane, CspOptimizerAIAnalysis, Watchlist
 - `src/lib/utils.ts` — P/L calculations, formatting, CSV export, `cn()` class helper
 - `src/lib/mongodb.ts` — MongoDB connection with dev-mode global caching
-- `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection (including annotations)
+- `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection (including annotations, watchlists)
 - `src/contexts/ToastContext.tsx` — Toast notification system (success/error/info) with auto-dismiss
 - `src/contexts/PrivacyContext.tsx` — Privacy mode toggle with keyboard shortcut
 - `src/app/page.tsx` — Dashboard aggregating stats across all trade types
@@ -174,8 +172,8 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/lib/starterPrompts.ts` — Context-aware starter prompt generation for AI chat
 - `src/lib/chatContext.ts` — Portfolio context helpers for AI chat
 - `src/lib/tavily.ts` — Tavily web search client for AI agents (CC Optimizer and CSP Optimizer)
-- `src/lib/pipeline-runner.ts` — Python pipeline subprocess spawner with run tracking, progress parsing, 10-min timeout, and MongoDB result persistence. Maps `PipelineType` to Python module entry points
-- `src/lib/screener-colors.ts` — Canonical screener color palette per tab (csp=emerald, pcs=purple, aggressive=amber, charts=blue, swing=cyan) with text/bg/border classes + hex
+- `src/lib/pipeline-runner.ts` — Python pipeline subprocess spawner with run tracking, progress parsing, 10-min timeout, and MongoDB result persistence. Maps `PipelineType` to Python module entry points. Accepts optional `tickers` array to run pipelines on specific tickers
+- `src/lib/screener-colors.ts` — Canonical screener color palette per tab (csp=emerald, aggressive=amber) with text/bg/border classes + hex
 - `src/lib/auth.ts` — NextAuth v5 config: Google OAuth provider, single-email whitelist (`ALLOWED_EMAIL`), `authorized` callback for proxy
 - `src/proxy.ts` — Next.js 16 edge proxy: redirects unauthenticated requests to `/login`, protects all pages and API routes
 
@@ -230,15 +228,22 @@ Five independent trade types, each with its own type definition (`src/types/inde
 |----------|--------|-------------|
 | `/api/screeners/csp` | GET | Latest CSP_ENHANCED pipeline results with scored opportunities |
 | `/api/screeners/csp/history` | GET | CSP score history for selected tickers (up to 50). Query: `?tickers=AAPL,MSFT`. Returns trend analysis (up/down/stable/new) |
-| `/api/screeners/pcs` | GET | Latest PCS_SCREENER pipeline results |
 | `/api/screeners/aggressive` | GET | Latest AGGRESSIVE_OPTIONS results with calls/puts/ticker_changes |
-| `/api/screeners/charts` | GET | Latest CHART_SETUPS pipeline results |
-| `/api/screeners/swing` | GET | Latest SWING_TRADES results with long/short signals |
-| `/api/pipelines` | GET | Lists all 5 pipeline types with metadata (last run, status, duration, opportunity count) |
-| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Returns `{ runId, status: 'RUNNING' }` |
+| `/api/pipelines` | GET | Lists all pipeline types with metadata (last run, status, duration, opportunity count) |
+| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Accepts optional `{ tickers: string[] }` body to run on specific tickers. Returns `{ runId, status: 'RUNNING' }` |
 | `/api/pipelines/[type]/status/[runId]` | GET | Status of a specific pipeline run (in-memory + DB fallback) |
 | `/api/pipelines/[type]/history` | GET | Run history for pipeline type. Query: `?limit=10` |
 | `/api/pipelines/events/[runId]` | GET | SSE streaming endpoint for real-time pipeline progress (polls 500ms, 15-min timeout) |
+
+### API Routes — Watchlists
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/watchlists` | GET | List all watchlists (add `?full=true` to include batches) |
+| `/api/watchlists` | POST | Create a new watchlist `{ slug, name, batches }` |
+| `/api/watchlists` | PATCH | Update a watchlist by `{ id, ...fields }` |
+| `/api/watchlists` | DELETE | Delete a watchlist by `?id=` |
+| `/api/watchlists/batches/[slug]` | GET | Returns just the batches object for a watchlist — consumed by Python pipelines |
 
 ### UI Conventions
 

@@ -23,7 +23,7 @@ graph TB
         TradeAPI["Trade APIs<br/>/api/trades · /api/covered-calls<br/>/api/directional-trades · /api/spreads"]
         MarketAPI["Market APIs<br/>/api/stock-prices · /api/option-quotes<br/>/api/stock-aggregates"]
         AIAPI["AI APIs<br/>/api/ai/exit-coach · /api/ai/smart-alerts<br/>/api/ai/cc-optimizer · /api/ai/csp-optimizer"]
-        ScreenerAPI["Screener APIs<br/>/api/screeners/csp · /api/screeners/pcs<br/>/api/pipelines · /api/pipelines/[type]/run"]
+        ScreenerAPI["Screener APIs<br/>/api/screeners/csp · /api/screeners/aggressive<br/>/api/pipelines · /api/watchlists"]
     end
 
     subgraph Pipelines["Python Pipelines"]
@@ -330,6 +330,16 @@ erDiagram
         json data
     }
 
+    WATCHLISTS {
+        string id PK
+        string slug UK
+        string name
+        json batches
+        number tickerCount
+        string createdAt
+        string updatedAt
+    }
+
     ACCOUNT_SETTINGS {
         number accountValue
         number maxHeatPercent
@@ -479,4 +489,4 @@ graph TD
 | **Market** | Polygon.io | Stock prices, option quotes, aggregates, events |
 | **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis + CC/CSP Optimizer agents) |
 | **Search** | Tavily | Web search for AI agents (analyst targets, earnings, news) |
-| **Pipelines** | Python subprocesses | Quantitative screeners (CSP, PCS, Aggressive, Charts, Swing) |
+| **Pipelines** | Python subprocesses | Quantitative screeners (CSP Enhanced, CSP Screener, Aggressive Options) |

@@ -6,9 +6,6 @@ import type { PipelineType, PipelineInfo } from '@/types';
 const PIPELINE_CONFIGS: { type: PipelineType; name: string; description: string }[] = [
   { type: 'AGGRESSIVE_OPTIONS', name: 'Aggressive Options', description: 'Identifies overbought/oversold tickers with high-conviction option contracts' },
   { type: 'CSP_ENHANCED', name: 'CSP Screener', description: 'Optimized CSP screener with bulk fetching and early market cap filtering' },
-  { type: 'PCS_SCREENER', name: 'PCS Screener', description: 'Screens for put credit spread opportunities with risk-defined strategies' },
-  { type: 'CHART_SETUPS', name: 'Chart Setups', description: 'Identifies bullish reversal patterns using SMA 200, EMA 9/21 positioning' },
-  { type: 'SWING_TRADES', name: 'Swing Trades', description: 'Detects swing trading signals via EMA crossovers, RSI, and confluence analysis' },
 ];
 
 export async function GET() {

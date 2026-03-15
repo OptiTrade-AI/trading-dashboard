@@ -16,7 +16,7 @@ export function ScreenerHub() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = (searchParams.get('tab') ?? 'csp') as ScreenerTab;
-  const validTabs: ScreenerTab[] = ['csp', 'pcs', 'aggressive', 'charts', 'swing'];
+  const validTabs: ScreenerTab[] = ['csp', 'aggressive'];
   const activeTab = validTabs.includes(tabParam) ? tabParam : 'csp';
 
   const hub = useScreenerHub();
@@ -83,8 +83,6 @@ export function ScreenerHub() {
       {/* Overview Cards */}
       <ScreenerOverviewCards
         topCsp={hub.topCsp}
-        topPcs={hub.topPcs}
-        confluenceTickers={hub.confluenceTickers}
         pipelineHealth={hub.pipelineHealth}
         totalOpportunities={hub.totalOpportunities}
         onTabChange={setTab}
@@ -109,16 +107,12 @@ export function ScreenerHub() {
         filters={filters}
         cspData={hub.cspData}
         onCspTradeClick={handleCspTradeClick}
-        pcsData={hub.pcsData}
         aggressiveCalls={hub.aggressiveData?.calls ?? []}
         aggressivePuts={hub.aggressiveData?.puts ?? []}
         aggressiveTickerChanges={{
           calls: hub.aggressiveData?.ticker_changes?.calls ?? null,
           puts: hub.aggressiveData?.ticker_changes?.puts ?? null,
         }}
-        chartSetups={hub.chartsData?.chart_setups ?? []}
-        longSignals={hub.swingData?.long_signals ?? []}
-        shortSignals={hub.swingData?.short_signals ?? []}
         isLoading={hub.isLoading}
       />
 
