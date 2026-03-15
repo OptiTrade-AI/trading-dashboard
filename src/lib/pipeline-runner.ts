@@ -13,8 +13,7 @@ const PIPELINE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 const SCRIPT_MAP: Record<PipelineType, string> = {
   AGGRESSIVE_OPTIONS: 'app.pipelines.aggressive_options',
-  CSP_SCREENER: 'app.pipelines.csp_screener',
-  CSP_ENHANCED: 'app.pipelines.csp_enhanced',
+  CSP_SCREENER: 'app.pipelines.csp_enhanced',
 };
 
 export interface ProgressEvent {
@@ -152,6 +151,7 @@ function resolvePython(scriptsDir: string): string {
  */
 export interface SpawnOptions {
   tickers?: string[];
+  config?: Record<string, unknown>;
 }
 
 export async function spawnPipeline(type: PipelineType, options?: SpawnOptions): Promise<{ runId: string }> {
@@ -191,6 +191,9 @@ export async function spawnPipeline(type: PipelineType, options?: SpawnOptions):
   const args = ['-m', module, '--run-id', runId];
   if (options?.tickers?.length) {
     args.push('--tickers', options.tickers.join(','));
+  }
+  if (options?.config && Object.keys(options.config).length > 0) {
+    args.push('--config', JSON.stringify(options.config));
   }
 
   // Pass --run-id so Python writes results to MongoDB linked to this run

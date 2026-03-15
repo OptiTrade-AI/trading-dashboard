@@ -6,9 +6,9 @@ export async function GET() {
   try {
     const runsCol = await getPipelineRunsCollection();
 
-    // Find latest completed CSP Enhanced run
+    // Find latest completed CSP Screener run
     const latestRun = await runsCol.findOne(
-      { pipelineType: 'CSP_ENHANCED', status: 'COMPLETED' },
+      { pipelineType: { $in: ['CSP_SCREENER', 'CSP_ENHANCED' as never] }, status: 'COMPLETED' },
       { sort: { completedAt: -1 } },
     );
 

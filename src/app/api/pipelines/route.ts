@@ -5,7 +5,7 @@ import type { PipelineType, PipelineInfo } from '@/types';
 
 const PIPELINE_CONFIGS: { type: PipelineType; name: string; description: string }[] = [
   { type: 'AGGRESSIVE_OPTIONS', name: 'Aggressive Options', description: 'Identifies overbought/oversold tickers with high-conviction option contracts' },
-  { type: 'CSP_ENHANCED', name: 'CSP Screener', description: 'Optimized CSP screener with bulk fetching and early market cap filtering' },
+  { type: 'CSP_SCREENER', name: 'CSP Screener', description: 'Optimized CSP screener with bulk fetching and early market cap filtering' },
 ];
 
 export async function GET() {
@@ -20,7 +20,7 @@ export async function GET() {
 
         // Get latest run from DB
         const dbRun = await runsCol.findOne(
-          { pipelineType: config.type },
+          { pipelineType: config.type === 'CSP_SCREENER' ? { $in: ['CSP_SCREENER', 'CSP_ENHANCED' as never] } : config.type },
           { sort: { startedAt: -1 }, projection: { _id: 0 } },
         );
 

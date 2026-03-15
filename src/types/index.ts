@@ -729,10 +729,22 @@ export type ScreenerChangeStatus = 'same' | 'new' | 'removed';
 
 export type PipelineType =
   | 'AGGRESSIVE_OPTIONS'
-  | 'CSP_SCREENER'
-  | 'CSP_ENHANCED';
+  | 'CSP_SCREENER';
 
 export type PipelineRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export interface CspPipelineConfig {
+  deltaLower: number;
+  deltaUpper: number;
+  minOpenInterest: number;
+  minImpliedVolatility: number;
+  minReturnOnRiskPercent: number;
+  minMarketCap: number;
+  minStockPrice: number;
+  minVolume: number;
+  minDte: number;
+  maxDte: number;
+}
 
 export interface PipelineInfo {
   type: PipelineType;

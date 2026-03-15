@@ -47,7 +47,7 @@ export function CspOptimizerPipelineStatus({ totalCount, onPipelineComplete }: C
   const { event: progressEvent, reset: resetProgress } = usePipelineProgress(runId);
 
   // Find CSP pipeline info
-  const cspPipeline = pipelines?.find(p => p.type === 'CSP_ENHANCED') || null;
+  const cspPipeline = pipelines?.find(p => p.type === 'CSP_SCREENER') || null;
   const lastRunAt = cspPipeline?.lastRunAt || null;
   const lastStatus = cspPipeline?.lastRunStatus || null;
   const lastDuration = cspPipeline?.lastRunDuration || null;
@@ -79,7 +79,7 @@ export function CspOptimizerPipelineStatus({ totalCount, onPipelineComplete }: C
     resetProgress();
 
     try {
-      const res = await fetch('/api/pipelines/CSP_ENHANCED/run', { method: 'POST' });
+      const res = await fetch('/api/pipelines/CSP_SCREENER/run', { method: 'POST' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 409) {

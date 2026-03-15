@@ -1,6 +1,6 @@
 import { Collection } from 'mongodb';
 import { getDb } from './mongodb';
-import type { Trade, CoveredCall, DirectionalTrade, SpreadTrade, AccountSettings, StockEvent, TradeAnalysis, StockHolding, PLAnnotation, Conversation, AIUsageRecord, PatternAnalysisRecord, DailySummary, AgentTrace, PipelineRunRecord, Watchlist } from '@/types';
+import type { Trade, CoveredCall, DirectionalTrade, SpreadTrade, AccountSettings, StockEvent, TradeAnalysis, StockHolding, PLAnnotation, Conversation, AIUsageRecord, PatternAnalysisRecord, DailySummary, AgentTrace, PipelineRunRecord, Watchlist, CspPipelineConfig, PipelineType } from '@/types';
 
 export async function getCspTradesCollection(): Promise<Collection<Trade>> {
   const db = await getDb();
@@ -81,6 +81,17 @@ export async function getPipelineRunsCollection(): Promise<Collection<PipelineRu
 export async function getPipelineResultsCollection() {
   const db = await getDb();
   return db.collection('pipelineResults');
+}
+
+export interface PipelineConfigDoc {
+  pipelineType: PipelineType;
+  config: CspPipelineConfig;
+  updatedAt: string;
+}
+
+export async function getPipelineConfigCollection(): Promise<Collection<PipelineConfigDoc>> {
+  const db = await getDb();
+  return db.collection<PipelineConfigDoc>('pipelineConfig');
 }
 
 export async function getWatchlistsCollection(): Promise<Collection<Watchlist>> {
