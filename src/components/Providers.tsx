@@ -1,5 +1,6 @@
 'use client';
 
+import { SessionProvider } from 'next-auth/react';
 import { SWRConfig } from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { PrivacyProvider } from '@/contexts/PrivacyContext';
@@ -8,13 +9,15 @@ import { ToastContainer } from '@/components/ToastContainer';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SWRConfig value={{ fetcher, dedupingInterval: 10000, revalidateOnFocus: false }}>
-      <PrivacyProvider>
-        <ToastProvider>
-          {children}
-          <ToastContainer />
-        </ToastProvider>
-      </PrivacyProvider>
-    </SWRConfig>
+    <SessionProvider>
+      <SWRConfig value={{ fetcher, dedupingInterval: 10000, revalidateOnFocus: false }}>
+        <PrivacyProvider>
+          <ToastProvider>
+            {children}
+            <ToastContainer />
+          </ToastProvider>
+        </PrivacyProvider>
+      </SWRConfig>
+    </SessionProvider>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { usePrivacy } from '@/contexts/PrivacyContext';
 import { AICostIndicator } from './AICostIndicator';
@@ -29,6 +30,9 @@ export function Navigation() {
   const [tradesOpen, setTradesOpen] = useState(false);
   const { privacyMode, togglePrivacy } = usePrivacy();
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Hide navigation on login page
+  if (pathname === '/login') return null;
 
   const isTradesActive = tradePages.some((p) => pathname === p.href);
   const activeTradeLabel = tradePages.find((p) => pathname === p.href)?.label;
@@ -167,6 +171,19 @@ export function Navigation() {
                   <circle cx="12" cy="12" r="3" />
                 </svg>
               )}
+            </button>
+
+            {/* Sign out */}
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="p-2 rounded-lg text-muted hover:text-loss hover:bg-loss/10 transition-colors"
+              title="Sign out"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
             </button>
 
             {/* Mobile hamburger */}

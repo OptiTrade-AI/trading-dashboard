@@ -15,6 +15,10 @@ graph TB
         Contexts["Contexts<br/>Privacy · Toast"]
     end
 
+    subgraph Auth["Auth Layer (Edge Proxy)"]
+        Proxy["src/proxy.ts<br/>NextAuth v5 · Google OAuth<br/>Single-email whitelist"]
+    end
+
     subgraph Server["Next.js API Routes"]
         TradeAPI["Trade APIs<br/>/api/trades · /api/covered-calls<br/>/api/directional-trades · /api/spreads"]
         MarketAPI["Market APIs<br/>/api/stock-prices · /api/option-quotes<br/>/api/stock-aggregates"]
@@ -31,9 +35,10 @@ graph TB
     Pages --> Components
     Components --> Hooks
     Hooks --> Contexts
-    Hooks -->|fetch / SWR| TradeAPI
-    Hooks -->|fetch / SWR| MarketAPI
-    Hooks -->|fetch / SWR| AIAPI
+    Hooks -->|fetch / SWR| Proxy
+    Proxy -->|authenticated| TradeAPI
+    Proxy -->|authenticated| MarketAPI
+    Proxy -->|authenticated| AIAPI
     TradeAPI -->|CRUD| MongoDB
     MarketAPI -->|REST| Polygon
     AIAPI -->|REST| Anthropic
@@ -140,14 +145,21 @@ graph LR
         AI["/analysis AI Chat"]
     end
 
+    subgraph Auth
+        Login["/login<br/>Google OAuth"]
+    end
+
     subgraph Shared
         Nav["Navigation"]
+        Session["SessionProvider"]
         Toast["Toast Provider"]
         Privacy["Privacy Provider"]
         CmdK["Command Palette"]
         FAB["Quick-Add FAB"]
         Ticker["TickerAutocomplete"]
     end
+
+    Login -->|authenticated| Nav
 
     D --- Nav
     D --- Toast
@@ -417,7 +429,8 @@ graph TD
 |-------|-----------|------|
 | **UI** | React + Tailwind | Dark-themed components, glass-card styling |
 | **State** | SWR + React Context | Caching, optimistic updates, privacy/toast |
-| **API** | Next.js App Router | Server-side routes, no auth layer |
+| **Auth** | NextAuth v5 (Google OAuth) | Single-user edge proxy, email whitelist |
+| **API** | Next.js App Router | Server-side routes, all protected by auth proxy |
 | **Data** | MongoDB | Document store for all trade and AI data |
 | **Market** | Polygon.io | Stock prices, option quotes, aggregates, events |
 | **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis + CC Optimizer agent) |
