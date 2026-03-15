@@ -23,7 +23,16 @@ function formatShortDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-const COLUMNS: { key: keyof OptimizerRow; label: string; tip?: string; align?: string; format?: (v: number | null, row: OptimizerRow) => string }[] = [
+interface Column {
+  key: keyof OptimizerRow | '_monthlyPct';
+  label: string;
+  tip?: string;
+  align?: string;
+  format?: (v: number | null, row: OptimizerRow) => string;
+}
+
+function buildColumns(costBasisPerShare: number): Column[] {
+  return [
   { key: 'strike', label: 'Strike', format: (v) => v != null ? `$${Number(v).toFixed(0)}` : '—' },
   { key: 'expiration', label: 'Exp' },
   { key: 'dte', label: 'DTE', tip: 'Days to expiration' },
@@ -31,6 +40,10 @@ const COLUMNS: { key: keyof OptimizerRow; label: string; tip?: string; align?: s
   { key: 'delta', label: 'Delta', tip: '~Probability ITM', format: (v) => v != null ? Number(v).toFixed(3) : '—' },
   { key: 'iv', label: 'IV%', tip: 'Implied volatility', format: (v) => v != null ? (Number(v) * 100).toFixed(1) + '%' : '—' },
   { key: 'annualizedReturn', label: 'Ann %', tip: 'Annualized return on stock price', format: (v, row) => v == null || row.midpoint <= 0 ? '—' : Number(v).toFixed(1) + '%' },
+  { key: '_monthlyPct', label: 'Mo%', tip: 'Monthly return on cost basis (premium / cost basis)', format: (_v, row) => {
+    if (!costBasisPerShare || row.midpoint <= 0) return '—';
+    return ((row.premiumPerShare / costBasisPerShare) * 100).toFixed(2) + '%';
+  }},
   { key: 'distanceFromPrice', label: 'OTM%', tip: '% above current price', format: (v) => v != null ? Number(v).toFixed(1) + '%' : '—' },
   { key: 'calledAwayPL', label: 'If Called', tip: 'Net P/L if assigned at this strike', align: 'right', format: (v) => {
     if (v == null) return '—';
@@ -44,7 +57,8 @@ const COLUMNS: { key: keyof OptimizerRow; label: string; tip?: string; align?: s
   }},
   { key: 'openInterest', label: 'OI', tip: 'Open interest (liquidity)' },
   { key: 'volume', label: 'Vol' },
-];
+  ];
+}
 
 /** Filter out junk strikes that aren't real covered call candidates */
 function isViableStrike(row: OptimizerRow, stockPrice: number): boolean {
@@ -71,6 +85,7 @@ export function OptimizerChainTable({
   // Resolve earnings date for this ticker
   const earningsDate = ticker ? earningsMap?.get(ticker) : undefined;
   const mask = (val: string) => privacyMode ? '***' : val;
+  const columns = useMemo(() => buildColumns(costBasisPerShare), [costBasisPerShare]);
 
   // Filter to viable strikes
   const viableChain = useMemo(() =>
@@ -110,10 +125,10 @@ export function OptimizerChainTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              {COLUMNS.map(col => (
+              {columns.map(col => (
                 <th
                   key={col.key}
-                  onClick={() => onSort(col.key)}
+                  onClick={() => onSort(col.key === '_monthlyPct' ? 'premiumPerShare' : col.key as keyof OptimizerRow)}
                   title={col.tip}
                   className={cn(
                     'px-3 py-2.5 text-xs font-medium text-muted cursor-pointer hover:text-foreground transition-colors whitespace-nowrap',
@@ -156,8 +171,8 @@ export function OptimizerChainTable({
                     crossesEarnings && 'border-l-2 border-l-red-500/40',
                   )}
                 >
-                  {COLUMNS.map(col => {
-                    const raw = row[col.key];
+                  {columns.map(col => {
+                    const raw = col.key === '_monthlyPct' ? null : row[col.key as keyof OptimizerRow];
                     let display: string;
                     if (col.format) {
                       display = col.format(raw as number | null, row);
@@ -167,7 +182,7 @@ export function OptimizerChainTable({
                       display = String(raw ?? '—');
                     }
 
-                    const isMasked = privacyMode && ['midpoint', 'calledAwayPL', 'annualizedReturn', 'strike'].includes(col.key);
+                    const isMasked = privacyMode && ['midpoint', 'calledAwayPL', 'annualizedReturn', '_monthlyPct', 'strike'].includes(col.key);
 
                     return (
                       <td
@@ -179,6 +194,7 @@ export function OptimizerChainTable({
                             Number(raw) >= 0 ? 'text-emerald-400' : 'text-red-400'
                           ),
                           col.key === 'annualizedReturn' && 'text-blue-400 font-medium',
+                          col.key === '_monthlyPct' && 'text-emerald-400 font-medium',
                         )}
                       >
                         {isAIPick && col.key === 'strike' && (

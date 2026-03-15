@@ -67,6 +67,11 @@ export function useCallOptimizer(ticker: string | null) {
         const lossPerShare = data.costBasisPerShare - row.strike - row.premiumPerShare;
         if (lossPerShare > params.maxLossIfCalled) return false;
       }
+      // Target return filter — per-trade premium / cost basis must meet monthly target
+      if (params.targetReturnPct > 0 && data.costBasisPerShare > 0) {
+        const monthlyPct = (row.premiumPerShare / data.costBasisPerShare) * 100;
+        if (monthlyPct < params.targetReturnPct) return false;
+      }
       return true;
     });
   }, [data, params]);

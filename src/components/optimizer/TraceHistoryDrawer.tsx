@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { AgentTrace } from '@/types';
 import { format } from 'date-fns';
 
 interface TraceSummary {
   id: string;
+  name?: string;
   createdAt: string;
   tickers: string[];
   mode: 'single' | 'portfolio';
@@ -28,6 +29,10 @@ export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, p
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch trace list when drawer opens
   useEffect(() => {
@@ -40,7 +45,16 @@ export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, p
       .finally(() => setLoading(false));
   }, [isOpen, feature]);
 
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
   const handleSelect = useCallback(async (traceId: string) => {
+    if (editingId) return;
     setLoadingId(traceId);
     try {
       const res = await fetch(`/api/agent-traces?id=${encodeURIComponent(traceId)}`);
@@ -52,7 +66,51 @@ export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, p
     } finally {
       setLoadingId(null);
     }
-  }, [onSelect]);
+  }, [onSelect, editingId]);
+
+  const startEditing = useCallback((e: React.MouseEvent, trace: TraceSummary) => {
+    e.stopPropagation();
+    setEditingId(trace.id);
+    setEditName(trace.name || '');
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    setEditingId(null);
+    setEditName('');
+  }, []);
+
+  const saveRename = useCallback(async (traceId: string) => {
+    const trimmed = editName.trim();
+    setSavingId(traceId);
+    try {
+      const res = await fetch('/api/agent-traces', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: traceId, name: trimmed }),
+      });
+      if (res.ok) {
+        setTraces(prev => prev.map(t =>
+          t.id === traceId ? { ...t, name: trimmed || undefined } : t
+        ));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSavingId(null);
+      setEditingId(null);
+      setEditName('');
+    }
+  }, [editName]);
+
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent, traceId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveRename(traceId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditing();
+    }
+  }, [saveRename, cancelEditing]);
 
   const mask = (val: string) => privacyMode ? '***' : val;
 
@@ -101,38 +159,84 @@ export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, p
           {traces.map((trace) => {
             const isActive = trace.id === activeTraceId;
             const isLoading = trace.id === loadingId;
+            const isEditing = trace.id === editingId;
+            const isSaving = trace.id === savingId;
             const dateStr = format(new Date(trace.createdAt), 'MMM d, h:mm a');
             const duration = trace.totalDurationMs < 1000
               ? `${trace.totalDurationMs}ms`
               : `${(trace.totalDurationMs / 1000).toFixed(1)}s`;
 
             return (
-              <button
+              <div
                 key={trace.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleSelect(trace.id)}
-                disabled={isLoading}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(trace.id); } }}
                 className={cn(
-                  'w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors',
+                  'group w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors cursor-pointer',
                   isActive
                     ? 'bg-purple-500/10 border-l-2 border-l-purple-500'
                     : 'hover:bg-zinc-800/50',
-                  isLoading && 'opacity-60',
+                  (isLoading || isEditing) && 'pointer-events-none opacity-60',
                 )}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-foreground">{dateStr}</span>
-                  <span className={cn(
-                    'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                    trace.mode === 'portfolio'
-                      ? 'bg-purple-500/10 text-purple-400'
-                      : 'bg-blue-500/10 text-blue-400',
-                  )}>
-                    {trace.mode === 'portfolio' ? 'Portfolio' : 'Single'}
-                  </span>
-                </div>
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5 mb-1" onClick={e => e.stopPropagation()}>
+                    <input
+                      ref={editInputRef}
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => handleEditKeyDown(e, trace.id)}
+                      onBlur={() => saveRename(trace.id)}
+                      maxLength={100}
+                      placeholder="Name this run..."
+                      disabled={isSaving}
+                      className="flex-1 min-w-0 text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-foreground placeholder:text-muted/40 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                    {isSaving && (
+                      <svg className="animate-spin h-3 w-3 text-purple-400 shrink-0" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {trace.name ? (
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-foreground block truncate">{trace.name}</span>
+                          <span className="text-[10px] text-muted/50">{dateStr}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-medium text-foreground">{dateStr}</span>
+                      )}
+                      <button
+                        onClick={(e) => startEditing(e, trace)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted/40 hover:text-foreground shrink-0"
+                        title="Rename"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          <path d="m15 5 4 4" />
+                        </svg>
+                      </button>
+                    </div>
+                    <span className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0',
+                      trace.mode === 'portfolio'
+                        ? 'bg-purple-500/10 text-purple-400'
+                        : 'bg-blue-500/10 text-blue-400',
+                    )}>
+                      {trace.mode === 'portfolio' ? 'Portfolio' : 'Single'}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  {trace.tickers.slice(0, 4).map(t => (
-                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-semibold">
+                  {trace.tickers.slice(0, 4).map((t, i) => (
+                    <span key={`${t}-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-semibold">
                       {t}
                     </span>
                   ))}
@@ -154,7 +258,7 @@ export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, p
                     <span className="text-[10px] text-purple-400">Loading trace...</span>
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

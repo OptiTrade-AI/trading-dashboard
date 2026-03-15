@@ -91,7 +91,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `useAnalyticsData` | Computes 40+ analytics metrics (per-strategy P/L, win rates, avg premium captured, drawdown, monthly stacked P/L, scatter/heatmap data, streaks, hold time buckets, stock capital gains, strategy trade drill-down) with time range filter (1W/1M/3M/6M/YTD/ALL) |
 | `useTableSortFilter` | Generic table sort/filter state: sorting by any key with custom extractors, filtering by status/ticker/date range. Used by all trade log tables |
 | `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
-| `useCallOptimizer` | CC optimizer: fetches options chain via `/api/cc-optimizer`, client-side param filtering (delta/DTE/premium/loss/targetReturnPct), sorting, preset strategies (conservative/moderate/aggressive/recovery), target monthly return %, and AI analysis via streaming `/api/ai/cc-optimizer` with strategy lanes and agent trace |
+| `useCallOptimizer` | CC optimizer: fetches options chain via `/api/cc-optimizer`, client-side param filtering (delta/DTE/premium/loss/targetReturnPct), monthly return target filter (per-trade premium/cost basis), sorting, preset strategies (conservative/moderate/aggressive/recovery), target monthly return %, and AI analysis via streaming `/api/ai/cc-optimizer` with strategy lanes and agent trace |
 | `useCspOptimizer` | CSP optimizer: combines pipeline screener data (via `useCspOpportunities`) with agentic AI analysis. Client-side filtering (delta/DTE/ROR/IV/OI/score/marketCap/sector), filter presets (conservative/balanced/aggressive/all), ticker selection with "Select Top N", streaming AI analysis via `/api/ai/csp-optimizer` with per-ticker progress, strategy lanes, and agent trace |
 | `useScreenerHub` | Master screener orchestrator: combines CSP + Aggressive screener hooks + pipeline progress. Returns per-tab data, counts, top picks, pipeline health, and controls for running pipelines (single with optional ticker selection, or "Run All" sequential queue) |
 | `useScreenerData` | Individual screener SWR hooks: `useCspOpportunities`, `useAggressiveOpportunities`, `usePipelines`, `usePipelineHistory`. All cache 60s with 60s dedup |
@@ -128,13 +128,13 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | OptimizerTickerStrip | `src/components/optimizer/OptimizerTickerStrip.tsx` | Horizontal ticker cards for uncovered holdings with coverage status, "AI Analyze All" button |
 | OptimizerHoldingSummary | `src/components/optimizer/OptimizerHoldingSummary.tsx` | Selected ticker summary: cost basis, shares, stock price, underwater %, historical CC premium |
 | OptimizerParamControls | `src/components/optimizer/OptimizerParamControls.tsx` | Preset strategy selector (conservative/moderate/aggressive/recovery) with active param chips and match count |
-| OptimizerChainTable | `src/components/optimizer/OptimizerChainTable.tsx` | Sortable options chain table with strike, premium, annualized return, distance metrics, earnings collision warning, "Write This Call" action |
+| OptimizerChainTable | `src/components/optimizer/OptimizerChainTable.tsx` | Sortable options chain table with strike, premium, annualized return, monthly return on cost basis (Mo%), distance metrics, earnings collision warning, "Write This Call" action |
 | OptimizerRecoveryChart | `src/components/optimizer/OptimizerRecoveryChart.tsx` | Recharts chart showing premium income vs cost basis gap for recovery projection |
 | OptimizerScatterChart | `src/components/optimizer/OptimizerScatterChart.tsx` | Recharts scatter plot of annualized return vs delta for strike comparison |
 | OptimizerTargetReturn | `src/components/optimizer/OptimizerTargetReturn.tsx` | Monthly return target selector with quick presets (1%/2%/4%/6%) and custom slider, context line showing per-share premium needed |
 | OptimizerAIPanel | `src/components/optimizer/OptimizerAIPanel.tsx` | AI analysis with strategy lane cards (breakeven/balanced/income or yield-weekly/biweekly/monthly), catalyst banner, position type detection, metrics strips with called-away P/L and monthly/annualized returns. Falls back to top pick + alternates for old traces |
 | OptimizerTraceViewer | `src/components/optimizer/OptimizerTraceViewer.tsx` | Visual agent trace: step-by-step tool calls, thinking, results with timing and cost. Uses React Flow for node graph |
-| TraceHistoryDrawer | `src/components/optimizer/TraceHistoryDrawer.tsx` | Slide-out drawer listing past AI agent traces from MongoDB, click to replay. Supports `feature` filter prop to show only cc-optimizer or csp-optimizer traces |
+| TraceHistoryDrawer | `src/components/optimizer/TraceHistoryDrawer.tsx` | Slide-out drawer listing past AI agent traces from MongoDB, click to replay, inline rename via pencil icon. Supports `feature` filter prop to show only cc-optimizer or csp-optimizer traces |
 | CspOptimizerFilterBar | `src/components/csp-optimizer/CspOptimizerFilterBar.tsx` | All CSP filter knobs (delta/DTE/ROR/IV/OI/score/marketCap/sector) with preset buttons (Conservative/Balanced/Aggressive/All) and match count |
 | CspOptimizerSelectionBar | `src/components/csp-optimizer/CspOptimizerSelectionBar.tsx` | "Select Top N" quick buttons, selected count badge, estimated AI cost, "AI Analyze Selected" CTA |
 | CspOptimizerTable | `src/components/csp-optimizer/CspOptimizerTable.tsx` | Pipeline results table with checkbox selection, AI status indicators (spinner/checkmark), sortable columns, "Write Put" action. Uses @tanstack/react-table |
@@ -191,7 +191,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/stock-events` | GET, POST, PATCH, DELETE | Realized stock P/L and TLH ledger |
 | `/api/annotations` | GET, POST, PATCH, DELETE | P/L chart annotations CRUD |
 | `/api/settings` | GET, POST | Account settings (account value, max heat %) |
-| `/api/agent-traces` | GET | Agent trace history (list or single by `?id=`). Supports `?feature=cc-optimizer` or `?feature=csp-optimizer` to filter by agent type |
+| `/api/agent-traces` | GET, PATCH | Agent trace history (list or single by `?id=`). Supports `?feature=cc-optimizer` or `?feature=csp-optimizer` to filter by agent type. PATCH renames a trace by `{ id, name }` |
 | `/api/auth/[...nextauth]` | GET, POST | NextAuth v5 OAuth handlers (Google sign-in/out/callback) |
 
 ### API Routes — Market Data (Polygon.io)

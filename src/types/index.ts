@@ -508,6 +508,7 @@ export interface AgentTraceStep {
 
 export interface AgentTrace {
   id: string;
+  name?: string;
   feature?: 'cc-optimizer' | 'csp-optimizer';
   createdAt: string;
   tickers: string[];
