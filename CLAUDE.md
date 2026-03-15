@@ -35,7 +35,7 @@ Options trading dashboard built with **Next.js 16 (App Router)** + **MongoDB** +
 
 ### Data Flow
 
-Client hooks (`src/hooks/`) fetch from Next.js API routes (`src/app/api/`), which read/write to MongoDB via `src/lib/collections.ts`. All trade routes use `createTradeHandlers` for individual CRUD: GET returns all documents, POST inserts one, PATCH updates by `id`, DELETE removes by `id`. There is no auth layer.
+Client hooks (`src/hooks/`) fetch from Next.js API routes (`src/app/api/`), which read/write to MongoDB via `src/lib/collections.ts`. All trade routes use `createTradeHandlers` for individual CRUD: GET returns all documents, POST inserts one, PATCH updates by `id`, DELETE removes by `id`. All routes are protected by NextAuth v5 (Google OAuth) via `src/proxy.ts` edge proxy — only the single `ALLOWED_EMAIL` can access the app.
 
 Market data flows from Polygon.io API → Next.js API routes (server-side) → SWR hooks (client-side). Option quotes refresh every 60s during market hours, 5 min when closed.
 
@@ -53,6 +53,7 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations, interactive strategy drill-down, stock capital gains |
 | Optimizer | `/optimizer` | Covered call optimizer for underwater and above-water positions — AI agent with strategy lanes (breakeven/balanced/income for underwater, yield-weekly/biweekly/monthly for above-water), target return %, catalyst analysis, web search, options chain analysis, recovery projections, trace viewer, and one-click CC writing |
 | AI Chat | `/analysis` | Conversational AI trading coach with saved history and "Discuss in Chat" integration |
+| Login | `/login` | Google OAuth sign-in page (only page accessible without auth) |
 
 ### Trade Types
 
@@ -146,6 +147,8 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/lib/starterPrompts.ts` — Context-aware starter prompt generation for AI chat
 - `src/lib/chatContext.ts` — Portfolio context helpers for AI chat
 - `src/lib/tavily.ts` — Tavily web search client for AI agent (CC Optimizer)
+- `src/lib/auth.ts` — NextAuth v5 config: Google OAuth provider, single-email whitelist (`ALLOWED_EMAIL`), `authorized` callback for proxy
+- `src/proxy.ts` — Next.js 16 edge proxy: redirects unauthenticated requests to `/login`, protects all pages and API routes
 
 ### API Routes — Trade Data
 
@@ -160,6 +163,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/annotations` | GET, POST, PATCH, DELETE | P/L chart annotations CRUD |
 | `/api/settings` | GET, POST | Account settings (account value, max heat %) |
 | `/api/agent-traces` | GET | Agent trace history (list or single by `?id=`) |
+| `/api/auth/[...nextauth]` | GET, POST | NextAuth v5 OAuth handlers (Google sign-in/out/callback) |
 
 ### API Routes — Market Data (Polygon.io)
 
@@ -206,6 +210,11 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `ANTHROPIC_API_KEY` — Anthropic API key for 10 AI features (server-side only)
 - `POLYGON_API_KEY` — Polygon.io API key for real-time stock/option prices (server-side only)
 - `TAVILY_API_KEY` — Tavily API key for AI agent web search in CC Optimizer (server-side only)
+- `AUTH_SECRET` — NextAuth session encryption secret (generate via `openssl rand -base64 32`)
+- `GOOGLE_CLIENT_ID` — Google OAuth 2.0 client ID (from Google Cloud Console)
+- `GOOGLE_CLIENT_SECRET` — Google OAuth 2.0 client secret
+- `ALLOWED_EMAIL` — Single authorized email address (fail-secure: blocks all if unset)
+- `AUTH_TRUST_HOST` — Set to `true` on Vercel deployments
 
 ### Dependencies
 
@@ -218,6 +227,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - **Anthropic SDK** — 10 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker, CC optimizer agent (server-side)
 - **Tavily** — Web search for AI agent in CC Optimizer (analyst targets, earnings dates, news)
 - **React Flow** — Node graph visualization for AI agent trace viewer (`@xyflow/react`)
+- **NextAuth v5** — Authentication via Google OAuth, single-user email whitelist, edge proxy protection
 
 ### GitHub
 
