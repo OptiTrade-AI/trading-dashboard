@@ -15,7 +15,7 @@ All trade routes use `createTradeHandlers` for individual CRUD: GET returns all 
 | `/api/annotations` | P/L chart annotations | GET, POST, PATCH, DELETE |
 | `/api/settings` | Account settings | GET, POST |
 | `/api/analysis` | AI trade analyses | GET, POST, DELETE |
-| `/api/agent-traces` | AI agent trace history | GET |
+| `/api/agent-traces` | AI agent trace history (supports `?feature=cc-optimizer` or `?feature=csp-optimizer` filter) | GET |
 
 ## AI Features (Anthropic Claude)
 
@@ -33,8 +33,27 @@ Requires the `ANTHROPIC_API_KEY` environment variable.
 | `/api/ai/usage` | GET | N/A | AI usage stats: today/yesterday/week/month/all-time costs, 30-day daily breakdown by model, per-feature token splits, recent calls |
 | `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | Conversational AI: GET lists conversations, POST sends message (streaming), PATCH renames, DELETE removes |
 | `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization — auto-detects underwater vs above-water positions, parallel per-ticker tool_use loops (up to 8 iterations each) with 6 tools + Tavily web search. Accepts optional `targetReturnPct` for yield mode. SSE streaming with strategy lanes, catalysts, progress, analysis, and agent trace steps |
+| `/api/ai/csp-optimizer` | POST | Sonnet 4.6 | Agentic CSP optimization — parallel per-ticker analysis (up to 8 iterations each) with 7 tools (put options chain, stock price, historical prices, screener data, CSP history, portfolio exposure, web search) + Tavily. Returns SSE with 3 strategy lanes (conservative/balanced/aggressive), assignment scenario, position sizing, catalysts, and agent trace. Traces saved with `feature: 'csp-optimizer'` |
 | `/api/cc-optimizer` | GET | N/A | Options chain with computed CC optimizer metrics (annualized return, distance from cost basis, recovery weeks, called-away P/L). Query: `?ticker=AAPL&minDTE=7&maxDTE=60` |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
+
+## Screeners & Pipelines
+
+Python pipelines run as subprocesses, write results to MongoDB, and the Next.js API serves the latest results.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/screeners/csp` | GET | Latest CSP_ENHANCED pipeline results with scored opportunities |
+| `/api/screeners/csp/history` | GET | CSP score history for selected tickers. Query: `?tickers=AAPL,MSFT` (up to 50). Returns trend analysis (up/down/stable/new) |
+| `/api/screeners/pcs` | GET | Latest PCS_SCREENER pipeline results |
+| `/api/screeners/aggressive` | GET | Latest AGGRESSIVE_OPTIONS results with calls/puts separated + ticker changes |
+| `/api/screeners/charts` | GET | Latest CHART_SETUPS pipeline results |
+| `/api/screeners/swing` | GET | Latest SWING_TRADES results with long/short signals |
+| `/api/pipelines` | GET | Lists all 5 pipeline types with metadata (last run, status, duration, opportunities) |
+| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Returns `{ runId, status: 'RUNNING' }` |
+| `/api/pipelines/[type]/status/[runId]` | GET | Status of a specific pipeline run (in-memory + DB fallback) |
+| `/api/pipelines/[type]/history` | GET | Run history for pipeline type. Query: `?limit=10` |
+| `/api/pipelines/events/[runId]` | GET | SSE streaming for real-time pipeline progress (polls 500ms, 15-min timeout) |
 
 ## Market Data (Polygon.io)
 
@@ -78,3 +97,11 @@ Returns current market status (open, extended-hours, closed).
 - **Source**: Polygon market status endpoint (`/v1/marketstatus/now`)
 - **Response**: `{ status: { market: "open" | "extended-hours" | "closed", serverTime: string } }`
 - **Mapping**: Polygon's `pre-market` and `after-hours` values are normalized to `extended-hours`
+
+### `/api/earnings-dates`
+Returns estimated next earnings dates for tickers via Polygon financials data.
+
+- **Query**: `?tickers=AAPL,MSFT` (up to 50 tickers)
+- **Source**: Polygon financials endpoint, extracts next estimated earnings date
+- **Caching**: 1-hour in-memory TTL cache per ticker
+- **Response**: `{ earningsDates: { AAPL: "2026-04-24", MSFT: null, ... } }`

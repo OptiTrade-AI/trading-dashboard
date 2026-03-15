@@ -464,7 +464,15 @@ function AnalysisCard({ analysis, privacyMode }: { analysis: OptimizerAIAnalysis
 /* ── Outer Panel ── */
 
 export function OptimizerAIPanel({ analysis, analyses, loading, error, progress, progressData, privacyMode }: OptimizerAIPanelProps) {
-  const allAnalyses = analyses || (analysis ? [analysis] : []);
+  // Deduplicate by ticker — keep last occurrence (most recent analysis)
+  const allAnalyses = (() => {
+    const raw = analyses || (analysis ? [analysis] : []);
+    const seen = new Map<string, OptimizerAIAnalysis>();
+    for (const a of raw) {
+      seen.set(a.ticker, a);
+    }
+    return Array.from(seen.values());
+  })();
 
   // Live elapsed timer
   const startTimeRef = useRef<number | null>(null);

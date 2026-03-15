@@ -10,13 +10,22 @@ import { AIRollAdvisor } from './AIRollAdvisor';
 import { TickerAutocomplete } from './shared/TickerAutocomplete';
 import type { RollRecommendation } from '@/types';
 
+export interface SpreadInitialValues {
+  ticker?: string;
+  shortStrike?: number;
+  longStrike?: number;
+  expiration?: string;
+  spreadType?: SpreadType;
+}
+
 interface AddSpreadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (trade: Omit<SpreadTrade, 'id' | 'dteAtEntry' | 'netDebit' | 'maxProfit' | 'maxLoss' | 'status'>) => void;
+  initialValues?: SpreadInitialValues;
 }
 
-export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProps) {
+export function AddSpreadModal({ isOpen, onClose, onSubmit, initialValues }: AddSpreadModalProps) {
   const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [spreadType, setSpreadType] = useState<SpreadType>('call_debit');
@@ -29,6 +38,17 @@ export function AddSpreadModal({ isOpen, onClose, onSubmit }: AddSpreadModalProp
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
   const [commission, setCommission] = useState('');
+
+  useEffect(() => {
+    if (initialValues) {
+      if (initialValues.ticker) setTicker(initialValues.ticker);
+      if (initialValues.shortStrike) setShortStrike(initialValues.shortStrike.toString());
+      if (initialValues.longStrike) setLongStrike(initialValues.longStrike.toString());
+      if (initialValues.expiration) setExpiration(initialValues.expiration);
+      if (initialValues.spreadType) setSpreadType(initialValues.spreadType);
+    }
+  }, [initialValues]);
+
   const numContracts = parseInt(contracts) || 1;
   const lPrice = parseFloat(longPrice) || 0;
   const sPrice = parseFloat(shortPrice) || 0;

@@ -20,7 +20,9 @@ const tradePages = [
 const topNav = [
   { href: '/', label: 'Dashboard' },
   { href: '/analytics', label: 'Analytics' },
-  { href: '/optimizer', label: 'Optimizer' },
+  { href: '/screeners', label: 'Screeners' },
+  { href: '/optimizer', label: 'CC Optimizer' },
+  { href: '/csp-optimizer', label: 'CSP Optimizer' },
   { href: '/analysis', label: 'Analyzer' },
 ];
 
@@ -37,7 +39,7 @@ export function Navigation() {
   const isTradesActive = tradePages.some((p) => pathname === p.href);
   const activeTradeLabel = tradePages.find((p) => pathname === p.href)?.label;
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -134,7 +136,7 @@ export function Navigation() {
                 href={item.href}
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                  pathname === item.href
+                  pathname === item.href || (item.href === '/screeners' && pathname.startsWith('/screeners'))
                     ? 'text-accent bg-accent/10'
                     : 'text-muted hover:text-foreground hover:bg-card-solid/50'
                 )}

@@ -9,9 +9,9 @@ Visual guide to the OptiTrade Dashboard architecture.
 ```mermaid
 graph TB
     subgraph Client["Browser (React)"]
-        Pages["Pages<br/>Dashboard · Logs · Analytics · Optimizer · AI Chat"]
+        Pages["Pages<br/>Dashboard · Logs · Analytics · Screeners<br/>CC Optimizer · CSP Optimizer · AI Chat"]
         Components["Components<br/>Modals · Cards · Charts"]
-        Hooks["SWR Hooks<br/>useTrades · useOptionQuotes · useSmartAlerts<br/>usePortfolioPositions · useAnalyticsData · useCallOptimizer"]
+        Hooks["SWR Hooks<br/>useTrades · useOptionQuotes · useSmartAlerts<br/>usePortfolioPositions · useAnalyticsData · useCallOptimizer<br/>useCspOptimizer · useScreenerHub · usePipelineProgress"]
         Contexts["Contexts<br/>Privacy · Toast"]
     end
 
@@ -22,7 +22,12 @@ graph TB
     subgraph Server["Next.js API Routes"]
         TradeAPI["Trade APIs<br/>/api/trades · /api/covered-calls<br/>/api/directional-trades · /api/spreads"]
         MarketAPI["Market APIs<br/>/api/stock-prices · /api/option-quotes<br/>/api/stock-aggregates"]
-        AIAPI["AI APIs<br/>/api/ai/exit-coach · /api/ai/smart-alerts<br/>/api/ai/roll-advisor · /api/chat"]
+        AIAPI["AI APIs<br/>/api/ai/exit-coach · /api/ai/smart-alerts<br/>/api/ai/cc-optimizer · /api/ai/csp-optimizer"]
+        ScreenerAPI["Screener APIs<br/>/api/screeners/csp · /api/screeners/pcs<br/>/api/pipelines · /api/pipelines/[type]/run"]
+    end
+
+    subgraph Pipelines["Python Pipelines"]
+        PipelineRunner["pipeline-runner.ts<br/>spawn subprocess · 10-min timeout"]
     end
 
     subgraph External["External Services"]
@@ -32,6 +37,9 @@ graph TB
         Tavily["Tavily Web Search"]
     end
 
+    ScreenerAPI -->|spawn| PipelineRunner
+    PipelineRunner -->|write results| MongoDB
+
     Pages --> Components
     Components --> Hooks
     Hooks --> Contexts
@@ -39,7 +47,9 @@ graph TB
     Proxy -->|authenticated| TradeAPI
     Proxy -->|authenticated| MarketAPI
     Proxy -->|authenticated| AIAPI
+    Proxy -->|authenticated| ScreenerAPI
     TradeAPI -->|CRUD| MongoDB
+    ScreenerAPI -->|read results| MongoDB
     MarketAPI -->|REST| Polygon
     AIAPI -->|REST| Anthropic
     AIAPI -->|portfolio data| MongoDB
@@ -142,6 +152,8 @@ graph LR
         SE["/stock Events"]
         AN["/analytics"]
         OPT["/optimizer CC Optimizer"]
+        CSPO["/csp-optimizer CSP Optimizer"]
+        SCR["/screeners Screeners Hub"]
         AI["/analysis AI Chat"]
     end
 
@@ -174,6 +186,8 @@ graph LR
     SE --- Nav
     AN --- Nav
     OPT --- Nav
+    CSPO --- Nav
+    SCR --- Nav
     AI --- Nav
 ```
 
@@ -261,10 +275,13 @@ erDiagram
     PATTERN_ANALYSES {
         string id PK
         string timestamp
+        json findings
         json patterns
         number tradeCount
         number totalPL
         number winRate
+        string timeRange
+        string tradeFingerprint
     }
 
     DAILY_SUMMARY {
@@ -283,6 +300,7 @@ erDiagram
     AGENT_TRACES {
         string id PK
         string createdAt
+        string feature
         array tickers
         string mode
         json steps
@@ -291,6 +309,25 @@ erDiagram
         number totalOutputTokens
         number costUsd
         json result
+    }
+
+    PIPELINE_RUNS {
+        string id PK
+        string pipelineType
+        string status
+        string startedAt
+        string completedAt
+        number durationMs
+        string error
+        number totalOpportunities
+        number newOpportunities
+    }
+
+    PIPELINE_RESULTS {
+        string id PK
+        string pipelineType
+        string timestamp
+        json data
     }
 
     ACCOUNT_SETTINGS {
@@ -324,9 +361,10 @@ graph TB
     end
 
     subgraph Analysis["Deep Analysis"]
-        BP["Behavioral Patterns<br/>evolution tracking"]
+        BP["Behavioral Patterns<br/>3-lens analysis"]
         CH["AI Chat<br/>multi-turn conversations"]
         CO["CC Optimizer Agent<br/>tool_use + web search"]
+        CSPA["CSP Optimizer Agent<br/>tool_use + web search"]
     end
 
     subgraph Infra["Infrastructure"]
@@ -338,6 +376,8 @@ graph TB
     EC -->|"Discuss in Chat"| CH
     BP -->|"Discuss in Chat"| CH
     CO -->|"Write This Call"| AddCC["AddCCModal"]
+    CSPA -->|"Write This Put"| AddCSP
+    CSPA -->|"Discuss in Chat"| CH
     EC -->|"verdict: ROLL"| RA
 
     SA -.->|"polls 5 min"| SA
@@ -352,6 +392,7 @@ graph TB
     CH -.->|tracks| CT
     EW -.->|tracks| CT
     CO -.->|tracks| CT
+    CSPA -.->|tracks| CT
     DS -.->|tracks| CT
 ```
 
@@ -369,11 +410,14 @@ graph LR
         C5["Earnings Watch<br/>4 hr"]
         C6["Daily Summary<br/>1 hr"]
         C7["AI Usage<br/>1 min"]
+        C8["Screener data<br/>60s cache · 60s dedup"]
+        C9["Pipelines<br/>10s refresh"]
     end
 
     subgraph Server["Server-Side (In-Memory)"]
         S1["Stock aggregates<br/>5 min TTL"]
         S2["Options chain<br/>5 min TTL"]
+        S3["Earnings dates<br/>1 hr TTL"]
     end
 
     subgraph DB["MongoDB"]
@@ -433,5 +477,6 @@ graph TD
 | **API** | Next.js App Router | Server-side routes, all protected by auth proxy |
 | **Data** | MongoDB | Document store for all trade and AI data |
 | **Market** | Polygon.io | Stock prices, option quotes, aggregates, events |
-| **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis + CC Optimizer agent) |
-| **Search** | Tavily | Web search for AI agent (analyst targets, earnings, news) |
+| **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis + CC/CSP Optimizer agents) |
+| **Search** | Tavily | Web search for AI agents (analyst targets, earnings, news) |
+| **Pipelines** | Python subprocesses | Quantitative screeners (CSP, PCS, Aggressive, Charts, Swing) |

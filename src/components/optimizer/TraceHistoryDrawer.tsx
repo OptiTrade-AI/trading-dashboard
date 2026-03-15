@@ -21,9 +21,10 @@ interface TraceHistoryDrawerProps {
   onSelect: (trace: AgentTrace) => void;
   activeTraceId?: string;
   privacyMode: boolean;
+  feature?: 'cc-optimizer' | 'csp-optimizer';
 }
 
-export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, privacyMode }: TraceHistoryDrawerProps) {
+export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, privacyMode, feature }: TraceHistoryDrawerProps) {
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -32,12 +33,12 @@ export function TraceHistoryDrawer({ isOpen, onClose, onSelect, activeTraceId, p
   useEffect(() => {
     if (!isOpen) return;
     setLoading(true);
-    fetch('/api/agent-traces?limit=30')
+    fetch(`/api/agent-traces?limit=30${feature ? `&feature=${feature}` : ''}`)
       .then(r => r.json())
       .then(data => setTraces(data.traces || []))
       .catch(() => setTraces([]))
       .finally(() => setLoading(false));
-  }, [isOpen]);
+  }, [isOpen, feature]);
 
   const handleSelect = useCallback(async (traceId: string) => {
     setLoadingId(traceId);

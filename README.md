@@ -1,6 +1,6 @@
 # OptiTrade Dashboard
 
-A professional-grade options trading journal built with **Next.js 16**, **MongoDB**, **Tailwind CSS**, and **Claude AI**. Track cash-secured puts, covered calls, directional trades, vertical spreads, and stock holdings — all in one sleek, dark-themed dashboard with deep analytics and 10 embedded AI features.
+A professional-grade options trading journal built with **Next.js 16**, **MongoDB**, **Tailwind CSS**, and **Claude AI**. Track cash-secured puts, covered calls, directional trades, vertical spreads, and stock holdings — all in one sleek, dark-themed dashboard with deep analytics, 11 embedded AI features, and a quantitative screener hub.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![MongoDB](https://img.shields.io/badge/MongoDB-7.x-47A248?logo=mongodb)
@@ -21,7 +21,9 @@ A professional-grade options trading journal built with **Next.js 16**, **MongoD
 | **Trade Management** | Rolls, partial closes, sorting, CSV export/import | [docs/trade-management.md](docs/trade-management.md) |
 | **Holdings Auto-Sync** | CSP assignment adds shares, CC called away removes | [docs/holdings-sync.md](docs/holdings-sync.md) |
 | **Privacy Mode** | One-click mask for all financial data | [docs/privacy-mode.md](docs/privacy-mode.md) |
-| **AI Features** | 10 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker, CC optimizer agent | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
+| **AI Features** | 11 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker, CC optimizer agent, CSP optimizer agent | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
+| **Screeners Hub** | 5-tab screener dashboard (CSP, PCS, Aggressive, Charts, Swing) with Python pipeline integration, real-time progress, and trade creation | — |
+| **CSP Optimizer** | Hybrid pipeline + AI agent for cash-secured put optimization with 3 strategy lanes, position sizing, and assignment analysis | [docs/ai-analyzer.md](docs/ai-analyzer.md) |
 | **Architecture** | System diagrams, data flow, component hierarchy | [docs/architecture.md](docs/architecture.md) |
 | **Performance** | SWR caching, optimistic mutations, deduplication | [docs/performance.md](docs/performance.md) |
 | **API Routes** | REST endpoints for all trade types, market data, and AI | [docs/api-routes.md](docs/api-routes.md) |
@@ -52,7 +54,7 @@ A professional-grade options trading journal built with **Next.js 16**, **MongoD
 | Charts | Recharts 3.x |
 | Caching | SWR 2.x |
 | AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.6) |
-| Web Search | Tavily (AI agent in CC Optimizer) |
+| Web Search | Tavily (AI agents in CC Optimizer and CSP Optimizer) |
 | Market Data | Polygon.io (stocks, options, events) |
 | Dates | date-fns 4.x |
 
@@ -80,9 +82,10 @@ Create a `.env` file in the project root:
 ```env
 MONGODB_URI=mongodb+srv://your-connection-string
 MONGODB_DB=your-database-name
-ANTHROPIC_API_KEY=sk-ant-...    # Optional: enables 10 AI features (exit coach, alerts, patterns, CC optimizer, etc.)
+ANTHROPIC_API_KEY=sk-ant-...    # Optional: enables 11 AI features (exit coach, alerts, patterns, CC/CSP optimizer, etc.)
 POLYGON_API_KEY=...             # Optional: enables real-time stock prices
-TAVILY_API_KEY=tvly-...         # Optional: enables web search in CC Optimizer AI agent
+TAVILY_API_KEY=tvly-...         # Optional: enables web search in CC Optimizer and CSP Optimizer AI agents
+PIPELINE_SCRIPTS_DIR=/path/to/pipelines  # Optional: enables Python screener pipelines
 ```
 
 ### Run Development Server
@@ -109,9 +112,14 @@ src/
 │   ├── stock/                      # Stock events / TLH
 │   ├── analytics/                  # Analytics suite
 │   ├── optimizer/                  # Covered Call Optimizer (AI agent)
+│   ├── csp-optimizer/              # CSP Optimizer (pipeline + AI agent)
+│   ├── screeners/                  # Screeners Hub (5 tabs)
+│   ├── pipelines/                  # Pipelines (redirects to screeners)
 │   ├── analysis/                   # AI Trading Coach (chat)
 │   └── api/                        # REST API routes
 ├── components/                     # UI components
+│   ├── csp-optimizer/             # CSP Optimizer components
+│   ├── screeners/                 # Screener Hub components
 │   └── shared/                    # Reusable components (TickerAutocomplete)
 ├── contexts/                       # React context providers
 ├── hooks/                          # SWR data fetching + utility hooks

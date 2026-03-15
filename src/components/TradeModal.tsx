@@ -10,21 +10,40 @@ import { AIRollAdvisor } from './AIRollAdvisor';
 import { TickerAutocomplete } from './shared/TickerAutocomplete';
 import type { RollRecommendation } from '@/types';
 
+export interface TradeInitialValues {
+  ticker?: string;
+  strike?: number;
+  expiration?: string;
+  premium?: number;
+}
+
 interface AddTradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (trade: Omit<Trade, 'id' | 'dteAtEntry' | 'collateral' | 'status'>) => void;
+  initialValues?: TradeInitialValues;
 }
 
-export function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeModalProps) {
+export function AddTradeModal({ isOpen, onClose, onSubmit, initialValues }: AddTradeModalProps) {
   const { formatCurrency } = useFormatters();
-  const [ticker, setTicker] = useState('');
-  const [strike, setStrike] = useState('');
+  const [ticker, setTicker] = useState(initialValues?.ticker ?? '');
+  const [strike, setStrike] = useState(initialValues?.strike?.toString() ?? '');
   const [contracts, setContracts] = useState('1');
-  const [expiration, setExpiration] = useState('');
-  const [premium, setPremium] = useState('');
+  const [expiration, setExpiration] = useState(initialValues?.expiration ?? '');
+  const [premium, setPremium] = useState(initialValues?.premium?.toString() ?? '');
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [commission, setCommission] = useState('');
+
+  // Pre-fill from screener when initialValues change
+  useEffect(() => {
+    if (initialValues) {
+      if (initialValues.ticker) setTicker(initialValues.ticker);
+      if (initialValues.strike) setStrike(initialValues.strike.toString());
+      if (initialValues.expiration) setExpiration(initialValues.expiration);
+      if (initialValues.premium) setPremium(initialValues.premium.toString());
+    }
+  }, [initialValues]);
+
   const numContracts = parseInt(contracts) || 1;
   const collateral = strike ? calculateCollateral(parseFloat(strike), numContracts) : 0;
   const dte = expiration && entryDate ? calculateDTEFromEntry(entryDate, expiration) : 0;

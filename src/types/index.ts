@@ -281,7 +281,7 @@ export interface StarterPrompt {
 }
 
 // AI Features
-export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario' | 'daily-summary' | 'cc-optimizer';
+export type AIFeature = 'chat' | 'exit-coach' | 'smart-alerts' | 'trade-check' | 'patterns' | 'roll-advisor' | 'events-check' | 'scenario' | 'daily-summary' | 'cc-optimizer' | 'csp-optimizer';
 
 export interface AIUsageRecord {
   timestamp: string; // ISO date
@@ -367,6 +367,23 @@ export interface SmartAlert {
   reason: string;
 }
 
+// Behavioral Patterns — new lens-based system
+export type PatternLens = 'timing' | 'exit' | 'strategy';
+export type PatternSeverity = 'positive' | 'negative' | 'neutral';
+
+export interface BehavioralFinding {
+  id: string;
+  lens: PatternLens;
+  title: string;
+  description: string;
+  severity: PatternSeverity;
+  trend: 'improving' | 'worsening' | 'stable' | 'new';
+  metric: string;
+  actionItem: string;
+  evidenceTrades?: string[];
+}
+
+// Legacy format — kept for backward compat with stored history records
 export interface BehavioralPattern {
   id: string;
   title: string;
@@ -416,10 +433,13 @@ export interface OptionsContract {
 export interface PatternAnalysisRecord {
   id: string;
   timestamp: string;
-  patterns: BehavioralPattern[];
+  findings?: BehavioralFinding[];    // New: lens-based findings
+  patterns?: BehavioralPattern[];    // Legacy: old format for historical records
   tradeCount: number;
   totalPL: number;
   winRate: number;
+  timeRange?: string;
+  tradeFingerprint?: string;
 }
 
 // Covered Call Optimizer
@@ -488,6 +508,7 @@ export interface AgentTraceStep {
 
 export interface AgentTrace {
   id: string;
+  feature?: 'cc-optimizer' | 'csp-optimizer';
   createdAt: string;
   tickers: string[];
   mode: 'single' | 'portfolio';
@@ -496,7 +517,7 @@ export interface AgentTrace {
   totalInputTokens: number;
   totalOutputTokens: number;
   costUsd: number;
-  result?: OptimizerAIAnalysis[];
+  result?: OptimizerAIAnalysis[] | CspOptimizerAIAnalysis[];
 }
 
 export type StrategyMode = 'breakeven' | 'balanced' | 'income' | 'yield-weekly' | 'yield-biweekly' | 'yield-monthly';
@@ -571,4 +592,296 @@ export interface OptimizerAIAnalysis {
   targetReturnPct?: number;
   strategies?: StrategyLane[];
   catalysts?: string[];
+}
+
+// ==================== CSP Optimizer Types ====================
+
+export type CspStrategyMode = 'conservative' | 'balanced' | 'aggressive';
+
+export interface CspStrategyPick {
+  symbol: string;
+  strike: number;
+  expiration: string;
+  reasoning: string;
+  premium: number;
+  delta: number;
+  openInterest: number;
+  volume: number;
+  iv: number;
+  collateral: number;
+  returnOnRisk: number;
+  annualizedROR: number;
+  probabilityOfProfit: number;
+  breakEven: number;
+  discountFromCurrent: number;
+}
+
+export interface CspStrategyLane {
+  mode: CspStrategyMode;
+  label: string;
+  viable: boolean;
+  recommended?: boolean;
+  pick: CspStrategyPick | null;
+}
+
+export interface CspOptimizerAIAnalysis {
+  ticker: string;
+  stockPrice: number;
+  strategies: CspStrategyLane[];
+  catalysts: string[];
+  analystConsensus: string;
+  earningsDate: string;
+  ivContext: string;
+  bollingerContext: string;
+  sectorContext: string;
+  whyThisTrade: string;
+  keyRisks: string[];
+  assignmentScenario: {
+    effectiveCostBasis: number;
+    currentDiscount: number;
+    qualityAssessment: string;
+    ccOpportunity: string;
+  };
+  positionSizing: {
+    suggestedContracts: number;
+    capitalRequired: number;
+    portfolioHeatImpact: number;
+    maxContracts: number;
+  };
+}
+
+// ==================== Screener Types ====================
+
+// CSP Screener
+export interface CspOpportunity {
+  ticker: string;
+  company_name: string;
+  sector: string;
+  market_cap: number;
+  current_price: number;
+  strike: number;
+  expiration: string;
+  dte: number;
+  delta: number;
+  premium: number;
+  open_interest: number;
+  volume: number;
+  implied_volatility: number;
+  bid: number;
+  ask: number;
+  cash_collateral: number;
+  total_premium: number;
+  return_on_collateral_pct: number;
+  return_on_risk_pct: number;
+  annualized_roc_pct: number;
+  annualized_ror_pct: number;
+  break_even: number;
+  probability_of_profit: number;
+  score?: number;
+}
+
+export interface BollingerBandPosition {
+  ticker: string;
+  close: number;
+  sma: number;
+  upper_band: number;
+  lower_band: number;
+  position: 'below_lower' | 'below_sma' | 'above_sma' | 'above_upper';
+}
+
+// PCS Screener
+export interface PcsOpportunity {
+  ticker: string;
+  company_name: string;
+  sector: string;
+  market_cap: number;
+  current_price: number;
+  short_strike: number;
+  long_strike: number;
+  expiration: string;
+  dte: number;
+  delta: number;
+  premium: number;
+  open_interest: number;
+  volume: number;
+  implied_volatility: number;
+  spread_width: number;
+  max_loss: number;
+  max_profit: number;
+  return_on_risk_pct: number;
+  annualized_ror_pct: number;
+  break_even: number;
+  probability_of_profit: number;
+  score?: number;
+}
+
+// Aggressive Options
+export interface BestContract {
+  ticker: string;
+  strike_price: number;
+  expiration_date: string;
+  dte: number;
+  premium: number;
+  open_interest: number;
+  volume: number;
+  delta: number;
+  implied_volatility: number;
+}
+
+export interface AggressiveOpportunity {
+  ticker: string;
+  current_price: number;
+  total_contracts: number;
+  total_open_interest: number;
+  total_volume: number;
+  atm_open_interest: number;
+  liquid_strikes: number;
+  best_contracts: BestContract[];
+  rsi: number;
+  stock_volume: number;
+  rsi_value: number;
+  bollinger_band: Record<string, number> | null;
+}
+
+export interface ScreenerTickerChanges {
+  same_tickers: string[];
+  new_tickers: string[];
+  removed_tickers: string[];
+}
+
+export type ScreenerChangeStatus = 'same' | 'new' | 'removed';
+
+// Swing Trades
+export type SwingSignalType = 'LONG' | 'SHORT';
+export type SwingConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+export type SwingStrategy =
+  | 'EMA Support Bounce'
+  | 'Golden Cross Setup'
+  | 'EMA Resistance Rejection'
+  | 'Death Cross Setup';
+
+export interface SwingSignal {
+  ticker: string;
+  signal_type: SwingSignalType;
+  strategy: SwingStrategy;
+  entry_price: number;
+  confidence: SwingConfidence;
+  stop_loss: number;
+  target: number;
+  risk_reward_ratio: number;
+  volume: number;
+  details: string;
+}
+
+export interface SwingTradeResults {
+  long_signals: SwingSignal[];
+  short_signals: SwingSignal[];
+  timestamp?: string;
+}
+
+// Chart Setups
+export interface SlopeData {
+  slope: number;
+  trend: 'strong_upward' | 'moderate_upward' | 'flat' | 'moderate_downward' | 'strong_downward';
+  percent_change?: number;
+}
+
+export interface ChartSetup {
+  ticker: string;
+  company_name: string;
+  industry: string;
+  current_close: number;
+  sma_200: number;
+  ema_9: number;
+  ema_21: number;
+  percent_below_sma_200: number;
+  percent_above_ema_9: number;
+  percent_above_ema_21?: number;
+  sma_200_slope: SlopeData;
+  ema_9_slope: SlopeData;
+  ema_21_slope: SlopeData;
+}
+
+export interface ChartSetupResults {
+  timestamp: string;
+  total_setups_found: number;
+  chart_setups: ChartSetup[];
+}
+
+// ==================== Pipeline Types ====================
+
+export type PipelineType =
+  | 'AGGRESSIVE_OPTIONS'
+  | 'CSP_SCREENER'
+  | 'CSP_ENHANCED'
+  | 'PCS_SCREENER'
+  | 'CHART_SETUPS'
+  | 'SWING_TRADES';
+
+export type PipelineRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export interface PipelineInfo {
+  type: PipelineType;
+  name: string;
+  description: string;
+  lastRunAt: string | null;
+  lastRunStatus: PipelineRunStatus | null;
+  lastRunDuration: number | null;
+  totalOpportunities: number | null;
+  cronExpression: string | null;
+  enabled: boolean;
+}
+
+export interface PipelineRunRecord {
+  id: string;
+  pipelineType: PipelineType;
+  status: PipelineRunStatus;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  error: string | null;
+  totalOpportunities: number | null;
+  newOpportunities: number | null;
+}
+
+// ==================== Screener Hub Types ====================
+
+export type ScreenerTab = 'csp' | 'pcs' | 'aggressive' | 'charts' | 'swing';
+
+export interface ScreenerFilters {
+  // Common
+  minScore: number;
+  sector: string;
+  tickerSearch: string;
+  // CSP/PCS
+  minDelta: number;
+  maxDelta: number;
+  minDte: number;
+  maxDte: number;
+  minRor: number;
+  minIv: number;
+  minOi: number;
+  minMarketCap: string;
+  minPop: number;
+  // PCS
+  maxSpreadWidth: number;
+  // Aggressive
+  maxRsi: number;
+  minRsi: number;
+  minVolume: number;
+  // Charts
+  slopeDirection: 'any' | 'upward' | 'flat' | 'downward';
+  maxPctBelowSma: number;
+  // Swing
+  confidence: SwingConfidence[];
+  minRiskReward: number;
+  swingStrategy: string;
+}
+
+export interface ScreenerPreset {
+  key: string;
+  label: string;
+  tagline: string;
+  color: string;
+  filters: Partial<ScreenerFilters>;
 }
