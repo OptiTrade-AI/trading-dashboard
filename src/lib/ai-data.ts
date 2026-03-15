@@ -182,6 +182,42 @@ export async function gatherPortfolioData(lookbackMonths: number = 6): Promise<P
 }
 
 /**
+ * Get CSP trade history for a specific ticker — outcomes, premium, assignment history.
+ */
+export function getCspTradesForTicker(data: PortfolioData, ticker: string) {
+  const csps = data.allCSPs.filter(t => t.ticker.toUpperCase() === ticker.toUpperCase());
+  const open = csps.filter(t => t.status === 'open');
+  const closed = csps.filter(t => t.status === 'closed');
+
+  const totalPremium = closed.reduce((s, t) => s + calculatePL(t), 0);
+  const assigned = closed.filter(t => t.exitReason === 'assigned');
+  const wins = closed.filter(t => calculatePL(t) > 0);
+
+  return {
+    ticker: ticker.toUpperCase(),
+    openPositions: open.map(t => ({
+      strike: t.strike,
+      expiration: t.expiration,
+      contracts: t.contracts,
+      premiumCollected: t.premiumCollected,
+      collateral: t.collateral,
+    })),
+    closedTrades: closed.slice(-20).map(t => ({
+      strike: t.strike,
+      expiration: t.expiration,
+      contracts: t.contracts,
+      premiumCollected: t.premiumCollected,
+      exitReason: t.exitReason,
+      pl: calculatePL(t),
+    })),
+    totalClosedTrades: closed.length,
+    totalPremiumEarned: +totalPremium.toFixed(2),
+    winRate: closed.length > 0 ? +(wins.length / closed.length * 100).toFixed(1) : 0,
+    timesAssigned: assigned.length,
+  };
+}
+
+/**
  * Get closed trades for a specific ticker across all strategies.
  */
 export function getClosedTradesForTicker(data: PortfolioData, ticker: string) {

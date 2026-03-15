@@ -18,11 +18,22 @@ export async function GET(request: NextRequest) {
     }
 
     // List traces (lightweight — omit steps and result for performance)
-    const limit = Math.min(parseInt(params.get('limit') || '20', 10), 50);
-    const offset = parseInt(params.get('offset') || '0', 10);
+    const limit = Math.min(parseInt(params.get('limit') || '20', 10) || 20, 50);
+    const offset = parseInt(params.get('offset') || '0', 10) || 0;
+    const featureParam = params.get('feature');
+    const feature = featureParam === 'cc-optimizer' || featureParam === 'csp-optimizer' ? featureParam : null;
+
+    // cc-optimizer: match explicit 'cc-optimizer' OR legacy traces without a feature field
+    // csp-optimizer: match only explicit 'csp-optimizer'
+    const filter: Record<string, unknown> = {};
+    if (feature === 'cc-optimizer') {
+      filter.$or = [{ feature: 'cc-optimizer' }, { feature: { $exists: false } }];
+    } else if (feature) {
+      filter.feature = feature;
+    }
 
     const traces = await col
-      .find({}, {
+      .find(filter, {
         projection: {
           id: 1,
           createdAt: 1,
@@ -41,6 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Get step counts via aggregation (avoids fetching full step arrays)
     const stepCountDocs = await col.aggregate<{ id: string; stepCount: number }>([
+      ...(Object.keys(filter).length > 0 ? [{ $match: filter }] : []),
       { $sort: { createdAt: -1 } },
       { $skip: offset },
       { $limit: limit },

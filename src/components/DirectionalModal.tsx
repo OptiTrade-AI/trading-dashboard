@@ -10,13 +10,21 @@ import { AIRollAdvisor } from './AIRollAdvisor';
 import { TickerAutocomplete } from './shared/TickerAutocomplete';
 import type { RollRecommendation } from '@/types';
 
+export interface DirectionalInitialValues {
+  ticker?: string;
+  strike?: number;
+  expiration?: string;
+  optionType?: OptionType;
+}
+
 interface AddDirectionalModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (trade: Omit<DirectionalTrade, 'id' | 'dteAtEntry' | 'costAtOpen' | 'status'>) => void;
+  initialValues?: DirectionalInitialValues;
 }
 
-export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectionalModalProps) {
+export function AddDirectionalModal({ isOpen, onClose, onSubmit, initialValues }: AddDirectionalModalProps) {
   const { formatCurrency } = useFormatters();
   const [ticker, setTicker] = useState('');
   const [optionType, setOptionType] = useState<OptionType>('call');
@@ -27,6 +35,16 @@ export function AddDirectionalModal({ isOpen, onClose, onSubmit }: AddDirectiona
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
   const [commission, setCommission] = useState('');
+
+  useEffect(() => {
+    if (initialValues) {
+      if (initialValues.ticker) setTicker(initialValues.ticker);
+      if (initialValues.strike) setStrike(initialValues.strike.toString());
+      if (initialValues.expiration) setExpiration(initialValues.expiration);
+      if (initialValues.optionType) setOptionType(initialValues.optionType);
+    }
+  }, [initialValues]);
+
   const numContracts = parseInt(contracts) || 1;
   const price = parseFloat(entryPrice) || 0;
   const totalCost = price * 100 * numContracts;

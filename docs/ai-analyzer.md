@@ -18,12 +18,13 @@ All AI features degrade gracefully when the API key is not configured — UI ele
 | **AI Exit Coach** | Click position → AI Coach tab | Haiku 4.5 | Streaming HOLD / CLOSE / ROLL verdict with reasoning |
 | **Smart Alerts** | Auto (5 min during market hours) | Haiku 4.5 | Proactive position alerts with configurable thresholds |
 | **Trade Entry Advisor** | Open any add-trade modal | Haiku 4.5 | Pre-trade risk check against portfolio context |
-| **Behavioral Patterns** | Analytics page → Analyze Patterns | Sonnet 4.6 | Deep pattern recognition across trading history |
+| **Behavioral Patterns** | Analytics page → Analyze Patterns | Sonnet 4.6 | 3-lens analysis (timing, exit, strategy) with time range filtering and trade fingerprinting |
 | **Roll Advisor** | Close modal → roll mode | Haiku 4.5 | Strike/expiration suggestions with live options chain |
 | **Earnings Watchdog** | Auto (4 hr refresh) | Haiku 4.5 | Upcoming earnings/events for open position tickers |
 | **Daily Summary** | Auto (dashboard hero, 24h cache) | Haiku 4.5 | 1-2 sentence portfolio summary |
 | **Conversational Coach** | `/analysis` page | Sonnet 4.6 | Multi-turn chat with full portfolio context |
 | **CC Optimizer Agent** | `/optimizer` page → per-ticker or portfolio-wide | Sonnet 4.6 | Agentic tool-use loop with 6 tools + Tavily web search for CC recommendations |
+| **CSP Optimizer Agent** | `/csp-optimizer` page → select tickers from screener | Sonnet 4.6 | Agentic tool-use loop with 7 tools + Tavily web search for CSP recommendations |
 | **AI Cost Tracker** | Navigation bar button → centered modal | N/A | Rich usage dashboard with charts and breakdowns |
 
 ---
@@ -59,12 +60,14 @@ Display shows:
 - "Discuss in Chat" link with full context
 
 ### Behavioral Patterns
-Deep analysis using Sonnet 4.6 on your full trading history:
-- **Evolution tracking** — Previous analysis fed into prompt for cross-run comparison
-- **Delta badges** — Win rate and P/L changes shown with up/down arrows
-- **Sparklines** — Inline SVG trend lines for win rate and P/L across history
-- **Persistence** — Every analysis saved to MongoDB with history browser
-- **Discuss in Chat** — Click to open a conversation about any pattern
+Deep 3-lens analysis using Sonnet 4.6 on trading history:
+- **3 analysis lenses** — Timing & Entry Discipline, Exit Execution, Strategy & Ticker Selection. Each lens runs as a separate AI call with focused questions (e.g., post-loss revenge trading, DTE sweet spot mismatch, holding losers too long, strategy drift)
+- **Time range filtering** — Syncs with analytics time range selector (1W/1M/3M/6M/YTD/ALL)
+- **Trade fingerprinting** — MD5 hash of trade data detects when no new trades since last analysis, skipping redundant AI calls
+- **Severity-based findings** — Each finding has a severity (positive/negative/neutral) with color-coded display, trend indicator (improving/worsening/stable/new), metric, action item, and optional evidence trades
+- **Streaming progress** — Shows which lens is currently being analyzed with per-lens progress indicators
+- **Persistence** — Every analysis saved to MongoDB with history browser. Supports both new `findings` format and legacy `patterns` format for backward compatibility
+- **Discuss in Chat** — Click to open a conversation about any finding
 
 ### Roll Advisor
 Available in all four close modals (CSP, CC, Directional, Spreads) when rolling:
@@ -145,6 +148,38 @@ User sets a target monthly return % (premium / cost basis) via the `OptimizerTar
 
 **Integration:** "Write This Call" button in the optimizer chain table pre-fills the AddCCModal with strike, expiration, premium, and contracts for one-click CC creation.
 
+### CSP Optimizer Agent
+The second **agentic** AI feature — uses Claude's `tool_use` capability in a multi-step reasoning loop (up to 8 iterations per ticker) for cash-secured put optimization.
+
+**Architecture:** SSE streaming from `/api/ai/csp-optimizer`. Takes tickers selected from the quantitative pipeline screener results. The agent has access to 7 tools:
+- `get_put_options_chain` — Live put options from Polygon.io (filtered by DTE, 80-contract limit)
+- `get_stock_price` — Current price with daily change from Polygon snapshot
+- `get_historical_prices` — Daily OHLC for support/resistance (default 90 days, last 20 bars)
+- `get_screener_data` — Pre-computed pipeline quantitative data (score, Bollinger bands, ROR, delta, IV, market cap, sector)
+- `get_csp_history` — Past CSP trades on the ticker (premiums, outcomes, win rate, assignments)
+- `get_portfolio_exposure` — Current portfolio exposure (CSPs, holdings, CCs, spreads, heat %)
+- `web_search` — Tavily web search for catalysts (earnings, analyst targets, news)
+
+**Strategy Lanes (3):**
+- **Conservative** — Lower delta, wider safety margin, lower premium
+- **Balanced** — Delta 0.20-0.30, best risk-adjusted pick. Usually the recommended lane.
+- **Aggressive** — Higher delta, higher premium, closer to the money
+
+**Every lane includes:** strike, expiration, premium, delta, collateral, ROR%, annualized ROR%, PoP%, break-even price, discount to current price, OI, volume, IV.
+
+**Additional Analysis:**
+- **Assignment Scenario** — Effective cost basis, quality assessment, CC opportunity if assigned
+- **Position Sizing** — Suggested contracts, capital required, portfolio heat impact, max contracts
+- **Catalyst Research** — Earnings dates, analyst consensus, recent news via Tavily
+- **Context** — IV percentile, Bollinger band position, sector performance
+- **Key Risks** — 3-5 specific risk factors
+
+**"Why This Trade" Thesis:** A concise paragraph explaining the investment thesis.
+
+**Integration:** "Write This Put" button in each strategy lane pre-fills the AddTradeModal with strike, expiration, premium, and collateral for one-click CSP creation. "Discuss in Chat" links to the conversational AI coach.
+
+**Trace Saving:** Agent traces saved to MongoDB with `feature: 'csp-optimizer'` for replay via the Trace History Drawer.
+
 ### Chat Integration
 "Discuss in Chat" links appear on Exit Coach results, Trade Check results, and Pattern cards:
 - Creates a new conversation with pre-loaded context
@@ -167,8 +202,9 @@ User sets a target monthly return % (premium / cost basis) via the `OptimizerTar
 | `/api/ai/usage` | GET | N/A | Usage stats and costs |
 | `/api/chat` | GET, POST, PATCH, DELETE | Sonnet 4.6 | GET: list conversations; POST: send message (streaming); PATCH: rename; DELETE: remove |
 | `/api/ai/cc-optimizer` | POST | Sonnet 4.6 | Agentic CC optimization with parallel per-ticker tool_use loops (SSE streaming) |
+| `/api/ai/csp-optimizer` | POST | Sonnet 4.6 | Agentic CSP optimization with parallel per-ticker tool_use loops (SSE streaming) |
 | `/api/cc-optimizer` | GET | N/A | Options chain with computed optimizer metrics |
-| `/api/agent-traces` | GET | N/A | List or fetch saved agent traces |
+| `/api/agent-traces` | GET | N/A | List or fetch saved agent traces (supports `?feature=` filter) |
 | `/api/chat/context` | POST | N/A | Create conversation with pre-loaded context |
 
 ---
@@ -181,7 +217,7 @@ Most AI features follow a simple single-call pattern:
 Gather data server-side (MongoDB + Polygon) → Construct focused prompt → Single Claude API call → Return response
 ```
 
-**Exception: CC Optimizer Agent** uses per-ticker agentic tool-use loops (up to 8 iterations each). In portfolio mode, tickers are analyzed in parallel. Each agent autonomously decides which tools to call (options chain, stock price, web search, etc.) and reasons across multiple steps before producing a final recommendation. This is the only multi-step AI feature.
+**Exception: CC Optimizer Agent and CSP Optimizer Agent** use per-ticker agentic tool-use loops (up to 8 iterations each). Tickers are analyzed in parallel. Each agent autonomously decides which tools to call (options chain, stock price, web search, etc.) and reasons across multiple steps before producing a final recommendation. These are the only multi-step AI features.
 
 - **Usage tracking is automatic** — Every call goes through `aiCall()` or `aiStream()` which auto-track tokens and cost
 - **Retry with backoff** — `aiCall()` and `aiStream()` automatically retry up to 3 times on 529 (overloaded) responses with exponential backoff
@@ -205,5 +241,6 @@ Gather data server-side (MongoDB + Polygon) → Construct focused prompt → Sin
 | Chat | Varies | ~$0.02/msg |
 
 | CC Optimizer | On-demand | ~$0.10–0.30/run |
+| CSP Optimizer | On-demand | ~$0.12/ticker |
 
-**Estimated monthly cost:** $8-18/mo depending on usage intensity (excluding CC Optimizer agent runs).
+**Estimated monthly cost:** $8-18/mo depending on usage intensity (excluding CC/CSP Optimizer agent runs).

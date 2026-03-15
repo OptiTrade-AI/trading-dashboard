@@ -6,6 +6,7 @@ import { useHoldings } from '@/hooks/useHoldings';
 import { useCoveredCalls } from '@/hooks/useCoveredCalls';
 import { useStockPrices } from '@/hooks/useStockPrices';
 import { useCallOptimizer } from '@/hooks/useCallOptimizer';
+import { useEarningsDates } from '@/hooks/useEarningsDates';
 import { usePrivacy } from '@/contexts/PrivacyContext';
 import { OptimizerTickerStrip } from '@/components/optimizer/OptimizerTickerStrip';
 import { OptimizerHoldingSummary } from '@/components/optimizer/OptimizerHoldingSummary';
@@ -38,13 +39,13 @@ function OptimizerPage() {
   const router = useRouter();
   const { privacyMode } = usePrivacy();
 
-  const { holdings } = useHoldings();
+  const { holdings, getCostBasis } = useHoldings();
   const { openCalls, addCall } = useCoveredCalls();
-  const { getCostBasis } = useHoldings();
 
   // Get unique tickers from holdings
   const holdingTickers = [...new Set(holdings.map(h => h.ticker.toUpperCase()))];
   const { prices: stockPrices } = useStockPrices(holdingTickers);
+  const { earningsMap } = useEarningsDates(holdingTickers);
 
   // Selected ticker (from URL or click)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(
@@ -277,7 +278,7 @@ function OptimizerPage() {
         <>
           <OptimizerAIPanel
             analysis={null}
-            analyses={savedTrace.result || []}
+            analyses={(savedTrace.result || []) as OptimizerAIAnalysis[]}
             loading={false}
             error={null}
             progress=""
@@ -399,6 +400,8 @@ function OptimizerPage() {
               onSort={optimizer.toggleSort}
               onWriteCall={handleWriteCall}
               aiPickSymbol={optimizer.aiAnalysis?.topPick?.symbol}
+              earningsMap={earningsMap}
+              ticker={selectedTicker}
               privacyMode={privacyMode}
             />
           )}
@@ -437,6 +440,7 @@ function OptimizerPage() {
         onSelect={(trace) => { setSavedTrace(trace); setHistoryOpen(false); }}
         activeTraceId={savedTrace?.id}
         privacyMode={privacyMode}
+        feature="cc-optimizer"
       />
     </div>
   );

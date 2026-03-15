@@ -51,7 +51,9 @@ Market data flows from Polygon.io API → Next.js API routes (server-side) → S
 | Holdings | `/holdings` | Stock inventory with live prices, charts, sparklines, treemap, heatmap, lot grouping by ticker |
 | Stock Events | `/stock` | Realized stock P/L and tax loss harvest ledger |
 | Analytics | `/analytics` | 10+ Recharts visualizations (cumulative P/L, heatmap, scatter, etc.), SPY benchmark comparison, P/L annotations, interactive strategy drill-down, stock capital gains |
-| Optimizer | `/optimizer` | Covered call optimizer for underwater and above-water positions — AI agent with strategy lanes (breakeven/balanced/income for underwater, yield-weekly/biweekly/monthly for above-water), target return %, catalyst analysis, web search, options chain analysis, recovery projections, trace viewer, and one-click CC writing |
+| CC Optimizer | `/optimizer` | Covered call optimizer for underwater and above-water positions — AI agent with strategy lanes (breakeven/balanced/income for underwater, yield-weekly/biweekly/monthly for above-water), target return %, catalyst analysis, web search, options chain analysis, recovery projections, trace viewer, and one-click CC writing |
+| CSP Optimizer | `/csp-optimizer` | Hybrid pipeline + agentic CSP optimizer — displays quantitative screener results from the Python CSP pipeline, lets user select candidates for AI deep analysis. AI agent with 7 tools (put options chain, stock price, historical prices, screener data, CSP history, portfolio exposure, web search) produces 3 strategy lanes (conservative/balanced/aggressive), assignment scenario, position sizing, catalyst research, and "Write This Put" trade creation |
+| Screeners Hub | `/screeners` | Unified screener dashboard with 5 tabs (CSP, PCS, Aggressive, Charts, Swing), pipeline management strip, filter presets, overview cards, and tab-specific result tables. Sub-routes `/screeners/csp`, `/screeners/pcs`, `/screeners/aggressive`, `/screeners/charts`, `/screeners/swing` redirect to tabs. `/pipelines` redirects here |
 | AI Chat | `/analysis` | Conversational AI trading coach with saved history and "Discuss in Chat" integration |
 | Login | `/login` | Google OAuth sign-in page (only page accessible without auth) |
 
@@ -90,6 +92,12 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `useTableSortFilter` | Generic table sort/filter state: sorting by any key with custom extractors, filtering by status/ticker/date range. Used by all trade log tables |
 | `useTradeStats` | Lightweight stats calculator: total P/L, win/loss counts, win rate, open/closed counts. Generic over any trade type via `calculatePL` parameter |
 | `useCallOptimizer` | CC optimizer: fetches options chain via `/api/cc-optimizer`, client-side param filtering (delta/DTE/premium/loss/targetReturnPct), sorting, preset strategies (conservative/moderate/aggressive/recovery), target monthly return %, and AI analysis via streaming `/api/ai/cc-optimizer` with strategy lanes and agent trace |
+| `useCspOptimizer` | CSP optimizer: combines pipeline screener data (via `useCspOpportunities`) with agentic AI analysis. Client-side filtering (delta/DTE/ROR/IV/OI/score/marketCap/sector), filter presets (conservative/balanced/aggressive/all), ticker selection with "Select Top N", streaming AI analysis via `/api/ai/csp-optimizer` with per-ticker progress, strategy lanes, and agent trace |
+| `useScreenerHub` | Master screener orchestrator: combines all screener hooks + pipeline progress. Returns per-tab data, counts, top picks, confluence tickers, pipeline health, and controls for running pipelines (single or "Run All" sequential queue) |
+| `useScreenerData` | Individual screener SWR hooks: `useCspOpportunities`, `usePcsOpportunities`, `useAggressiveOpportunities`, `useChartSetups`, `useSwingSignals`, `usePipelines`, `usePipelineHistory`. All cache 60s with 60s dedup |
+| `usePipelineProgress` | Opens EventSource to `/api/pipelines/events/[runId]` for real-time pipeline run progress (status, progress %, duration, opportunities, errors) |
+| `useCspScoreHistory` | Fetches CSP opportunity score history for selected tickers (up to 50) with trend analysis (up/down/stable/new) |
+| `useEarningsDates` | Fetches estimated next earnings dates for array of tickers via `/api/earnings-dates` (1h dedup) |
 
 ### Dashboard Components
 
@@ -111,7 +119,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | ImportModal | `src/components/ImportModal.tsx` | CSV import with file upload, drag-and-drop, paste, row validation |
 | AITradeCheck | `src/components/AITradeCheck.tsx` | Pre-trade risk check with live market data, strategy-specific metrics (ROC/ROS/Greeks), and AI insights in all add-trade modals |
 | AIRollAdvisor | `src/components/AIRollAdvisor.tsx` | Roll suggestions with live options chain in all close modals |
-| BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | AI pattern recognition with evolution tracking on Analytics page |
+| BehavioralPatterns | `src/components/BehavioralPatterns.tsx` | 3-lens AI pattern analysis (timing/exit/strategy) with time range sync, trade fingerprinting, severity-based findings, streaming progress, and history browser |
 | AICostIndicator | `src/components/AICostIndicator.tsx` | Nav button with sparkle icon + centered modal (portaled): hero with count-up animation & sparkline, 30-day stacked AreaChart by model, feature BarChart, model split segmented bar, token efficiency, recent activity timeline. Privacy mode overlays on all charts |
 | UncoveredHoldingsCard | `src/components/dashboard/UncoveredHoldingsCard.tsx` | Shows holdings not covered by calls, with per-ticker "Optimize" links to `/optimizer` and header CTA |
 | DiscussChatLink | `src/components/DiscussChatLink.tsx` | "Discuss in Chat" button linking AI outputs to conversational coach |
@@ -119,17 +127,36 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | OptimizerTickerStrip | `src/components/optimizer/OptimizerTickerStrip.tsx` | Horizontal ticker cards for uncovered holdings with coverage status, "AI Analyze All" button |
 | OptimizerHoldingSummary | `src/components/optimizer/OptimizerHoldingSummary.tsx` | Selected ticker summary: cost basis, shares, stock price, underwater %, historical CC premium |
 | OptimizerParamControls | `src/components/optimizer/OptimizerParamControls.tsx` | Preset strategy selector (conservative/moderate/aggressive/recovery) with active param chips and match count |
-| OptimizerChainTable | `src/components/optimizer/OptimizerChainTable.tsx` | Sortable options chain table with strike, premium, annualized return, distance metrics, "Write This Call" action |
+| OptimizerChainTable | `src/components/optimizer/OptimizerChainTable.tsx` | Sortable options chain table with strike, premium, annualized return, distance metrics, earnings collision warning, "Write This Call" action |
 | OptimizerRecoveryChart | `src/components/optimizer/OptimizerRecoveryChart.tsx` | Recharts chart showing premium income vs cost basis gap for recovery projection |
 | OptimizerScatterChart | `src/components/optimizer/OptimizerScatterChart.tsx` | Recharts scatter plot of annualized return vs delta for strike comparison |
 | OptimizerTargetReturn | `src/components/optimizer/OptimizerTargetReturn.tsx` | Monthly return target selector with quick presets (1%/2%/4%/6%) and custom slider, context line showing per-share premium needed |
 | OptimizerAIPanel | `src/components/optimizer/OptimizerAIPanel.tsx` | AI analysis with strategy lane cards (breakeven/balanced/income or yield-weekly/biweekly/monthly), catalyst banner, position type detection, metrics strips with called-away P/L and monthly/annualized returns. Falls back to top pick + alternates for old traces |
 | OptimizerTraceViewer | `src/components/optimizer/OptimizerTraceViewer.tsx` | Visual agent trace: step-by-step tool calls, thinking, results with timing and cost. Uses React Flow for node graph |
-| TraceHistoryDrawer | `src/components/optimizer/TraceHistoryDrawer.tsx` | Slide-out drawer listing past AI agent traces from MongoDB, click to replay |
+| TraceHistoryDrawer | `src/components/optimizer/TraceHistoryDrawer.tsx` | Slide-out drawer listing past AI agent traces from MongoDB, click to replay. Supports `feature` filter prop to show only cc-optimizer or csp-optimizer traces |
+| CspOptimizerFilterBar | `src/components/csp-optimizer/CspOptimizerFilterBar.tsx` | All CSP filter knobs (delta/DTE/ROR/IV/OI/score/marketCap/sector) with preset buttons (Conservative/Balanced/Aggressive/All) and match count |
+| CspOptimizerSelectionBar | `src/components/csp-optimizer/CspOptimizerSelectionBar.tsx` | "Select Top N" quick buttons, selected count badge, estimated AI cost, "AI Analyze Selected" CTA |
+| CspOptimizerTable | `src/components/csp-optimizer/CspOptimizerTable.tsx` | Pipeline results table with checkbox selection, AI status indicators (spinner/checkmark), sortable columns, "Write Put" action. Uses @tanstack/react-table |
+| CspOptimizerAIPanel | `src/components/csp-optimizer/CspOptimizerAIPanel.tsx` | AI analysis cards with 3 strategy lanes (conservative/balanced/aggressive), catalyst banner, "Why This Trade" thesis, assignment scenario (effective cost basis, quality assessment, CC opportunity), position sizing (contracts, capital, heat impact), IV/Bollinger/sector context, key risks, "Write This Put" per lane, "Discuss in Chat" integration |
+| CspOptimizerComparisonView | `src/components/csp-optimizer/CspOptimizerComparisonView.tsx` | Side-by-side ticker comparison table with strategy mode toggle, best-value highlighting, and per-metric ranking across analyzed tickers |
+| CspOptimizerPipelineStatus | `src/components/csp-optimizer/CspOptimizerPipelineStatus.tsx` | Pipeline run status banner with opportunity count, freshness indicator, progress bar, and "Run Pipeline" / "Run Again" actions |
+| ScreenerHub | `src/components/screeners/ScreenerHub.tsx` | Master screener component: manages active tab, filters, pipeline controls, and delegates to tab-specific result views |
+| ScreenerTabBar | `src/components/screeners/ScreenerTabBar.tsx` | 5 color-coded tabs (CSP, PCS, Aggressive, Charts, Swing) with per-tab opportunity counts |
+| ScreenerPipelineStrip | `src/components/screeners/ScreenerPipelineStrip.tsx` | Horizontal strip of pipeline cards with "Run All" button and overall pipeline status |
+| ScreenerOverviewCards | `src/components/screeners/ScreenerOverviewCards.tsx` | 4 summary cards: top CSP, top PCS, confluence tickers (swing), and pipeline health with total opportunity count |
+| ScreenerFilterBar | `src/components/screeners/ScreenerFilterBar.tsx` | Tab-aware filter controls with presets (Conservative/Balanced/Aggressive/All) and match count |
+| ScreenerResultsPanel | `src/components/screeners/ScreenerResultsPanel.tsx` | Delegates to tab-specific result component (CspResultsView, PcsResultsView, AggressiveResultsView, ChartSetupsResultsView, SwingResultsView) |
+| CspTable | `src/components/screeners/CspTable.tsx` | TanStack table for CSP opportunities: score badge, ticker, strike, DTE, ROR%, IV, OI, market cap, sector. Sortable, paginated, "Write Put" action |
+| PcsTable | `src/components/screeners/PcsTable.tsx` | TanStack table for put credit spread opportunities |
+| AggressiveCard | `src/components/screeners/AggressiveCard.tsx` | Card for individual aggressive call/put opportunity |
+| SwingSignalCard | `src/components/screeners/SwingSignalCard.tsx` | Card for individual swing trade signal (long/short) |
+| PipelineCard | `src/components/screeners/PipelineCard.tsx` | Card for single pipeline: status badge, last run time, duration, opportunity count, progress bar, "Run" button |
+| QuickTradeButton | `src/components/screeners/QuickTradeButton.tsx` | One-click "Write This Put/Call" action button for trade creation from screener results |
+| OpportunityScoreBadge | `src/components/screeners/OpportunityScoreBadge.tsx` | Reusable color-coded score display badge for CSP opportunity scores |
 
 ### Key Files
 
-- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation, StrategyLane, OptimizerAIAnalysis
+- `src/types/index.ts` — All TypeScript interfaces and type unions for trades, exit reasons, spread types, PLAnnotation, StrategyLane, OptimizerAIAnalysis, CspStrategyLane, CspOptimizerAIAnalysis
 - `src/lib/utils.ts` — P/L calculations, formatting, CSV export, `cn()` class helper
 - `src/lib/mongodb.ts` — MongoDB connection with dev-mode global caching
 - `src/lib/collections.ts` — Typed collection accessors for each MongoDB collection (including annotations)
@@ -139,14 +166,16 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - `src/app/analytics/page.tsx` — Charts, analytics, SPY benchmark, and P/L annotations
 - `src/app/analysis/page.tsx` — Conversational AI trading coach with saved history
 - `src/lib/ai.ts` — Shared Anthropic client, `aiCall()`, `aiStream()` (with retry on 529), `extractJSON()`, automatic usage tracking
-- `src/lib/ai-data.ts` — Server-side portfolio data gathering for all AI features
+- `src/lib/ai-data.ts` — Server-side portfolio data gathering for all AI features, includes `getCspTradesForTicker()` for CSP optimizer agent
 - `src/lib/polygon.ts` — Polygon options chain fetcher with 5-min in-memory cache
 - `src/lib/createTradeRoute.ts` — Generic API route factory for trade CRUD (GET, POST, PATCH, DELETE)
 - `src/lib/fetcher.ts` — SWR fetch wrapper for GET requests
 - `src/lib/strategy-colors.ts` — Canonical strategy color palette (text/bg/border classes + hex for Recharts) per strategy type
 - `src/lib/starterPrompts.ts` — Context-aware starter prompt generation for AI chat
 - `src/lib/chatContext.ts` — Portfolio context helpers for AI chat
-- `src/lib/tavily.ts` — Tavily web search client for AI agent (CC Optimizer)
+- `src/lib/tavily.ts` — Tavily web search client for AI agents (CC Optimizer and CSP Optimizer)
+- `src/lib/pipeline-runner.ts` — Python pipeline subprocess spawner with run tracking, progress parsing, 10-min timeout, and MongoDB result persistence. Maps `PipelineType` to Python module entry points
+- `src/lib/screener-colors.ts` — Canonical screener color palette per tab (csp=emerald, pcs=purple, aggressive=amber, charts=blue, swing=cyan) with text/bg/border classes + hex
 - `src/lib/auth.ts` — NextAuth v5 config: Google OAuth provider, single-email whitelist (`ALLOWED_EMAIL`), `authorized` callback for proxy
 - `src/proxy.ts` — Next.js 16 edge proxy: redirects unauthenticated requests to `/login`, protects all pages and API routes
 
@@ -162,7 +191,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/stock-events` | GET, POST, PATCH, DELETE | Realized stock P/L and TLH ledger |
 | `/api/annotations` | GET, POST, PATCH, DELETE | P/L chart annotations CRUD |
 | `/api/settings` | GET, POST | Account settings (account value, max heat %) |
-| `/api/agent-traces` | GET | Agent trace history (list or single by `?id=`) |
+| `/api/agent-traces` | GET | Agent trace history (list or single by `?id=`). Supports `?feature=cc-optimizer` or `?feature=csp-optimizer` to filter by agent type |
 | `/api/auth/[...nextauth]` | GET, POST | NextAuth v5 OAuth handlers (Google sign-in/out/callback) |
 
 ### API Routes — Market Data (Polygon.io)
@@ -174,6 +203,7 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/stock-aggregates` | OHLC bar data for charts (5-min in-memory cache) |
 | `/api/ticker-details` | Company name metadata |
 | `/api/market-status` | Market open/closed/extended-hours |
+| `/api/earnings-dates` | Estimated next earnings dates per ticker via Polygon financials (1h in-memory cache, up to 50 tickers) |
 
 ### API Routes — AI Features (Anthropic Claude)
 
@@ -190,8 +220,25 @@ Five independent trade types, each with its own type definition (`src/types/inde
 | `/api/analysis` | GET, POST, DELETE | Trade analysis debrief with streaming and history |
 | `/api/chat` | GET, POST, PATCH, DELETE | Multi-turn conversational AI with history management |
 | `/api/ai/cc-optimizer` | POST | Streaming AI agent for CC optimization — auto-detects underwater vs above-water positions, parallel per-ticker tool_use loops (up to 8 iterations each) with 6 tools (options chain, stock price, historical prices, holdings, CC history, web search) and Tavily; accepts `targetReturnPct` for yield mode; returns SSE with strategy lanes, catalysts, progress, analysis, and agent trace |
+| `/api/ai/csp-optimizer` | POST | Streaming AI agent for CSP optimization — takes tickers from pipeline screener results, runs parallel per-ticker analysis (up to 8 iterations each) with 7 tools (put options chain, stock price, historical prices, screener data, CSP history, portfolio exposure, web search); returns SSE with 3 strategy lanes (conservative/balanced/aggressive), assignment scenario, position sizing, catalysts, and agent trace. Traces saved with `feature: 'csp-optimizer'` |
 | `/api/cc-optimizer` | GET | Options chain data with computed optimizer metrics (annualized return, distance from cost basis, recovery weeks, called-away P/L) for a ticker |
 | `/api/chat/context` | POST | Create conversation with pre-loaded context |
+
+### API Routes — Screeners & Pipelines
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/screeners/csp` | GET | Latest CSP_ENHANCED pipeline results with scored opportunities |
+| `/api/screeners/csp/history` | GET | CSP score history for selected tickers (up to 50). Query: `?tickers=AAPL,MSFT`. Returns trend analysis (up/down/stable/new) |
+| `/api/screeners/pcs` | GET | Latest PCS_SCREENER pipeline results |
+| `/api/screeners/aggressive` | GET | Latest AGGRESSIVE_OPTIONS results with calls/puts/ticker_changes |
+| `/api/screeners/charts` | GET | Latest CHART_SETUPS pipeline results |
+| `/api/screeners/swing` | GET | Latest SWING_TRADES results with long/short signals |
+| `/api/pipelines` | GET | Lists all 5 pipeline types with metadata (last run, status, duration, opportunity count) |
+| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Returns `{ runId, status: 'RUNNING' }` |
+| `/api/pipelines/[type]/status/[runId]` | GET | Status of a specific pipeline run (in-memory + DB fallback) |
+| `/api/pipelines/[type]/history` | GET | Run history for pipeline type. Query: `?limit=10` |
+| `/api/pipelines/events/[runId]` | GET | SSE streaming endpoint for real-time pipeline progress (polls 500ms, 15-min timeout) |
 
 ### UI Conventions
 
@@ -207,9 +254,11 @@ Five independent trade types, each with its own type definition (`src/types/inde
 
 - `MONGODB_URI` — MongoDB connection string
 - `MONGODB_DB` — Database name (defaults to `csp-tracker`)
-- `ANTHROPIC_API_KEY` — Anthropic API key for 10 AI features (server-side only)
+- `ANTHROPIC_API_KEY` — Anthropic API key for 11 AI features (server-side only)
 - `POLYGON_API_KEY` — Polygon.io API key for real-time stock/option prices (server-side only)
-- `TAVILY_API_KEY` — Tavily API key for AI agent web search in CC Optimizer (server-side only)
+- `TAVILY_API_KEY` — Tavily API key for AI agent web search in CC Optimizer and CSP Optimizer (server-side only)
+- `PIPELINE_SCRIPTS_DIR` — Path to Python pipelines directory (required for screener pipelines)
+- `PYTHON_PATH` — Python binary path (optional, defaults to `python` or `{PIPELINE_SCRIPTS_DIR}/venv/bin/python`)
 - `AUTH_SECRET` — NextAuth session encryption secret (generate via `openssl rand -base64 32`)
 - `GOOGLE_CLIENT_ID` — Google OAuth 2.0 client ID (from Google Cloud Console)
 - `GOOGLE_CLIENT_SECRET` — Google OAuth 2.0 client secret
@@ -224,8 +273,9 @@ Five independent trade types, each with its own type definition (`src/types/inde
 - **Recharts** — All charts and visualizations
 - **Tailwind CSS** — Styling with custom dark theme tokens
 - **date-fns** — Date formatting and calculations
-- **Anthropic SDK** — 10 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker, CC optimizer agent (server-side)
-- **Tavily** — Web search for AI agent in CC Optimizer (analyst targets, earnings dates, news)
+- **Anthropic SDK** — 11 AI features: exit coach, smart alerts, trade check, patterns, roll advisor, earnings watch, daily summary, chat, cost tracker, CC optimizer agent, CSP optimizer agent (server-side)
+- **Tavily** — Web search for AI agents in CC Optimizer and CSP Optimizer (analyst targets, earnings dates, news)
+- **TanStack React Table** — Headless table for CSP optimizer and screener tables (`@tanstack/react-table`)
 - **React Flow** — Node graph visualization for AI agent trace viewer (`@xyflow/react`)
 - **NextAuth v5** — Authentication via Google OAuth, single-user email whitelist, edge proxy protection
 

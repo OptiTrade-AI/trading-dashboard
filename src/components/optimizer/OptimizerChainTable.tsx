@@ -13,7 +13,14 @@ interface OptimizerChainTableProps {
   onSort: (key: keyof OptimizerRow) => void;
   onWriteCall: (row: OptimizerRow) => void;
   aiPickSymbol?: string;
+  earningsMap?: Map<string, string | null>;
+  ticker?: string | null;
   privacyMode: boolean;
+}
+
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 const COLUMNS: { key: keyof OptimizerRow; label: string; tip?: string; align?: string; format?: (v: number | null, row: OptimizerRow) => string }[] = [
@@ -57,8 +64,12 @@ export function OptimizerChainTable({
   onSort,
   onWriteCall,
   aiPickSymbol,
+  earningsMap,
+  ticker,
   privacyMode,
 }: OptimizerChainTableProps) {
+  // Resolve earnings date for this ticker
+  const earningsDate = ticker ? earningsMap?.get(ticker) : undefined;
   const mask = (val: string) => privacyMode ? '***' : val;
 
   // Filter to viable strikes
@@ -91,6 +102,7 @@ export function OptimizerChainTable({
         <div className="flex items-center gap-3 text-[10px] text-muted/50">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/30" /> Profit if called</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-purple-500/30" /> AI pick</span>
+          {earningsDate && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-500/30" /> Crosses earnings</span>}
         </div>
       </div>
 
@@ -118,6 +130,11 @@ export function OptimizerChainTable({
                   </span>
                 </th>
               ))}
+              {earningsDate && (
+                <th className="px-3 py-2.5 text-xs font-medium text-muted whitespace-nowrap" title="Earnings collision check">
+                  Earn.
+                </th>
+              )}
               <th className="px-3 py-2.5 text-xs font-medium text-muted text-right">Action</th>
             </tr>
           </thead>
@@ -125,6 +142,9 @@ export function OptimizerChainTable({
             {viableChain.map((row) => {
               const isAIPick = row.symbol === aiPickSymbol;
               const calledPLPositive = row.calledAwayPL >= 0;
+              const crossesEarnings = earningsDate
+                ? new Date(row.expiration + 'T00:00:00') >= new Date(earningsDate + 'T00:00:00')
+                : false;
 
               return (
                 <tr
@@ -133,6 +153,7 @@ export function OptimizerChainTable({
                     'border-b border-border/50 hover:bg-card/50 transition-colors',
                     isAIPick && 'bg-purple-500/5 ring-1 ring-inset ring-purple-500/20',
                     calledPLPositive && !isAIPick && 'bg-emerald-500/5',
+                    crossesEarnings && 'border-l-2 border-l-red-500/40',
                   )}
                 >
                   {COLUMNS.map(col => {
@@ -169,6 +190,22 @@ export function OptimizerChainTable({
                       </td>
                     );
                   })}
+                  {earningsDate && (
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {crossesEarnings ? (
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20"
+                          title={`Earnings ${earningsDate} — expiration crosses earnings`}
+                        >
+                          ER {formatShortDate(earningsDate)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-emerald-500/70" title={`Earnings ${earningsDate} — expires before`}>
+                          Safe
+                        </span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-right">
                     <button
                       onClick={() => onWriteCall(row)}

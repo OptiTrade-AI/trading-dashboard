@@ -503,7 +503,7 @@ export default function Analytics() {
       </div>
 
       {/* ── Behavioral Patterns (AI) ── */}
-      <BehavioralPatterns />
+      <BehavioralPatterns timeRange={timeRange} />
 
       {/* ── Strategy Trades Modal ── */}
       {strategyTradesModal && analytics.strategyTrades[strategyTradesModal] && (
