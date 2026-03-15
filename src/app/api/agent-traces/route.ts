@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       .find(filter, {
         projection: {
           id: 1,
+          name: 1,
           createdAt: 1,
           tickers: 1,
           mode: 1,
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
 
     const result = traces.map(t => ({
       id: t.id,
+      name: t.name,
       createdAt: t.createdAt,
       tickers: t.tickers,
       mode: t.mode,
@@ -76,5 +78,29 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error('Agent traces fetch error:', err);
     return NextResponse.json({ error: 'Failed to fetch traces' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, name } = body as { id?: string; name?: string };
+
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json({ error: 'Missing trace id' }, { status: 400 });
+    }
+
+    const trimmed = typeof name === 'string' ? name.trim().slice(0, 100) : '';
+
+    const col = await getAgentTracesCollection();
+    const result = await col.updateOne({ id }, { $set: { name: trimmed || undefined } });
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Trace not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, name: trimmed || null });
+  } catch (err) {
+    console.error('Agent trace update error:', err);
+    return NextResponse.json({ error: 'Failed to update trace' }, { status: 500 });
   }
 }
