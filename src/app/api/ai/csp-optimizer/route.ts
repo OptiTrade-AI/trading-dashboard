@@ -208,7 +208,7 @@ async function executeAgentTool(
       try {
         const runsCol = await getPipelineRunsCollection();
         const latestRun = await runsCol.findOne(
-          { pipelineType: 'CSP_ENHANCED', status: 'COMPLETED' },
+          { pipelineType: { $in: ['CSP_SCREENER', 'CSP_ENHANCED' as never] }, status: 'COMPLETED' },
           { sort: { completedAt: -1 } },
         );
         if (!latestRun) return { ticker, error: 'No pipeline data available' };

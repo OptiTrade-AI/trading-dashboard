@@ -43,14 +43,15 @@ Python pipelines run as subprocesses, write results to MongoDB, and the Next.js 
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/screeners/csp` | GET | Latest CSP_ENHANCED pipeline results with scored opportunities |
+| `/api/screeners/csp` | GET | Latest CSP_SCREENER pipeline results with scored opportunities |
 | `/api/screeners/csp/history` | GET | CSP score history for selected tickers. Query: `?tickers=AAPL,MSFT` (up to 50). Returns trend analysis (up/down/stable/new) |
 | `/api/screeners/aggressive` | GET | Latest AGGRESSIVE_OPTIONS results with calls/puts separated + ticker changes |
 | `/api/pipelines` | GET | Lists all pipeline types with metadata (last run, status, duration, opportunities) |
-| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Accepts optional `{ tickers: string[] }` body to run on specific tickers (CSP Enhanced). Returns `{ runId, status: 'RUNNING' }` |
+| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Accepts optional `{ tickers: string[], config: CspPipelineConfig }` body. If no config, loads saved config from DB. Returns `{ runId, status: 'RUNNING' }` |
 | `/api/pipelines/[type]/status/[runId]` | GET | Status of a specific pipeline run (in-memory + DB fallback) |
 | `/api/pipelines/[type]/history` | GET | Run history for pipeline type. Query: `?limit=10` |
 | `/api/pipelines/events/[runId]` | GET | SSE streaming for real-time pipeline progress (polls 500ms, 15-min timeout) |
+| `/api/pipeline-config` | GET, POST | GET: `?pipelineType=CSP_SCREENER` returns stored config merged with defaults. POST: `{ pipelineType, config }` upserts singleton per pipeline type |
 
 ## Watchlists
 

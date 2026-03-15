@@ -489,4 +489,4 @@ graph TD
 | **Market** | Polygon.io | Stock prices, option quotes, aggregates, events |
 | **AI** | Anthropic Claude | Haiku 4.5 (fast calls), Sonnet 4.6 (deep analysis + CC/CSP Optimizer agents) |
 | **Search** | Tavily | Web search for AI agents (analyst targets, earnings, news) |
-| **Pipelines** | Python subprocesses | Quantitative screeners (CSP Enhanced, CSP Screener, Aggressive Options) |
+| **Pipelines** | Python subprocesses | Quantitative screeners (CSP Screener, Aggressive Options) with UI-configurable parameters |

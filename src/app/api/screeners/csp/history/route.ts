@@ -26,10 +26,10 @@ export async function GET(request: NextRequest) {
     const runsCol = await getPipelineRunsCollection();
     const resultsCol = await getPipelineResultsCollection();
 
-    // Get last 10 completed CSP_ENHANCED runs
+    // Get last 10 completed CSP Screener runs
     const recentRuns = await runsCol
       .find(
-        { pipelineType: 'CSP_ENHANCED', status: 'COMPLETED' },
+        { pipelineType: { $in: ['CSP_SCREENER', 'CSP_ENHANCED' as never] }, status: 'COMPLETED' },
         { sort: { completedAt: -1 }, limit: 10, projection: { id: 1, completedAt: 1 } },
       )
       .toArray();

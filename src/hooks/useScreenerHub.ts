@@ -12,17 +12,18 @@ import type {
   ScreenerTab,
   PipelineType,
   CspOpportunity,
+  CspPipelineConfig,
 } from '@/types';
 
 /** Maps screener tab → pipeline type(s) that feed it */
 const TAB_PIPELINE_MAP: Record<ScreenerTab, PipelineType[]> = {
-  csp: ['CSP_ENHANCED'],
+  csp: ['CSP_SCREENER'],
   aggressive: ['AGGRESSIVE_OPTIONS'],
 };
 
 /** Pipeline run order for "Run All" */
 const RUN_ALL_ORDER: PipelineType[] = [
-  'CSP_ENHANCED',
+  'CSP_SCREENER',
   'AGGRESSIVE_OPTIONS',
 ];
 
@@ -61,10 +62,11 @@ export function useScreenerHub() {
   }, [progressEvent, activeRunType, resetProgress]);
 
   const runPipeline = useCallback(
-    async (pipelineType: string, tickers?: string[]) => {
+    async (pipelineType: string, tickers?: string[], config?: CspPipelineConfig) => {
       try {
         const body: Record<string, unknown> = {};
         if (tickers?.length) body.tickers = tickers;
+        if (config) body.config = config;
 
         const res = await fetch(`/api/pipelines/${pipelineType}/run`, {
           method: 'POST',

@@ -3,18 +3,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { SCREENER_COLORS } from '@/lib/screener-colors';
-import type { PipelineInfo, ScreenerTab } from '@/types';
+import { usePipelineConfig } from '@/hooks/usePipelineConfig';
+import { DEFAULT_CSP_CONFIG, CSP_CONFIG_PRESETS } from '@/lib/pipeline-defaults';
+import type { PipelineInfo, ScreenerTab, CspPipelineConfig } from '@/types';
 import type { PipelineProgressEvent } from '@/hooks/usePipelineProgress';
 
 const TAB_PIPELINE_MAP: Record<ScreenerTab, string[]> = {
-  csp: ['CSP_ENHANCED'],
+  csp: ['CSP_SCREENER'],
   aggressive: ['AGGRESSIVE_OPTIONS'],
 };
 
-/** Tabs that support ticker selection */
+/** Tabs that support ticker selection + config */
 const TICKER_SELECT_TABS = new Set<ScreenerTab>(['csp']);
 
 const TABS_ORDERED: ScreenerTab[] = ['csp', 'aggressive'];
+
+const MARKET_CAP_OPTIONS = [
+  { value: 100_000_000, label: '$100M' },
+  { value: 300_000_000, label: '$300M' },
+  { value: 500_000_000, label: '$500M' },
+  { value: 1_000_000_000, label: '$1B' },
+  { value: 2_000_000_000, label: '$2B' },
+  { value: 5_000_000_000, label: '$5B' },
+];
 
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return 'Never';
@@ -36,6 +47,22 @@ function freshnessClass(dateStr: string | null): string {
   return 'border-red-500/30 bg-red-500/5';
 }
 
+function isDefault(config: CspPipelineConfig): boolean {
+  const d = DEFAULT_CSP_CONFIG;
+  return (
+    config.deltaLower === d.deltaLower &&
+    config.deltaUpper === d.deltaUpper &&
+    config.minDte === d.minDte &&
+    config.maxDte === d.maxDte &&
+    config.minOpenInterest === d.minOpenInterest &&
+    config.minImpliedVolatility === d.minImpliedVolatility &&
+    config.minReturnOnRiskPercent === d.minReturnOnRiskPercent &&
+    config.minMarketCap === d.minMarketCap &&
+    config.minStockPrice === d.minStockPrice &&
+    config.minVolume === d.minVolume
+  );
+}
+
 interface ScreenerPipelineStripProps {
   pipelines: PipelineInfo[];
   counts: Record<ScreenerTab, number>;
@@ -43,29 +70,30 @@ interface ScreenerPipelineStripProps {
   activeRunType: string | null;
   progressEvent: PipelineProgressEvent | null;
   isRunningAll: boolean;
-  onRunPipeline: (type: string, tickers?: string[]) => void;
+  onRunPipeline: (type: string, tickers?: string[], config?: CspPipelineConfig) => void;
   onRunAll: () => void;
 }
 
-/** Inline ticker selector popover for CSP Enhanced */
-function CspTickerPopover({
+/** Inline popover for CSP Screener: ticker selection + pipeline config */
+function CspPipelineConfigPopover({
   onRunAll,
   onRunSelected,
   onClose,
 }: {
-  onRunAll: () => void;
-  onRunSelected: (tickers: string[]) => void;
+  onRunAll: (config: CspPipelineConfig) => void;
+  onRunSelected: (tickers: string[], config: CspPipelineConfig) => void;
   onClose: () => void;
 }) {
   const [input, setInput] = useState('');
+  const [showConfig, setShowConfig] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { config, updateConfig, resetConfig, activePreset, setPreset } = usePipelineConfig('CSP_SCREENER');
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Close on click outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
@@ -83,7 +111,7 @@ function CspTickerPopover({
 
   const handleRunSelected = () => {
     if (parsedTickers.length > 0) {
-      onRunSelected(parsedTickers);
+      onRunSelected(parsedTickers, config);
       onClose();
     }
   };
@@ -91,10 +119,12 @@ function CspTickerPopover({
   return (
     <div
       ref={popoverRef}
-      className="absolute top-full left-0 mt-2 z-50 w-80 glass-card p-3 shadow-xl border border-emerald-500/30"
+      className="absolute top-full left-0 mt-2 z-50 glass-card p-3 shadow-xl border border-emerald-500/30"
+      style={{ width: showConfig ? 420 : 320 }}
     >
+      {/* Tickers section */}
       <label className="text-xs font-medium text-muted uppercase tracking-wider mb-1.5 block">
-        CSP Enhanced — Select Tickers
+        CSP Screener — Select Tickers
       </label>
       <input
         ref={inputRef}
@@ -117,6 +147,94 @@ function CspTickerPopover({
           ))}
         </div>
       )}
+
+      {/* Config toggle */}
+      <button
+        onClick={() => setShowConfig(!showConfig)}
+        className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors mb-2 w-full"
+      >
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          className={cn('transition-transform', showConfig && 'rotate-90')}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        Pipeline Config
+        {!isDefault(config) && (
+          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-medium">Custom</span>
+        )}
+      </button>
+
+      {/* Config section */}
+      {showConfig && (
+        <div className="border-t border-border pt-2 mb-2 space-y-2">
+          {/* Presets */}
+          <div className="flex gap-1.5">
+            {CSP_CONFIG_PRESETS.map((preset) => (
+              <button
+                key={preset.key}
+                onClick={() => setPreset(activePreset === preset.key ? null : preset.key)}
+                className={cn(
+                  'px-2 py-1 rounded-md text-[10px] font-semibold transition-all border',
+                  activePreset === preset.key
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : 'bg-card-solid text-muted border-border hover:border-emerald-500/30 hover:text-foreground',
+                )}
+                title={preset.tagline}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Param grid */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            <ConfigInput label="Delta Lower" value={config.deltaLower} step={0.05}
+              onChange={(v) => updateConfig({ deltaLower: v })} />
+            <ConfigInput label="Delta Upper" value={config.deltaUpper} step={0.05}
+              onChange={(v) => updateConfig({ deltaUpper: v })} />
+            <ConfigInput label="Min DTE" value={config.minDte} step={1}
+              onChange={(v) => updateConfig({ minDte: v })} />
+            <ConfigInput label="Max DTE" value={config.maxDte} step={1}
+              onChange={(v) => updateConfig({ maxDte: v })} />
+            <ConfigInput label="Min ROR%" value={config.minReturnOnRiskPercent} step={0.5}
+              onChange={(v) => updateConfig({ minReturnOnRiskPercent: v })} />
+            <ConfigInput label="Min IV%" value={Math.round(config.minImpliedVolatility * 100)} step={5}
+              onChange={(v) => updateConfig({ minImpliedVolatility: v / 100 })} />
+            <ConfigInput label="Min OI" value={config.minOpenInterest} step={10}
+              onChange={(v) => updateConfig({ minOpenInterest: v })} />
+            <ConfigInput label="Min Volume" value={config.minVolume} step={5}
+              onChange={(v) => updateConfig({ minVolume: v })} />
+            <ConfigInput label="Min Price" value={config.minStockPrice} step={1}
+              onChange={(v) => updateConfig({ minStockPrice: v })} />
+            <div>
+              <label className="text-[10px] text-muted block mb-0.5">Min Mkt Cap</label>
+              <select
+                value={config.minMarketCap}
+                onChange={(e) => updateConfig({ minMarketCap: Number(e.target.value) })}
+                className="w-full px-2 py-1 rounded bg-card-solid border border-border text-foreground text-xs focus:outline-none focus:border-emerald-500/50"
+              >
+                {MARKET_CAP_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Reset */}
+          {!isDefault(config) && (
+            <button
+              onClick={resetConfig}
+              className="text-[10px] text-muted hover:text-foreground transition-colors"
+            >
+              Reset to Defaults
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Run buttons */}
       <div className="flex gap-2">
         <button
           onClick={handleRunSelected}
@@ -131,12 +249,32 @@ function CspTickerPopover({
           Run {parsedTickers.length > 0 ? `${parsedTickers.length} Ticker${parsedTickers.length > 1 ? 's' : ''}` : 'Selected'}
         </button>
         <button
-          onClick={() => { onRunAll(); onClose(); }}
+          onClick={() => { onRunAll(config); onClose(); }}
           className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-accent/15 text-accent hover:bg-accent/25 transition-all"
         >
           Run All (~4K)
         </button>
       </div>
+    </div>
+  );
+}
+
+function ConfigInput({ label, value, step, onChange }: {
+  label: string;
+  value: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <label className="text-[10px] text-muted block mb-0.5">{label}</label>
+      <input
+        type="number"
+        value={value}
+        step={step}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full px-2 py-1 rounded bg-card-solid border border-border text-foreground text-xs focus:outline-none focus:border-emerald-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
     </div>
   );
 }
@@ -278,11 +416,11 @@ export function ScreenerPipelineStrip({
               )}
             </button>
 
-            {/* Ticker selection popover */}
+            {/* Ticker selection + config popover */}
             {openPopover === tab && pipeline && !isRunning && (
-              <CspTickerPopover
-                onRunAll={() => onRunPipeline(pipeline.type)}
-                onRunSelected={(tickers) => onRunPipeline(pipeline.type, tickers)}
+              <CspPipelineConfigPopover
+                onRunAll={(cfg) => onRunPipeline(pipeline.type, undefined, cfg)}
+                onRunSelected={(tickers, cfg) => onRunPipeline(pipeline.type, tickers, cfg)}
                 onClose={() => setOpenPopover(null)}
               />
             )}

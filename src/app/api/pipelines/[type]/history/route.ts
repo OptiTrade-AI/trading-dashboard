@@ -9,7 +9,7 @@ export async function GET(
   const { type } = await params;
   const pipelineType = type.toUpperCase();
 
-  const VALID_TYPES = ['CSP_ENHANCED', 'AGGRESSIVE_OPTIONS'];
+  const VALID_TYPES = ['CSP_SCREENER', 'AGGRESSIVE_OPTIONS'];
   if (!VALID_TYPES.includes(pipelineType)) {
     return NextResponse.json({ error: `Invalid pipeline type: ${pipelineType}` }, { status: 400 });
   }
@@ -21,7 +21,7 @@ export async function GET(
     // Try DB first for full history
     const col = await getPipelineRunsCollection();
     const dbRuns = await col
-      .find({ pipelineType: pipelineType as import('@/types').PipelineType }, { projection: { _id: 0 } })
+      .find({ pipelineType: pipelineType === 'CSP_SCREENER' ? { $in: ['CSP_SCREENER', 'CSP_ENHANCED' as never] } : pipelineType as import('@/types').PipelineType }, { projection: { _id: 0 } })
       .sort({ startedAt: -1 })
       .limit(limit)
       .toArray();
