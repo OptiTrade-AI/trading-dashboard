@@ -5,46 +5,32 @@ import { mutate } from 'swr';
 import {
   usePipelines,
   useCspOpportunities,
-  usePcsOpportunities,
   useAggressiveOpportunities,
-  useChartSetups,
-  useSwingSignals,
 } from './useScreenerData';
 import { usePipelineProgress } from './usePipelineProgress';
 import type {
   ScreenerTab,
   PipelineType,
   CspOpportunity,
-  PcsOpportunity,
-  SwingSignal,
 } from '@/types';
 
 /** Maps screener tab → pipeline type(s) that feed it */
 const TAB_PIPELINE_MAP: Record<ScreenerTab, PipelineType[]> = {
   csp: ['CSP_ENHANCED'],
-  pcs: ['PCS_SCREENER'],
   aggressive: ['AGGRESSIVE_OPTIONS'],
-  charts: ['CHART_SETUPS'],
-  swing: ['SWING_TRADES'],
 };
 
 /** Pipeline run order for "Run All" */
 const RUN_ALL_ORDER: PipelineType[] = [
   'CSP_ENHANCED',
-  'PCS_SCREENER',
   'AGGRESSIVE_OPTIONS',
-  'CHART_SETUPS',
-  'SWING_TRADES',
 ];
 
 export function useScreenerHub() {
   // ----- Data hooks -----
   const { data: pipelines, isLoading: pipelinesLoading } = usePipelines();
   const { data: cspData, isLoading: cspLoading } = useCspOpportunities();
-  const { data: pcsData, isLoading: pcsLoading } = usePcsOpportunities();
   const { data: aggressiveData, isLoading: aggLoading } = useAggressiveOpportunities();
-  const { data: chartsData, isLoading: chartsLoading } = useChartSetups();
-  const { data: swingData, isLoading: swingLoading } = useSwingSignals();
 
   // ----- Pipeline run state -----
   const [runningPipelines, setRunningPipelines] = useState<Record<string, string>>({});
@@ -75,9 +61,16 @@ export function useScreenerHub() {
   }, [progressEvent, activeRunType, resetProgress]);
 
   const runPipeline = useCallback(
-    async (pipelineType: string) => {
+    async (pipelineType: string, tickers?: string[]) => {
       try {
-        const res = await fetch(`/api/pipelines/${pipelineType}/run`, { method: 'POST' });
+        const body: Record<string, unknown> = {};
+        if (tickers?.length) body.tickers = tickers;
+
+        const res = await fetch(`/api/pipelines/${pipelineType}/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
         if (!res.ok) throw new Error('Failed to start pipeline');
         const data = await res.json();
         const runId = data.runId as string;
@@ -123,12 +116,9 @@ export function useScreenerHub() {
   const counts = useMemo(
     () => ({
       csp: cspData?.length ?? 0,
-      pcs: pcsData?.length ?? 0,
       aggressive: (aggressiveData?.calls?.length ?? 0) + (aggressiveData?.puts?.length ?? 0),
-      charts: chartsData?.chart_setups?.length ?? 0,
-      swing: (swingData?.long_signals?.length ?? 0) + (swingData?.short_signals?.length ?? 0),
     }),
-    [cspData, pcsData, aggressiveData, chartsData, swingData],
+    [cspData, aggressiveData],
   );
 
   const totalOpportunities = useMemo(
@@ -141,24 +131,6 @@ export function useScreenerHub() {
     if (!cspData || cspData.length === 0) return null;
     return [...cspData].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] as CspOpportunity;
   }, [cspData]);
-
-  const topPcs = useMemo(() => {
-    if (!pcsData || pcsData.length === 0) return null;
-    return [...pcsData].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] as PcsOpportunity;
-  }, [pcsData]);
-
-  const confluenceTickers = useMemo(() => {
-    if (!swingData) return [] as string[];
-    const allSignals = [...(swingData.long_signals ?? []), ...(swingData.short_signals ?? [])];
-    const stratMap = new Map<string, Set<string>>();
-    for (const s of allSignals) {
-      if (!stratMap.has(s.ticker)) stratMap.set(s.ticker, new Set());
-      stratMap.get(s.ticker)!.add(s.strategy);
-    }
-    return Array.from(stratMap.entries())
-      .filter(([, strats]) => strats.size >= 2)
-      .map(([ticker]) => ticker);
-  }, [swingData]);
 
   // ----- Pipeline health -----
   const pipelineHealth = useMemo(() => {
@@ -192,21 +164,16 @@ export function useScreenerHub() {
   return {
     // Data
     cspData: cspData ?? [],
-    pcsData: pcsData ?? [],
     aggressiveData,
-    chartsData,
-    swingData,
     pipelines: pipelines ?? [],
     // Loading
-    isLoading: pipelinesLoading || cspLoading || pcsLoading || aggLoading || chartsLoading || swingLoading,
+    isLoading: pipelinesLoading || cspLoading || aggLoading,
     pipelinesLoading,
     // Counts
     counts,
     totalOpportunities,
     // Top picks & insights
     topCsp,
-    topPcs,
-    confluenceTickers,
     pipelineHealth,
     // Pipeline controls
     runningPipelines,

@@ -15,9 +15,6 @@ const SCRIPT_MAP: Record<PipelineType, string> = {
   AGGRESSIVE_OPTIONS: 'app.pipelines.aggressive_options',
   CSP_SCREENER: 'app.pipelines.csp_screener',
   CSP_ENHANCED: 'app.pipelines.csp_enhanced',
-  PCS_SCREENER: 'app.pipelines.pcs_screener',
-  CHART_SETUPS: 'app.pipelines.chart_setups',
-  SWING_TRADES: 'app.pipelines.swing_trades.runner',
 };
 
 export interface ProgressEvent {
@@ -153,7 +150,11 @@ function resolvePython(scriptsDir: string): string {
  * Python writes results directly to MongoDB.
  * Next.js tracks run status in-memory + MongoDB.
  */
-export async function spawnPipeline(type: PipelineType): Promise<{ runId: string }> {
+export interface SpawnOptions {
+  tickers?: string[];
+}
+
+export async function spawnPipeline(type: PipelineType, options?: SpawnOptions): Promise<{ runId: string }> {
   if (activeByType.has(type)) {
     throw new Error(`Pipeline ${type} is already running`);
   }
@@ -186,8 +187,14 @@ export async function spawnPipeline(type: PipelineType): Promise<{ runId: string
   // Persist run record before spawning
   await dbCreateRun(info);
 
+  // Build args — pass --tickers if provided
+  const args = ['-m', module, '--run-id', runId];
+  if (options?.tickers?.length) {
+    args.push('--tickers', options.tickers.join(','));
+  }
+
   // Pass --run-id so Python writes results to MongoDB linked to this run
-  const child = spawn(pythonBin, ['-m', module, '--run-id', runId], {
+  const child = spawn(pythonBin, args, {
     cwd: scriptsDir,
     env: {
       PATH: process.env.PATH ?? '',

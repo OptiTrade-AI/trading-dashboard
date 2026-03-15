@@ -1,23 +1,13 @@
 import useSWR from 'swr';
 import type {
-  CspOpportunity,
-  PcsOpportunity,
   AggressiveOpportunity,
   ScreenerTickerChanges,
-  ChartSetup,
-  SwingSignal,
+  CspOpportunity,
   PipelineInfo,
 } from '@/types';
 
 export function useCspOpportunities() {
   return useSWR<CspOpportunity[]>('/api/screeners/csp', {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
-}
-
-export function usePcsOpportunities() {
-  return useSWR<PcsOpportunity[]>('/api/screeners/pcs', {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   });
@@ -34,32 +24,6 @@ interface AggressiveData {
 
 export function useAggressiveOpportunities() {
   return useSWR<AggressiveData>('/api/screeners/aggressive', {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
-}
-
-interface ChartSetupData {
-  timestamp: string | null;
-  total_setups_found: number;
-  chart_setups: ChartSetup[];
-}
-
-export function useChartSetups() {
-  return useSWR<ChartSetupData>('/api/screeners/charts', {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
-}
-
-interface SwingData {
-  long_signals: SwingSignal[];
-  short_signals: SwingSignal[];
-  timestamp: string | null;
-}
-
-export function useSwingSignals() {
-  return useSWR<SwingData>('/api/screeners/swing', {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   });

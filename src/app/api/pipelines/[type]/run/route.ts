@@ -4,11 +4,10 @@ import type { PipelineType } from '@/types';
 
 const VALID_TYPES: PipelineType[] = [
   'AGGRESSIVE_OPTIONS', 'CSP_ENHANCED',
-  'PCS_SCREENER', 'CHART_SETUPS', 'SWING_TRADES',
 ];
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ type: string }> },
 ) {
   const { type } = await params;
@@ -22,9 +21,20 @@ export async function POST(
     return NextResponse.json({ error: `Pipeline ${pipelineType} is already running` }, { status: 409 });
   }
 
+  // Parse optional tickers from body
+  let tickers: string[] | undefined;
   try {
-    const { runId } = await spawnPipeline(pipelineType);
-    return NextResponse.json({ runId, status: 'RUNNING' });
+    const body = await request.json().catch(() => ({}));
+    if (Array.isArray(body.tickers) && body.tickers.length > 0) {
+      tickers = body.tickers.map((t: string) => t.trim().toUpperCase()).filter(Boolean);
+    }
+  } catch {
+    // No body or invalid JSON — run with all tickers
+  }
+
+  try {
+    const { runId } = await spawnPipeline(pipelineType, { tickers });
+    return NextResponse.json({ runId, status: 'RUNNING', tickers: tickers?.length ?? 'all' });
   } catch (error) {
     console.error(`Error starting pipeline ${pipelineType}:`, error);
     return NextResponse.json(

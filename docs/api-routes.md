@@ -45,15 +45,28 @@ Python pipelines run as subprocesses, write results to MongoDB, and the Next.js 
 |----------|--------|-------------|
 | `/api/screeners/csp` | GET | Latest CSP_ENHANCED pipeline results with scored opportunities |
 | `/api/screeners/csp/history` | GET | CSP score history for selected tickers. Query: `?tickers=AAPL,MSFT` (up to 50). Returns trend analysis (up/down/stable/new) |
-| `/api/screeners/pcs` | GET | Latest PCS_SCREENER pipeline results |
 | `/api/screeners/aggressive` | GET | Latest AGGRESSIVE_OPTIONS results with calls/puts separated + ticker changes |
-| `/api/screeners/charts` | GET | Latest CHART_SETUPS pipeline results |
-| `/api/screeners/swing` | GET | Latest SWING_TRADES results with long/short signals |
-| `/api/pipelines` | GET | Lists all 5 pipeline types with metadata (last run, status, duration, opportunities) |
-| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Returns `{ runId, status: 'RUNNING' }` |
+| `/api/pipelines` | GET | Lists all pipeline types with metadata (last run, status, duration, opportunities) |
+| `/api/pipelines/[type]/run` | POST | Spawns Python subprocess for pipeline type. Accepts optional `{ tickers: string[] }` body to run on specific tickers (CSP Enhanced). Returns `{ runId, status: 'RUNNING' }` |
 | `/api/pipelines/[type]/status/[runId]` | GET | Status of a specific pipeline run (in-memory + DB fallback) |
 | `/api/pipelines/[type]/history` | GET | Run history for pipeline type. Query: `?limit=10` |
 | `/api/pipelines/events/[runId]` | GET | SSE streaming for real-time pipeline progress (polls 500ms, 15-min timeout) |
+
+## Watchlists
+
+Ticker watchlists stored in MongoDB, used by Python pipelines to determine which tickers to scan.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/watchlists` | GET | List all watchlists (add `?full=true` to include batches). Without `full`, batches are omitted for performance |
+| `/api/watchlists` | POST | Create watchlist: `{ slug, name, batches: { batch_1: ["AAPL", ...] } }` |
+| `/api/watchlists` | PATCH | Update watchlist: `{ id, batches?, name? }`. Auto-recomputes `tickerCount` |
+| `/api/watchlists` | DELETE | Delete watchlist by `?id=` |
+| `/api/watchlists/batches/[slug]` | GET | Returns raw batches object for a watchlist slug (e.g., `main-batches`). Consumed directly by Python pipelines via `ticker_loader.py` |
+
+Seeded watchlists:
+- `main-batches` — ~4,000 tickers in 4 batches (used by all pipelines)
+- `sp-nasdaq` — ~500 S&P 500 / NASDAQ tickers (used by CSP screeners for quality scoring)
 
 ## Market Data (Polygon.io)
 

@@ -689,32 +689,6 @@ export interface BollingerBandPosition {
   position: 'below_lower' | 'below_sma' | 'above_sma' | 'above_upper';
 }
 
-// PCS Screener
-export interface PcsOpportunity {
-  ticker: string;
-  company_name: string;
-  sector: string;
-  market_cap: number;
-  current_price: number;
-  short_strike: number;
-  long_strike: number;
-  expiration: string;
-  dte: number;
-  delta: number;
-  premium: number;
-  open_interest: number;
-  volume: number;
-  implied_volatility: number;
-  spread_width: number;
-  max_loss: number;
-  max_profit: number;
-  return_on_risk_pct: number;
-  annualized_ror_pct: number;
-  break_even: number;
-  probability_of_profit: number;
-  score?: number;
-}
-
 // Aggressive Options
 export interface BestContract {
   ticker: string;
@@ -751,72 +725,12 @@ export interface ScreenerTickerChanges {
 
 export type ScreenerChangeStatus = 'same' | 'new' | 'removed';
 
-// Swing Trades
-export type SwingSignalType = 'LONG' | 'SHORT';
-export type SwingConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
-export type SwingStrategy =
-  | 'EMA Support Bounce'
-  | 'Golden Cross Setup'
-  | 'EMA Resistance Rejection'
-  | 'Death Cross Setup';
-
-export interface SwingSignal {
-  ticker: string;
-  signal_type: SwingSignalType;
-  strategy: SwingStrategy;
-  entry_price: number;
-  confidence: SwingConfidence;
-  stop_loss: number;
-  target: number;
-  risk_reward_ratio: number;
-  volume: number;
-  details: string;
-}
-
-export interface SwingTradeResults {
-  long_signals: SwingSignal[];
-  short_signals: SwingSignal[];
-  timestamp?: string;
-}
-
-// Chart Setups
-export interface SlopeData {
-  slope: number;
-  trend: 'strong_upward' | 'moderate_upward' | 'flat' | 'moderate_downward' | 'strong_downward';
-  percent_change?: number;
-}
-
-export interface ChartSetup {
-  ticker: string;
-  company_name: string;
-  industry: string;
-  current_close: number;
-  sma_200: number;
-  ema_9: number;
-  ema_21: number;
-  percent_below_sma_200: number;
-  percent_above_ema_9: number;
-  percent_above_ema_21?: number;
-  sma_200_slope: SlopeData;
-  ema_9_slope: SlopeData;
-  ema_21_slope: SlopeData;
-}
-
-export interface ChartSetupResults {
-  timestamp: string;
-  total_setups_found: number;
-  chart_setups: ChartSetup[];
-}
-
 // ==================== Pipeline Types ====================
 
 export type PipelineType =
   | 'AGGRESSIVE_OPTIONS'
   | 'CSP_SCREENER'
-  | 'CSP_ENHANCED'
-  | 'PCS_SCREENER'
-  | 'CHART_SETUPS'
-  | 'SWING_TRADES';
+  | 'CSP_ENHANCED';
 
 export type PipelineRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
@@ -846,14 +760,14 @@ export interface PipelineRunRecord {
 
 // ==================== Screener Hub Types ====================
 
-export type ScreenerTab = 'csp' | 'pcs' | 'aggressive' | 'charts' | 'swing';
+export type ScreenerTab = 'csp' | 'aggressive';
 
 export interface ScreenerFilters {
   // Common
   minScore: number;
   sector: string;
   tickerSearch: string;
-  // CSP/PCS
+  // CSP
   minDelta: number;
   maxDelta: number;
   minDte: number;
@@ -862,20 +776,10 @@ export interface ScreenerFilters {
   minIv: number;
   minOi: number;
   minMarketCap: string;
-  minPop: number;
-  // PCS
-  maxSpreadWidth: number;
   // Aggressive
   maxRsi: number;
   minRsi: number;
   minVolume: number;
-  // Charts
-  slopeDirection: 'any' | 'upward' | 'flat' | 'downward';
-  maxPctBelowSma: number;
-  // Swing
-  confidence: SwingConfidence[];
-  minRiskReward: number;
-  swingStrategy: string;
 }
 
 export interface ScreenerPreset {
@@ -884,4 +788,15 @@ export interface ScreenerPreset {
   tagline: string;
   color: string;
   filters: Partial<ScreenerFilters>;
+}
+
+// Watchlist — ticker batches stored in MongoDB
+export interface Watchlist {
+  id: string;
+  slug: string;
+  name: string;
+  batches: Record<string, string[]>;
+  tickerCount: number;
+  createdAt: string;
+  updatedAt: string;
 }

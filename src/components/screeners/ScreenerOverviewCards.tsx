@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { OpportunityScoreBadge } from './OpportunityScoreBadge';
-import type { CspOpportunity, PcsOpportunity, ScreenerTab } from '@/types';
+import type { CspOpportunity, ScreenerTab } from '@/types';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -15,8 +15,6 @@ function formatCurrency(value: number): string {
 
 interface ScreenerOverviewCardsProps {
   topCsp: CspOpportunity | null;
-  topPcs: PcsOpportunity | null;
-  confluenceTickers: string[];
   pipelineHealth: { recent: number; total: number; failed: number; stale: number };
   totalOpportunities: number;
   onTabChange: (tab: ScreenerTab) => void;
@@ -24,14 +22,12 @@ interface ScreenerOverviewCardsProps {
 
 export function ScreenerOverviewCards({
   topCsp,
-  topPcs,
-  confluenceTickers,
   pipelineHealth,
   totalOpportunities,
   onTabChange,
 }: ScreenerOverviewCardsProps) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 gap-3">
       {/* Top CSP Pick */}
       <button
         onClick={() => onTabChange('csp')}
@@ -52,55 +48,6 @@ export function ScreenerOverviewCards({
           </>
         ) : (
           <p className="text-sm text-muted">No data</p>
-        )}
-      </button>
-
-      {/* Top PCS Pick */}
-      <button
-        onClick={() => onTabChange('pcs')}
-        className="glass-card p-4 text-left hover:border-purple-500/30 transition-colors"
-      >
-        <p className="text-[11px] text-muted uppercase tracking-wider font-medium mb-2">Top PCS Pick</p>
-        {topPcs ? (
-          <>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-lg font-bold text-foreground">{topPcs.ticker}</span>
-              <OpportunityScoreBadge score={topPcs.score} size="sm" />
-            </div>
-            <div className="flex items-center gap-3 text-xs text-muted">
-              <span>{formatCurrency(topPcs.short_strike)}/{formatCurrency(topPcs.long_strike)}</span>
-              <span className="text-profit font-medium">{topPcs.return_on_risk_pct.toFixed(1)}%</span>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-muted">No data</p>
-        )}
-      </button>
-
-      {/* Swing Confluence */}
-      <button
-        onClick={() => onTabChange('swing')}
-        className="glass-card p-4 text-left hover:border-cyan-500/30 transition-colors"
-      >
-        <p className="text-[11px] text-muted uppercase tracking-wider font-medium mb-2">Swing Confluence</p>
-        {confluenceTickers.length > 0 ? (
-          <>
-            <p className="text-lg font-bold text-foreground mb-1.5">
-              {confluenceTickers.length} ticker{confluenceTickers.length !== 1 ? 's' : ''}
-            </p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {confluenceTickers.slice(0, 4).map((t) => (
-                <span key={t} className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-cyan-500/15 text-cyan-400">
-                  {t}
-                </span>
-              ))}
-              {confluenceTickers.length > 4 && (
-                <span className="text-xs text-muted">+{confluenceTickers.length - 4}</span>
-              )}
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-muted">No confluence detected</p>
         )}
       </button>
 

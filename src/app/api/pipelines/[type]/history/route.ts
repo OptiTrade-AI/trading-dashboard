@@ -9,7 +9,7 @@ export async function GET(
   const { type } = await params;
   const pipelineType = type.toUpperCase();
 
-  const VALID_TYPES = ['CSP_ENHANCED', 'PCS_SCREENER', 'AGGRESSIVE_OPTIONS', 'CHART_SETUPS', 'SWING_TRADES'];
+  const VALID_TYPES = ['CSP_ENHANCED', 'AGGRESSIVE_OPTIONS'];
   if (!VALID_TYPES.includes(pipelineType)) {
     return NextResponse.json({ error: `Invalid pipeline type: ${pipelineType}` }, { status: 400 });
   }

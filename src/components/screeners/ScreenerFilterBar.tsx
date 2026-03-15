@@ -16,16 +16,9 @@ export const defaultScreenerFilters: ScreenerFilters = {
   minIv: 0,
   minOi: 0,
   minMarketCap: 'any',
-  minPop: 0,
-  maxSpreadWidth: 999,
   maxRsi: 100,
   minRsi: 0,
   minVolume: 0,
-  slopeDirection: 'any',
-  maxPctBelowSma: 100,
-  confidence: ['HIGH', 'MEDIUM', 'LOW'],
-  minRiskReward: 0,
-  swingStrategy: 'all',
 };
 
 const CSP_PRESETS: ScreenerPreset[] = [
@@ -34,27 +27,8 @@ const CSP_PRESETS: ScreenerPreset[] = [
   { key: 'conviction', label: 'High Conviction', tagline: 'Score 80+, large cap', color: 'purple', filters: { minScore: 80, minMarketCap: '10B' } },
 ];
 
-const PCS_PRESETS: ScreenerPreset[] = [
-  { key: 'low-risk', label: 'Low Risk', tagline: 'High PoP, tight spread', color: 'emerald', filters: { minPop: 0.7, maxSpreadWidth: 5 } },
-  { key: 'balanced', label: 'Balanced', tagline: 'Moderate ROR & DTE', color: 'blue', filters: { minRor: 5, minDte: 14, maxDte: 45 } },
-  { key: 'aggressive', label: 'Aggressive', tagline: 'High ROR, any DTE', color: 'amber', filters: { minRor: 15 } },
-];
-
-const SWING_PRESETS: ScreenerPreset[] = [
-  { key: 'high-conf', label: 'High Confidence', tagline: 'HIGH only', color: 'emerald', filters: { confidence: ['HIGH'] } },
-  { key: 'good-rr', label: 'Good R:R', tagline: '≥ 2.0 risk-reward', color: 'blue', filters: { minRiskReward: 2 } },
-];
-
-const CHARTS_PRESETS: ScreenerPreset[] = [
-  { key: 'uptrend', label: 'Strong Uptrend', tagline: 'All slopes up', color: 'emerald', filters: { slopeDirection: 'upward' } },
-  { key: 'support', label: 'Near Support', tagline: 'Below SMA 200', color: 'amber', filters: { maxPctBelowSma: 100, slopeDirection: 'any' } },
-];
-
 const PRESETS_BY_TAB: Partial<Record<ScreenerTab, ScreenerPreset[]>> = {
   csp: CSP_PRESETS,
-  pcs: PCS_PRESETS,
-  swing: SWING_PRESETS,
-  charts: CHARTS_PRESETS,
 };
 
 const MARKET_CAP_OPTIONS = [
@@ -119,10 +93,7 @@ export function ScreenerFilterBar({
                   'shrink-0 px-3 py-2 rounded-xl text-left transition-all border',
                   isActive
                     ? cn(colors.bg, colors.border, colors.text, 'ring-1',
-                        activeTab === 'csp' ? 'ring-emerald-500/30' :
-                        activeTab === 'pcs' ? 'ring-purple-500/30' :
-                        activeTab === 'aggressive' ? 'ring-amber-500/30' :
-                        activeTab === 'charts' ? 'ring-blue-500/30' : 'ring-cyan-500/30',
+                        activeTab === 'csp' ? 'ring-emerald-500/30' : 'ring-amber-500/30',
                       )
                     : 'bg-card-solid/30 border-border/50 text-muted hover:text-foreground hover:bg-card-solid/60',
                 )}
@@ -161,8 +132,8 @@ export function ScreenerFilterBar({
           />
         </div>
 
-        {/* CSP/PCS filters */}
-        {(activeTab === 'csp' || activeTab === 'pcs') && (
+        {/* CSP filters */}
+        {activeTab === 'csp' && (
           <>
             <div className="space-y-1">
               <label className="text-xs text-muted uppercase tracking-wider">Delta</label>
@@ -212,12 +183,6 @@ export function ScreenerFilterBar({
                 onChange={(e) => update({ minScore: parseInt(e.target.value) || 0 })}
                 className={cn(inputClass, 'w-[75px]')} />
             </div>
-          </>
-        )}
-
-        {/* CSP-only: Market Cap & Sector */}
-        {activeTab === 'csp' && (
-          <>
             <div className="space-y-1">
               <label className="text-xs text-muted uppercase tracking-wider">Mkt Cap</label>
               <select value={filters.minMarketCap}
@@ -248,61 +213,6 @@ export function ScreenerFilterBar({
               <input type="number" min="0" value={filters.minVolume}
                 onChange={(e) => update({ minVolume: parseInt(e.target.value) || 0 })}
                 className={cn(inputClass, 'w-[90px]')} />
-            </div>
-          </>
-        )}
-
-        {/* Charts filters */}
-        {activeTab === 'charts' && (
-          <>
-            <div className="space-y-1">
-              <label className="text-xs text-muted uppercase tracking-wider">Slope</label>
-              <select value={filters.slopeDirection}
-                onChange={(e) => update({ slopeDirection: e.target.value as ScreenerFilters['slopeDirection'] })}
-                className={cn(inputClass, 'w-[110px]')}>
-                <option value="any">Any</option>
-                <option value="upward">Upward</option>
-                <option value="flat">Flat</option>
-                <option value="downward">Downward</option>
-              </select>
-            </div>
-          </>
-        )}
-
-        {/* Swing filters */}
-        {activeTab === 'swing' && (
-          <>
-            <div className="space-y-1">
-              <label className="text-xs text-muted uppercase tracking-wider">Min R:R</label>
-              <input type="number" step="0.1" min="0" value={filters.minRiskReward}
-                onChange={(e) => update({ minRiskReward: parseFloat(e.target.value) || 0 })}
-                className={cn(inputClass, 'w-[75px]')} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted uppercase tracking-wider">Confidence</label>
-              <div className="flex items-center gap-1">
-                {(['HIGH', 'MEDIUM', 'LOW'] as const).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => {
-                      const next = filters.confidence.includes(c)
-                        ? filters.confidence.filter((x) => x !== c)
-                        : [...filters.confidence, c];
-                      if (next.length > 0) update({ confidence: next });
-                    }}
-                    className={cn(
-                      'px-2 py-1 text-[10px] font-bold rounded-md border transition-colors',
-                      filters.confidence.includes(c)
-                        ? c === 'HIGH' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                          : c === 'MEDIUM' ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'
-                          : 'bg-red-500/15 border-red-500/30 text-red-400'
-                        : 'bg-card-solid/30 border-border/50 text-muted',
-                    )}
-                  >
-                    {c[0]}
-                  </button>
-                ))}
-              </div>
             </div>
           </>
         )}
